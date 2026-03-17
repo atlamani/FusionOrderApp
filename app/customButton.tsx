@@ -1,81 +1,93 @@
-import { useFonts } from "expo-font";
 import { Href, router } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, TextStyle, TouchableOpacity, ViewStyle } from "react-native";
+import {
+  Linking,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextStyle,
+  TouchableOpacity,
+  ViewStyle,
+} from "react-native";
+import { colors, typography } from "./theme";
 
 type CustomButtonProps = {
-    title: string;
-    onPress?: () => void;
-    href: Href;
-    disabled?: boolean;
-    style?: ViewStyle | ViewStyle[];
-    textStyle?: TextStyle | TextStyle[];
+  title: string;
+  onPress?: () => void;
+  href?: Href | string;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 };
 
 export const CustomButton = ({
-    title,
-    onPress,
-    href,
-    disabled = false,
-    style,
-    textStyle,
+  title,
+  onPress,
+  href,
+  disabled = false,
+  style,
+  textStyle,
 }: CustomButtonProps) => {
-    const  [fontsLoaded] = useFonts ({
-        "ConcertOne-Regular": require("../assets/Fonts/ConcertOne-Regular.ttf")
-    });
-    
-    if (!fontsLoaded) {
-        return null;
+  const handlePress = async () => {
+    if (disabled) {
+      return;
     }
 
-    const handlePress = () => {
-        if (onPress) {
-            onPress();
-        }
+    onPress?.();
 
-        router.push(href);
-    };
+    if (!href) {
+      return;
+    }
 
-    return (
-        <TouchableOpacity
-            style={[styles.button, style, disabled && styles.disabled]}
-            onPress={handlePress}
-            disabled={disabled}
-        >
-            <Text style={[styles.text, textStyle]}>{title}</Text>
-        </TouchableOpacity>
-    );
+    if (typeof href === "string" && /^https?:\/\//.test(href)) {
+      await Linking.openURL(href);
+      return;
+    }
+
+    router.push(href as Href);
+  };
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.88}
+      style={[styles.button, disabled && styles.disabled, style]}
+      onPress={handlePress}
+      disabled={disabled}
+    >
+      <Text style={[styles.text, disabled && styles.textDisabled, textStyle]}>{title}</Text>
+    </TouchableOpacity>
+  );
 };
 
 const styles = StyleSheet.create({
-    button: {
-        display: 'flex',
-        backgroundColor: '#3A4D39',
-        width: 350,
-        height: 50,
-        paddingTop: 17,
-        paddingBottom: 9,
-        paddingHorizontal: 0,
-        justifyContent: 'center',
-        alignItems: 'center',
-        flexShrink: 0,
-        borderRadius: 15,
-    }, 
-
-    disabled: {
-        backgroundColor: '#739072',
-    },
-
-    text: {
-        width: 44,
-        height: 24,
-        flexShrink: 0,
-        color: 'black',
-        textAlign: 'center',
-        fontFamily: 'ConcertOne-Regular',
-        fontSize: 16,
-        lineHeight: undefined,
-    },
+  button: {
+    minHeight: 54,
+    width: "100%",
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  disabled: {
+    backgroundColor: colors.surface,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  text: {
+    color: colors.background,
+    fontFamily: typography.display,
+    fontSize: 16,
+    textAlign: "center",
+  },
+  textDisabled: {
+    opacity: 0.8,
+  },
 });
 
 export default CustomButton;
