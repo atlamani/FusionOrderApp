@@ -21,7 +21,7 @@ export default function MenuScreen() {
           <Image source={require("../assets/images/Tacos.png")} style={styles.heroImage} />
           <View style={styles.heroBody}>
             <Text style={styles.restaurantName}>Taqueria La Mexicana</Text>
-            <Text style={styles.restaurantMeta}>4.6/5 • 15-20 minutes • Mexican</Text>
+            <Text style={styles.restaurantMeta}>4.6/5 · 15-20 minutes · Mexican</Text>
             <Text style={styles.restaurantCopy}>
               Street-style tacos, burrito bowls, and late-night comfort food inspired by the Figma
               menu flow.
@@ -55,7 +55,7 @@ export default function MenuScreen() {
         ))}
 
         <Pressable style={styles.checkoutButton} onPress={() => router.push("/checkout")}>
-          <Text style={styles.checkoutButtonText}>View Cart • $16.08</Text>
+          <Text style={styles.checkoutButtonText}>View Cart · $16.08</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

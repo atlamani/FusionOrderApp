@@ -38,6 +38,20 @@ export type OrderHistoryEntry = {
   accent: string;
 };
 
+export type FavoriteSpot = {
+  id: string;
+  restaurantId: string;
+  note: string;
+  orderHint: string;
+};
+
+export type ProfileShortcut = {
+  id: string;
+  label: string;
+  detail: string;
+  icon: "map-pin" | "clock" | "gift" | "settings";
+};
+
 export const featuredRestaurants: Restaurant[] = [
   {
     id: "featured-1",
@@ -235,7 +249,7 @@ export const orderHistory = [
     id: "ORD-2026-002",
     restaurant: "Tokyo Sushi Bar",
     status: "Delivered",
-    date: "March 2, 2026 • Delivered at 7:45 PM",
+    date: "March 2, 2026 · Delivered at 7:45 PM",
     total: "$28.99",
     items: ["Sushi Platter x1", "Miso Soup x2"],
     accent: "#016630",
@@ -244,7 +258,7 @@ export const orderHistory = [
     id: "ORD-2026-003",
     restaurant: "Pizzeria Bella",
     status: "Delivered",
-    date: "March 1, 2026 • Delivered at 6:30 PM",
+    date: "March 1, 2026 · Delivered at 6:30 PM",
     total: "$22.98",
     items: ["Margherita Pizza x1", "Caesar Salad x1"],
     accent: "#016630",
@@ -253,7 +267,7 @@ export const orderHistory = [
     id: "ORD-2026-004",
     restaurant: "Burger Palace",
     status: "Delivered",
-    date: "February 28, 2026 • Delivered at 8:15 PM",
+    date: "February 28, 2026 · Delivered at 8:15 PM",
     total: "$34.97",
     items: ["Classic Burger x2", "Fries x2", "Milkshake x1"],
     accent: "#016630",
@@ -262,9 +276,57 @@ export const orderHistory = [
     id: "ORD-2026-005",
     restaurant: "Thai Spice",
     status: "Cancelled",
-    date: "February 27, 2026 • Cancelled",
+    date: "February 27, 2026 · Cancelled",
     total: "$18.99",
     items: ["Pad Thai x1", "Spring Rolls x1"],
     accent: "#9f0712",
   },
 ] satisfies OrderHistoryEntry[];
+
+export const favoriteSpots = [
+  {
+    id: "favorite-1",
+    restaurantId: "featured-1",
+    note: "Your Friday comfort-food favorite with fast delivery and big slices.",
+    orderHint: "Reorder pepperoni pie",
+  },
+  {
+    id: "favorite-2",
+    restaurantId: "featured-2",
+    note: "Great for lunch runs and the closest match to the current menu flow.",
+    orderHint: "Open taco menu",
+  },
+  {
+    id: "favorite-3",
+    restaurantId: "nearby-1",
+    note: "Dessert pick for late-night cravings and sweet add-ons.",
+    orderHint: "Browse sweets",
+  },
+] satisfies FavoriteSpot[];
+
+export const profileShortcuts = [
+  {
+    id: "address",
+    label: "Delivery Address",
+    detail: "1855 Broadway, New York, NY 10023",
+    icon: "map-pin",
+  },
+  {
+    id: "recent",
+    label: "Recent Activity",
+    detail: "Track current orders and review past meals",
+    icon: "clock",
+  },
+  {
+    id: "rewards",
+    label: "Rewards Club",
+    detail: "Earn points on every mock order in this prototype",
+    icon: "gift",
+  },
+  {
+    id: "settings",
+    label: "Preferences",
+    detail: "Notification and account controls coming next",
+    icon: "settings",
+  },
+] satisfies ProfileShortcut[];
