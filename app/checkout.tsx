@@ -122,7 +122,7 @@ export default function CheckoutScreen() {
 
       <View style={styles.footer}>
         <Pressable style={styles.footerButton} onPress={() => router.push("/payment")}>
-          <Text style={styles.footerButtonText}>Proceed to Payment • {checkoutOrder.summary.total}</Text>
+          <Text style={styles.footerButtonText}>Proceed to Payment · {checkoutOrder.summary.total}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

@@ -14,7 +14,9 @@ function BrandMark({ brand }: { brand: string }) {
     return (
       <View style={styles.mastercardWrap}>
         <View style={[styles.mastercardCircle, { backgroundColor: "#EF4444" }]} />
-        <View style={[styles.mastercardCircle, styles.mastercardOverlap, { backgroundColor: "#F59E0B" }]} />
+        <View
+          style={[styles.mastercardCircle, styles.mastercardOverlap, { backgroundColor: "#F59E0B" }]}
+        />
       </View>
     );
   }
@@ -36,12 +38,15 @@ export default function PaymentScreen() {
 
         <View style={styles.card}>
           <View style={styles.rowHeader}>
-            <Text style={styles.cardTitle}>Saved Cards (3)</Text>
+            <Text style={styles.cardTitle}>Saved Cards ({savedCards.length})</Text>
             <Feather name="chevron-up" size={20} color={colors.text} />
           </View>
           <View style={styles.savedCardsList}>
-            {savedCards.map((card) => (
-              <View key={card.id} style={styles.savedCard}>
+            {savedCards.map((card, index) => (
+              <View
+                key={card.id}
+                style={[styles.savedCard, index === 0 ? styles.savedCardSelected : undefined]}
+              >
                 <View style={styles.savedCardLeft}>
                   <BrandMark brand={card.brand} />
                   <View style={styles.savedCardCopy}>
@@ -49,7 +54,14 @@ export default function PaymentScreen() {
                     <Text style={styles.savedCardMeta}>**** **** **** {card.last4}</Text>
                   </View>
                 </View>
-                <Text style={styles.savedCardExpiry}>{card.expiry}</Text>
+                <View style={styles.savedCardRight}>
+                  <Text style={styles.savedCardExpiry}>{card.expiry}</Text>
+                  {index === 0 ? (
+                    <View style={styles.selectedDot} />
+                  ) : (
+                    <View style={styles.unselectedDot} />
+                  )}
+                </View>
               </View>
             ))}
           </View>
@@ -78,7 +90,9 @@ export default function PaymentScreen() {
             </View>
           </View>
           <View style={styles.checkboxRow}>
-            <View style={styles.checkbox} />
+            <View style={styles.checkbox}>
+              <Feather name="check" size={12} color={colors.surfaceDeep} />
+            </View>
             <Text style={styles.checkboxLabel}>Save this card for future purchases</Text>
           </View>
         </View>
@@ -90,13 +104,16 @@ export default function PaymentScreen() {
               <Text style={styles.enableButtonText}>Enable</Text>
             </Pressable>
           </View>
+          <Text style={styles.splitPayCopy}>
+            Invite a friend to cover drinks or dessert. This stays mock-only in the prototype.
+          </Text>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Order Summary</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>$0.00</Text>
+            <Text style={styles.summaryValue}>{checkoutOrder.summary.subtotal}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Delivery Fee</Text>
@@ -104,16 +121,16 @@ export default function PaymentScreen() {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Taxes</Text>
-            <Text style={styles.summaryValue}>$0.00</Text>
+            <Text style={styles.summaryValue}>{checkoutOrder.summary.taxes}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Tip (10%)</Text>
-            <Text style={styles.summaryValue}>$0.00</Text>
+            <Text style={styles.summaryLabel}>Tip ({checkoutOrder.selectedTip})</Text>
+            <Text style={styles.summaryValue}>{checkoutOrder.summary.driverTip}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>$5.00</Text>
+            <Text style={styles.totalValue}>{checkoutOrder.summary.total}</Text>
           </View>
         </View>
       </ScrollView>
@@ -195,13 +212,19 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   savedCard: {
-    minHeight: 68,
-    borderRadius: 14,
+    minHeight: 72,
+    borderRadius: 16,
     backgroundColor: colors.background,
     paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  savedCardSelected: {
+    borderColor: colors.surface,
   },
   savedCardLeft: {
     flexDirection: "row",
@@ -221,10 +244,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(0,0,0,0.6)",
   },
+  savedCardRight: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
   savedCardExpiry: {
     fontFamily: typography.body,
     fontSize: 12,
     color: "rgba(0,0,0,0.6)",
+  },
+  selectedDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.surface,
+  },
+  unselectedDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.25)",
+    backgroundColor: colors.white,
   },
   brandRow: {
     flexDirection: "row",
@@ -251,7 +292,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 14,
     backgroundColor: colors.background,
-    borderWidth: 0.638,
+    borderWidth: 1,
     borderColor: "rgba(0,0,0,0.1)",
     justifyContent: "center",
     paddingHorizontal: 16,
@@ -278,9 +319,13 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.4)",
+    borderColor: "rgba(0,0,0,0.15)",
+    backgroundColor: colors.background,
+    justifyContent: "center",
+    alignItems: "center",
   },
   checkboxLabel: {
+    flex: 1,
     fontFamily: typography.body,
     fontSize: 14,
     color: "rgba(0,0,0,0.7)",
@@ -290,7 +335,7 @@ const styles = StyleSheet.create({
     minHeight: 37,
     borderRadius: 14,
     backgroundColor: colors.background,
-    borderWidth: 0.638,
+    borderWidth: 1,
     borderColor: "rgba(0,0,0,0.1)",
     justifyContent: "center",
     alignItems: "center",
@@ -300,6 +345,12 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 14,
     color: colors.text,
+  },
+  splitPayCopy: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(0,0,0,0.7)",
   },
   summaryRow: {
     flexDirection: "row",

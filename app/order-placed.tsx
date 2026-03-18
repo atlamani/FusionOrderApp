@@ -1,39 +1,41 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { colors, typography } from "./theme";
 
 export default function OrderPlacedScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.successIcon}>
           <Feather name="check" size={34} color={colors.surface} />
         </View>
 
         <View style={styles.messageBlock}>
           <Text style={styles.title}>Congratulations</Text>
-          <Text style={styles.subtitle}>You placed an order</Text>
+          <Text style={styles.subtitle}>You placed an order.</Text>
           <Text style={styles.subtitle}>Enjoy!</Text>
         </View>
 
         <View style={styles.rewardCard}>
-          <Text style={styles.rewardTitle}>Start Earning Rewards! 🎁</Text>
+          <Text style={styles.rewardTitle}>Start Earning Rewards</Text>
           <Text style={styles.rewardCopy}>
-            Get POINTS every time you order from our app for future rewards. Just enter your email
-            to start earning on this order!
+            Get points every time you order from FusionYum. Add your email to start earning on
+            this mock order too.
           </Text>
           <TextInput
             style={styles.emailInput}
             value=""
-            placeholder="Enter Your Email"
-            placeholderTextColor="rgba(0,0,0,0.5)"
+            placeholder="Enter your email"
+            placeholderTextColor="rgba(0,0,0,0.45)"
           />
           <View style={styles.checkboxRow}>
-            <View style={styles.checkbox} />
+            <View style={styles.checkbox}>
+              <Feather name="check" size={12} color={colors.surfaceDeep} />
+            </View>
             <Text style={styles.checkboxLabel}>
-              By checking this box, you agree to sign up using the information provided
+              I agree to join the rewards list with the contact information above.
             </Text>
           </View>
           <Pressable style={styles.rewardButton}>
@@ -42,14 +44,18 @@ export default function OrderPlacedScreen() {
         </View>
 
         <View style={styles.footerCopy}>
-          <Text style={styles.footerText}>Thank You for your support.</Text>
-          <Text style={styles.footerText}>See you next time!</Text>
+          <Text style={styles.footerText}>Thank you for your support.</Text>
+          <Text style={styles.footerText}>See you next time.</Text>
         </View>
+
+        <Pressable style={styles.trackButton} onPress={() => router.replace("/activity")}>
+          <Text style={styles.trackButtonText}>Track Order</Text>
+        </Pressable>
 
         <Pressable style={styles.homeButton} onPress={() => router.replace("/home")}>
           <Text style={styles.homeButtonText}>Back to Home</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -59,29 +65,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  container: {
-    flex: 1,
+  content: {
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    gap: 22,
   },
   successIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     borderWidth: 4,
     borderColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: colors.white,
   },
   messageBlock: {
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   title: {
     fontFamily: typography.display,
-    fontSize: 36,
+    fontSize: 38,
     color: colors.text,
     textAlign: "center",
   },
@@ -95,7 +103,7 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: colors.white,
     borderRadius: 24,
-    padding: 24,
+    padding: 22,
     gap: 16,
     shadowColor: "#000",
     shadowOpacity: 0.1,
@@ -105,25 +113,25 @@ const styles = StyleSheet.create({
   },
   rewardTitle: {
     fontFamily: typography.display,
-    fontSize: 18,
+    fontSize: 22,
     color: colors.text,
   },
   rewardCopy: {
     fontFamily: typography.body,
     fontSize: 14,
     lineHeight: 20,
-    color: "rgba(0,0,0,0.7)",
+    color: "rgba(0,0,0,0.72)",
   },
   emailInput: {
-    minHeight: 48,
+    minHeight: 50,
     borderRadius: 14,
     backgroundColor: colors.background,
-    borderWidth: 0.638,
+    borderWidth: 1,
     borderColor: "rgba(0,0,0,0.1)",
     paddingHorizontal: 16,
     fontFamily: typography.body,
     fontSize: 14,
-    color: "rgba(0,0,0,0.5)",
+    color: colors.text,
   },
   checkboxRow: {
     flexDirection: "row",
@@ -131,24 +139,27 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   checkbox: {
-    width: 16,
-    height: 16,
+    width: 18,
+    height: 18,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.4)",
-    marginTop: 3,
+    borderColor: "rgba(0,0,0,0.15)",
+    backgroundColor: colors.background,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 1,
   },
   checkboxLabel: {
     flex: 1,
     fontFamily: typography.body,
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 17,
     color: "rgba(0,0,0,0.7)",
   },
   rewardButton: {
     minHeight: 48,
     borderRadius: 14,
-    backgroundColor: "rgba(115,144,114,0.5)",
+    backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -159,19 +170,35 @@ const styles = StyleSheet.create({
   },
   footerCopy: {
     alignItems: "center",
-    gap: 12,
+    gap: 4,
   },
   footerText: {
     fontFamily: typography.display,
-    fontSize: 20,
+    fontSize: 19,
     color: colors.text,
     textAlign: "center",
   },
-  homeButton: {
-    minWidth: 192,
-    minHeight: 48,
+  trackButton: {
+    width: "100%",
+    minHeight: 50,
     borderRadius: 14,
     backgroundColor: colors.surfaceDeep,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  trackButtonText: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.white,
+  },
+  homeButton: {
+    width: "100%",
+    minHeight: 50,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -179,6 +206,6 @@ const styles = StyleSheet.create({
   homeButtonText: {
     fontFamily: typography.display,
     fontSize: 16,
-    color: colors.white,
+    color: colors.text,
   },
 });

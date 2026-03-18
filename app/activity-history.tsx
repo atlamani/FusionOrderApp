@@ -32,7 +32,10 @@ export default function ActivityHistoryScreen() {
           return (
             <View key={order.id} style={styles.orderCard}>
               <View style={styles.orderTop}>
-                <Text style={styles.orderRestaurant}>{order.restaurant}</Text>
+                <View style={styles.orderCopy}>
+                  <Text style={styles.orderRestaurant}>{order.restaurant}</Text>
+                  <Text style={styles.orderDate}>{order.date}</Text>
+                </View>
                 <View
                   style={[
                     styles.statusBadge,
@@ -40,7 +43,7 @@ export default function ActivityHistoryScreen() {
                   ]}
                 >
                   <Feather
-                    name={delivered ? "check-circle" : "package"}
+                    name={delivered ? "check-circle" : "slash"}
                     size={16}
                     color={order.accent}
                   />
@@ -48,18 +51,21 @@ export default function ActivityHistoryScreen() {
                 </View>
               </View>
 
-              <Text style={styles.orderDate}>{order.date}</Text>
-              {order.items.map((item) => (
-                <Text key={item} style={styles.orderItem}>
-                  • {item}
-                </Text>
-              ))}
+              <View style={styles.itemsWrap}>
+                {order.items.map((item) => (
+                  <Text key={item} style={styles.orderItem}>
+                    • {item}
+                  </Text>
+                ))}
+              </View>
 
-              <Text style={styles.orderTotal}>{order.total}</Text>
-              <Text style={styles.orderId}>Order #{order.id}</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.orderTotal}>{order.total}</Text>
+                <Text style={styles.orderId}>Order #{order.id}</Text>
+              </View>
 
               <View style={styles.buttonRow}>
-                <Pressable style={styles.reorderButton}>
+                <Pressable style={styles.reorderButton} onPress={() => router.push("/menu")}>
                   <Text style={styles.reorderButtonText}>Reorder</Text>
                 </Pressable>
                 <Pressable style={styles.receiptButton}>
@@ -149,7 +155,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 24,
     padding: 16,
-    gap: 10,
+    gap: 14,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 15,
@@ -159,13 +165,22 @@ const styles = StyleSheet.create({
   orderTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
+  },
+  orderCopy: {
+    flex: 1,
+    gap: 4,
   },
   orderRestaurant: {
     fontFamily: typography.display,
     fontSize: 18,
     color: colors.text,
+  },
+  orderDate: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: "rgba(0,0,0,0.6)",
   },
   statusBadge: {
     minHeight: 28,
@@ -185,21 +200,23 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 12,
   },
-  orderDate: {
-    fontFamily: typography.body,
-    fontSize: 14,
-    color: "rgba(0,0,0,0.6)",
+  itemsWrap: {
+    gap: 6,
   },
   orderItem: {
     fontFamily: typography.body,
     fontSize: 14,
-    color: "rgba(0,0,0,0.7)",
+    color: "rgba(0,0,0,0.74)",
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   orderTotal: {
     fontFamily: typography.display,
     fontSize: 20,
     color: colors.surface,
-    marginTop: 6,
   },
   orderId: {
     fontFamily: typography.body,
@@ -209,11 +226,10 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: "row",
     gap: 8,
-    marginTop: 6,
   },
   reorderButton: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 42,
     borderRadius: 14,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -226,7 +242,7 @@ const styles = StyleSheet.create({
   },
   receiptButton: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 42,
     borderRadius: 14,
     backgroundColor: colors.background,
     justifyContent: "center",
