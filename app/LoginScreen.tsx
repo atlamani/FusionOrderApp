@@ -1,35 +1,55 @@
 import { Feather } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import AuthScreenLayout from "./AuthScreenLayout";
-import SocialButton from "./socialButton";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
-import { usePrototypeState } from "./prototypeState";
+import { firebaseAuth } from "./Firebase/config";
+import SocialButton from "./socialButton";
 import { colors, spacing, typography } from "./theme";
 
 export default function LoginScreen() {
-  const { loginAsMember } = usePrototypeState();
+  // const { loginAsMember } = usePrototypeState();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const canSubmit = email.trim().length > 0 && password.trim().length > 0;
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!canSubmit) {
       setStatus("error");
+      setErrorMessage("Add both fields to continue");
       return;
     }
 
     setStatus("loading");
 
-    setTimeout(() => {
-      loginAsMember(email.trim());
+    try {
+      await firebaseAuth.signInWithEmailAndPassword(email.trim(), password);
+
       setStatus("success");
       router.push("/home");
-    }, 650);
+    } catch (error: any) {
+      setStatus("error");
+
+      if (
+        error.code === "auth/user-not-found" ||
+        error.code === "suth/wrong-password"
+      ) {
+        setErrorMessage("Invalid email or password");
+      } else if (error.code === "auth/invalid-email") {
+        setErrorMessage("That email address is invalid.");
+      } else {
+        setErrorMessage("An unexpected error occurred. Try again.");
+      }
+
+      console.error(error);
+    }
   };
 
   return (
@@ -42,18 +62,28 @@ export default function LoginScreen() {
         <View style={styles.actions}>
           <View style={styles.primaryBlock}>
             <View style={styles.helperCard}>
-              <Feather name="sparkles" size={16} color={colors.surfaceDeep} />
-              <Text style={styles.helperCardText}>Demo tip: any email and password will work here.</Text>
+              <Feather name="circle" size={16} color={colors.surfaceDeep} />
+              <Text style={styles.helperCardText}>
+                Demo tip: any email and password will work here.
+              </Text>
             </View>
 
-            {status === "error" ? <Text style={styles.errorText}>Add both fields to continue.</Text> : null}
+            {status === "error" ? (
+              <Text style={styles.errorText}>Add both fields to continue.</Text>
+            ) : null}
 
             <CustomButton
               title={status === "success" ? "Ready" : "Login"}
               onPress={handleLogin}
               disabled={!canSubmit && status !== "error"}
               loading={status === "loading"}
-              leftSlot={<Feather name="arrow-right" size={16} color={colors.background} />}
+              leftSlot={
+                <Feather
+                  name="arrow-right"
+                  size={16}
+                  color={colors.background}
+                />
+              }
             />
           </View>
 
@@ -68,26 +98,28 @@ export default function LoginScreen() {
               <SocialButton
                 brand="Facebook"
                 onPress={() => {
-                  loginAsMember("facebook@fusionyum.com");
+                  Alert.alert("Coming Soon!");
                   router.push("/home");
                 }}
               />
               <SocialButton
                 brand="Google"
                 onPress={() => {
-                  loginAsMember("google@fusionyum.com");
+                  Alert.alert("Coming Soon!");
                   router.push("/home");
                 }}
               />
               <SocialButton
                 brand="Apple"
                 onPress={() => {
-                  loginAsMember("apple@fusionyum.com");
+                  Alert.alert("Coming Soon!");
                   router.push("/home");
                 }}
               />
             </View>
-            <Text style={styles.socialHint}>Quick sign-in for the prototype flow.</Text>
+            <Text style={styles.socialHint}>
+              Quick sign-in for the prototype flow.
+            </Text>
           </View>
         </View>
       }
@@ -95,7 +127,9 @@ export default function LoginScreen() {
       <View style={styles.form}>
         <View style={styles.formIntro}>
           <Text style={styles.formTitle}>Login to your account</Text>
-          <Text style={styles.formSubtitle}>Keep your saved places, order history, and rewards in sync.</Text>
+          <Text style={styles.formSubtitle}>
+            Keep your saved places, order history, and rewards in sync.
+          </Text>
         </View>
 
         <CustomInput

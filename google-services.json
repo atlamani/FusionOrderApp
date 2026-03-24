@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "917688018866",
+    "project_id": "fusionyum",
+    "storage_bucket": "fusionyum.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:917688018866:android:b5e96eb06324ee7665e6ab",
+        "android_client_info": {
+          "package_name": "com.adrian.FusionYum"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "917688018866-i3r192scpd38ct2mfjm431fm6vkmp3q9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVwiptfhIir-vpa2dienVIYLpVL8KZ2ac"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "917688018866-i3r192scpd38ct2mfjm431fm6vkmp3q9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "917688018866-68jrl4ecibt33c0o9i5u90k7jeudr9s2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.adrian.FusionYum"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
