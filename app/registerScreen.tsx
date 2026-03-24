@@ -1,15 +1,20 @@
+import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import AuthScreenLayout from "./AuthScreenLayout";
+import SocialButton from "./socialButton";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
+import { usePrototypeState } from "./prototypeState";
 import { colors, spacing, typography } from "./theme";
 
 export default function RegisterScreen() {
+  const { loginAsMember } = usePrototypeState();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const passwordMatch = password.trim().length > 0 && password === confirm;
   const allFilled = Boolean(identifier.trim() && password.trim() && confirm.trim());
@@ -20,8 +25,11 @@ export default function RegisterScreen() {
       return;
     }
 
-    Alert.alert("Account created", `Using: ${identifier}`);
-    router.push("/LoginScreen");
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      router.push("/LoginScreen");
+    }, 650);
   };
 
   return (
@@ -29,65 +37,108 @@ export default function RegisterScreen() {
       backHref="/"
       eyebrow="FusionYum"
       title="Create account"
-      subtitle="Set up your profile to save favorites and revisit the restaurants you love."
+      subtitle="Set up your profile to save favorites, unlock rewards, and keep your go-to spots close."
       footer={
         <View style={styles.actions}>
-          <CustomButton title="Create account" onPress={handleSignUp} disabled={!canSubmit} />
-          <Text style={styles.helperText}>Social sign-in buttons stay as placeholders in this mock flow.</Text>
-          <View style={styles.socialRow}>
+          <View style={styles.primaryBlock}>
+            <View style={styles.helperCard}>
+              <Feather name="star" size={16} color={colors.surfaceDeep} />
+              <Text style={styles.helperCardText}>Your account stays local in this prototype, but the experience is fully connected.</Text>
+            </View>
+
+            {!passwordMatch && confirm.length > 0 ? (
+              <Text style={styles.errorText}>Passwords need to match before you continue.</Text>
+            ) : null}
+
             <CustomButton
-              title="Facebook"
-              href="https://www.facebook.com"
-              style={styles.socialButton}
-              textStyle={styles.socialText}
+              title="Create account"
+              onPress={handleSignUp}
+              disabled={!canSubmit}
+              loading={loading}
+              leftSlot={<Feather name="user-plus" size={16} color={colors.background} />}
             />
-            <CustomButton
-              title="Google"
-              href="https://www.gmail.com"
-              style={styles.socialButton}
-              textStyle={styles.socialText}
-            />
-            <CustomButton
-              title="Apple"
-              href="https://www.apple.com"
-              style={styles.socialButton}
-              textStyle={styles.socialText}
-            />
+          </View>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>Or continue with</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <View style={styles.socialBlock}>
+            <View style={styles.socialRow}>
+              <SocialButton
+                brand="Facebook"
+                onPress={() => {
+                  loginAsMember("facebook@fusionyum.com");
+                  router.push("/home");
+                }}
+              />
+              <SocialButton
+                brand="Google"
+                onPress={() => {
+                  loginAsMember("google@fusionyum.com");
+                  router.push("/home");
+                }}
+              />
+              <SocialButton
+                brand="Apple"
+                onPress={() => {
+                  loginAsMember("apple@fusionyum.com");
+                  router.push("/home");
+                }}
+              />
+            </View>
+            <Text style={styles.socialHint}>Use social sign-in to jump directly into the member flow.</Text>
           </View>
         </View>
       }
     >
       <View style={styles.form}>
+        <View style={styles.formIntro}>
+          <Text style={styles.formTitle}>Create your account</Text>
+          <Text style={styles.formSubtitle}>A simple setup for favorites, rewards, and smoother checkout later.</Text>
+        </View>
+
         <CustomInput
+          label="Email or phone"
+          leadingIcon="user"
           inputProps={{
-            placeholder: "Phone number or email",
+            placeholder: "Enter your email or phone",
             keyboardType: "email-address",
             autoCapitalize: "none",
             value: identifier,
             onChangeText: setIdentifier,
           }}
         />
+
         <CustomInput
+          label="Password"
+          leadingIcon="lock"
+          secureToggle
+          helperText="Use at least 8 characters for a realistic production feel."
           inputProps={{
-            placeholder: "Password",
+            placeholder: "Create a password",
             secureTextEntry: true,
             autoCapitalize: "none",
             value: password,
             onChangeText: setPassword,
           }}
         />
+
         <CustomInput
+          label="Repeat password"
+          leadingIcon="shield"
+          secureToggle
+          errorText={!passwordMatch && confirm.length > 0 ? "Passwords need to match." : undefined}
           inputProps={{
-            placeholder: "Repeat password",
+            placeholder: "Repeat your password",
             secureTextEntry: true,
             autoCapitalize: "none",
             value: confirm,
             onChangeText: setConfirm,
           }}
         />
-        {!passwordMatch && confirm.length > 0 ? (
-          <Text style={styles.warning}>Passwords need to match before you can continue.</Text>
-        ) : null}
       </View>
     </AuthScreenLayout>
   );
@@ -97,37 +148,77 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.md,
   },
-  warning: {
-    fontFamily: typography.body,
-    fontSize: 12,
+  formIntro: {
+    gap: 4,
+    marginBottom: 4,
+  },
+  formTitle: {
+    fontFamily: typography.display,
+    fontSize: 24,
     color: colors.primary,
+  },
+  formSubtitle: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
   actions: {
     gap: spacing.md,
   },
-  helperText: {
+  primaryBlock: {
+    gap: spacing.sm,
+  },
+  helperCard: {
+    borderRadius: 16,
+    backgroundColor: colors.background,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  helperCardText: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.surfaceDeep,
+  },
+  errorText: {
+    fontFamily: typography.body,
+    fontSize: 11,
+    color: colors.danger,
+    textAlign: "left",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  socialBlock: {
+    gap: spacing.sm,
+  },
+  socialRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  socialHint: {
     fontFamily: typography.body,
     fontSize: 11,
     color: colors.textMuted,
     textAlign: "center",
-  },
-  socialRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    flexWrap: "wrap",
-  },
-  socialButton: {
-    flex: 1,
-    minWidth: 90,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowOpacity: 0,
-    elevation: 0,
-    minHeight: 40,
-  },
-  socialText: {
-    color: colors.primary,
-    fontSize: 12,
   },
 });

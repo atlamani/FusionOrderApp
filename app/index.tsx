@@ -1,42 +1,107 @@
+import { router } from "expo-router";
 import React from "react";
 import { SafeAreaView, StyleSheet, Text, View } from "react-native";
+import FadeInView from "./FadeInView";
+import SocialButton from "./socialButton";
 import { CustomButton } from "./customButton";
-import { colors, spacing, typography } from "./theme";
+import { usePrototypeState } from "./prototypeState";
+import { colors, radii, spacing, typography } from "./theme";
 
 export default function HomeScreen() {
+  const { beginAdminSession, beginDriverSession, beginGuestSession, beginRestaurantSession, loginAsMember } =
+    usePrototypeState();
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.brandBlock}>
-          <Text style={styles.brand}>FusionYum</Text>
-        </View>
+      <View style={styles.backgroundShapeTop} />
+      <View style={styles.backgroundShapeBottom} />
 
-        <View style={styles.card}>
-          <View style={styles.actions}>
-            <CustomButton
-              title="Login"
-              href="/LoginScreen"
-              style={styles.secondaryButton}
-              textStyle={styles.secondaryButtonText}
-            />
-            <CustomButton title="Sign Up" href="/registerScreen" style={styles.primaryAltButton} />
-            <CustomButton
-              title="Continue as Guest"
-              href="/home"
-              style={styles.ghostButton}
-              textStyle={styles.ghostButtonText}
-            />
+      <View style={styles.container}>
+        <FadeInView delay={60} style={styles.brandBlock}>
+          <Text style={styles.brand}>FusionYum</Text>
+          <Text style={styles.subtitle}>
+            A multi-role food ordering prototype with discovery, operations, and delivery flows.
+          </Text>
+        </FadeInView>
+
+        <FadeInView delay={140} style={styles.card}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>Customer flow plus manager, restaurant, and driver workspaces</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Customer</Text>
+            <View style={styles.actions}>
+              <CustomButton title="Login" href="/LoginScreen" variant="secondary" />
+              <CustomButton title="Sign Up" href="/registerScreen" />
+              <CustomButton
+                title="Continue as Guest"
+                variant="ghost"
+                onPress={() => {
+                  beginGuestSession();
+                  router.push("/home");
+                }}
+              />
+            </View>
           </View>
 
           <View style={styles.socialBlock}>
-            <Text style={styles.socialLabel}>OR</Text>
+            <Text style={styles.socialLabel}>Or continue with</Text>
             <View style={styles.socialRow}>
-              <View style={styles.socialIcon} />
-              <View style={styles.socialIcon} />
-              <View style={styles.socialIcon} />
+              <SocialButton
+                brand="Facebook"
+                onPress={() => {
+                  loginAsMember("facebook@fusionyum.com");
+                  router.push("/home");
+                }}
+              />
+              <SocialButton
+                brand="Google"
+                onPress={() => {
+                  loginAsMember("google@fusionyum.com");
+                  router.push("/home");
+                }}
+              />
+              <SocialButton
+                brand="Apple"
+                onPress={() => {
+                  loginAsMember("apple@fusionyum.com");
+                  router.push("/home");
+                }}
+              />
             </View>
           </View>
-        </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Workspace Demos</Text>
+            <View style={styles.workspaceActions}>
+              <CustomButton
+                title="Manager Console"
+                variant="surface"
+                onPress={() => {
+                  beginAdminSession();
+                  router.push("/admin-dashboard");
+                }}
+              />
+              <CustomButton
+                title="Restaurant Console"
+                variant="surface"
+                onPress={() => {
+                  beginRestaurantSession("featured-2");
+                  router.push("/restaurant-dashboard");
+                }}
+              />
+              <CustomButton
+                title="Driver Console"
+                variant="surface"
+                onPress={() => {
+                  beginDriverSession("driver-1");
+                  router.push("/driver-dashboard");
+                }}
+              />
+            </View>
+          </View>
+        </FadeInView>
       </View>
     </SafeAreaView>
   );
@@ -47,78 +112,66 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  backgroundShapeTop: {
+    position: "absolute",
+    top: -60,
+    right: -10,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: "rgba(115, 144, 114, 0.18)",
+  },
+  backgroundShapeBottom: {
+    position: "absolute",
+    bottom: -40,
+    left: -40,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: "rgba(79, 111, 82, 0.11)",
+  },
   container: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-    paddingTop: 24,
-    paddingBottom: 24,
-    backgroundColor: colors.background,
-    gap: 72,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    gap: spacing.xxxl,
   },
-  brandBlock: {
-    alignItems: "center",
-  },
-  brand: {
-    fontFamily: typography.display,
-    color: colors.primary,
-    fontSize: 36,
+  brandBlock: { gap: 8 },
+  brand: { fontFamily: typography.display, color: colors.primary, fontSize: 44 },
+  subtitle: {
+    fontFamily: typography.body,
+    color: colors.textMuted,
+    fontSize: 15,
+    lineHeight: 22,
+    maxWidth: 300,
   },
   card: {
-    width: "100%",
-    maxWidth: 320,
     backgroundColor: colors.white,
-    borderRadius: 18,
-    padding: 18,
-    gap: spacing.lg,
+    borderRadius: radii.lg,
+    padding: 22,
+    gap: spacing.xl,
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: colors.primary,
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 4,
   },
-  actions: {
-    gap: spacing.sm,
+  badge: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.background,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  primaryAltButton: {
-    backgroundColor: "rgba(115, 144, 114, 0.65)",
-  },
-  secondaryButton: {
-    backgroundColor: colors.surface,
-  },
-  secondaryButtonText: {
-    color: colors.background,
-  },
-  ghostButton: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: colors.primary,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  ghostButtonText: {
-    color: colors.primary,
-  },
-  socialBlock: {
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  socialLabel: {
-    fontFamily: typography.body,
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  socialRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  socialIcon: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.surface,
-  },
+  badgeText: { fontFamily: typography.body, fontSize: 11, color: colors.surfaceDeep },
+  section: { gap: spacing.sm },
+  sectionTitle: { fontFamily: typography.display, fontSize: 20, color: colors.primary },
+  actions: { gap: spacing.sm },
+  workspaceActions: { gap: spacing.sm },
+  socialBlock: { gap: spacing.md },
+  socialLabel: { fontFamily: typography.body, fontSize: 12, color: colors.textMuted, textAlign: "center" },
+  socialRow: { flexDirection: "row", justifyContent: "center", gap: 14 },
 });

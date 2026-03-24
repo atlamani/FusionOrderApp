@@ -2,10 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
-import { orderHistory } from "./mockData";
+import FadeInView from "./FadeInView";
+import { usePrototypeState } from "./prototypeState";
 import { colors, typography } from "./theme";
 
 export default function ActivityHistoryScreen() {
+  const { orderHistory, reorderFromHistory } = usePrototypeState();
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
@@ -26,11 +29,11 @@ export default function ActivityHistoryScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {orderHistory.map((order) => {
+        {orderHistory.map((order, index) => {
           const delivered = order.status === "Delivered";
 
           return (
-            <View key={order.id} style={styles.orderCard}>
+            <FadeInView key={order.id} delay={index * 70} style={styles.orderCard}>
               <View style={styles.orderTop}>
                 <View style={styles.orderCopy}>
                   <Text style={styles.orderRestaurant}>{order.restaurant}</Text>
@@ -42,11 +45,7 @@ export default function ActivityHistoryScreen() {
                     delivered ? styles.statusBadgeDelivered : styles.statusBadgeCancelled,
                   ]}
                 >
-                  <Feather
-                    name={delivered ? "check-circle" : "slash"}
-                    size={16}
-                    color={order.accent}
-                  />
+                  <Feather name={delivered ? "check-circle" : "slash"} size={16} color={order.accent} />
                   <Text style={[styles.statusBadgeText, { color: order.accent }]}>{order.status}</Text>
                 </View>
               </View>
@@ -54,7 +53,7 @@ export default function ActivityHistoryScreen() {
               <View style={styles.itemsWrap}>
                 {order.items.map((item) => (
                   <Text key={item} style={styles.orderItem}>
-                    • {item}
+                    - {item}
                   </Text>
                 ))}
               </View>
@@ -65,14 +64,23 @@ export default function ActivityHistoryScreen() {
               </View>
 
               <View style={styles.buttonRow}>
-                <Pressable style={styles.reorderButton} onPress={() => router.push("/menu")}>
+                <Pressable
+                  style={styles.reorderButton}
+                  onPress={() => {
+                    reorderFromHistory(order.id);
+                    router.push("/checkout");
+                  }}
+                >
                   <Text style={styles.reorderButtonText}>Reorder</Text>
                 </Pressable>
-                <Pressable style={styles.receiptButton}>
+                <Pressable
+                  style={styles.receiptButton}
+                  onPress={() => router.push(`/order-receipt?orderId=${order.id}`)}
+                >
                   <Text style={styles.receiptButtonText}>View Receipt</Text>
                 </Pressable>
               </View>
-            </View>
+            </FadeInView>
           );
         })}
       </ScrollView>

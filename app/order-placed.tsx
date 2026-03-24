@@ -1,34 +1,62 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useState } from "react";
+import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import FadeInView from "./FadeInView";
+import { CustomButton } from "./customButton";
+import { CustomInput } from "./customTextField";
+import { usePrototypeState } from "./prototypeState";
 import { colors, typography } from "./theme";
 
 export default function OrderPlacedScreen() {
+  const { currentOrder, joinRewards, joinedRewards, rewardsEmail } = usePrototypeState();
+  const [email, setEmail] = useState(rewardsEmail);
+  const [showError, setShowError] = useState(false);
+
+  const handleJoinRewards = () => {
+    if (!email.trim()) {
+      setShowError(true);
+      return;
+    }
+
+    setShowError(false);
+    joinRewards(email.trim());
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.successIcon}>
+        <FadeInView delay={40} style={styles.successIcon}>
           <Feather name="check" size={34} color={colors.surface} />
-        </View>
+        </FadeInView>
 
-        <View style={styles.messageBlock}>
+        <FadeInView delay={100} style={styles.messageBlock}>
           <Text style={styles.title}>Congratulations</Text>
           <Text style={styles.subtitle}>You placed an order.</Text>
+          {currentOrder ? <Text style={styles.orderMeta}>Order #{currentOrder.id} is in motion.</Text> : null}
           <Text style={styles.subtitle}>Enjoy!</Text>
-        </View>
+        </FadeInView>
 
-        <View style={styles.rewardCard}>
+        <FadeInView delay={180} style={styles.rewardCard}>
           <Text style={styles.rewardTitle}>Start Earning Rewards</Text>
           <Text style={styles.rewardCopy}>
             Get points every time you order from FusionYum. Add your email to start earning on
             this mock order too.
           </Text>
-          <TextInput
-            style={styles.emailInput}
-            value=""
-            placeholder="Enter your email"
-            placeholderTextColor="rgba(0,0,0,0.45)"
+          <CustomInput
+            label="Rewards email"
+            leadingIcon="mail"
+            errorText={showError ? "Enter an email to join rewards." : undefined}
+            inputProps={{
+              placeholder: "Enter your email",
+              keyboardType: "email-address",
+              autoCapitalize: "none",
+              value: email,
+              onChangeText: (value) => {
+                setEmail(value);
+                setShowError(false);
+              },
+            }}
           />
           <View style={styles.checkboxRow}>
             <View style={styles.checkbox}>
@@ -38,23 +66,33 @@ export default function OrderPlacedScreen() {
               I agree to join the rewards list with the contact information above.
             </Text>
           </View>
-          <Pressable style={styles.rewardButton}>
-            <Text style={styles.rewardButtonText}>Sign Up for Rewards</Text>
-          </Pressable>
-        </View>
+          <CustomButton
+            title={joinedRewards ? "Rewards Joined" : "Sign Up for Rewards"}
+            variant={joinedRewards ? "secondary" : "primary"}
+            onPress={handleJoinRewards}
+          />
+          {joinedRewards ? (
+            <View style={styles.successBanner}>
+              <Feather name="star" size={16} color={colors.success} />
+              <Text style={styles.successBannerText}>Rewards activated locally for this prototype account.</Text>
+            </View>
+          ) : null}
+        </FadeInView>
 
-        <View style={styles.footerCopy}>
+        <FadeInView delay={240} style={styles.footerCopy}>
           <Text style={styles.footerText}>Thank you for your support.</Text>
           <Text style={styles.footerText}>See you next time.</Text>
-        </View>
+        </FadeInView>
 
-        <Pressable style={styles.trackButton} onPress={() => router.replace("/activity")}>
-          <Text style={styles.trackButtonText}>Track Order</Text>
-        </Pressable>
-
-        <Pressable style={styles.homeButton} onPress={() => router.replace("/home")}>
-          <Text style={styles.homeButtonText}>Back to Home</Text>
-        </Pressable>
+        <FadeInView delay={300} style={styles.actions}>
+          <CustomButton
+            title="Track Order"
+            variant="secondary"
+            onPress={() => router.replace("/activity")}
+          />
+          <CustomButton title="View Receipt" variant="surface" onPress={() => router.push("/order-receipt")} />
+          <CustomButton title="Back to Home" variant="surface" onPress={() => router.replace("/home")} />
+        </FadeInView>
       </ScrollView>
     </SafeAreaView>
   );
@@ -99,6 +137,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
   },
+  orderMeta: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: "rgba(0,0,0,0.6)",
+    textAlign: "center",
+  },
   rewardCard: {
     width: "100%",
     backgroundColor: colors.white,
@@ -121,17 +165,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: "rgba(0,0,0,0.72)",
-  },
-  emailInput: {
-    minHeight: 50,
-    borderRadius: 14,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.1)",
-    paddingHorizontal: 16,
-    fontFamily: typography.body,
-    fontSize: 14,
-    color: colors.text,
   },
   checkboxRow: {
     flexDirection: "row",
@@ -156,17 +189,19 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: "rgba(0,0,0,0.7)",
   },
-  rewardButton: {
-    minHeight: 48,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
+  successBanner: {
+    borderRadius: 16,
+    backgroundColor: "#ECFDF3",
+    padding: 12,
+    gap: 8,
+    flexDirection: "row",
     alignItems: "center",
   },
-  rewardButtonText: {
-    fontFamily: typography.display,
-    fontSize: 16,
-    color: colors.white,
+  successBannerText: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.success,
   },
   footerCopy: {
     alignItems: "center",
@@ -178,34 +213,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
   },
-  trackButton: {
+  actions: {
     width: "100%",
-    minHeight: 50,
-    borderRadius: 14,
-    backgroundColor: colors.surfaceDeep,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  trackButtonText: {
-    fontFamily: typography.display,
-    fontSize: 16,
-    color: colors.white,
-  },
-  homeButton: {
-    width: "100%",
-    minHeight: 50,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  homeButtonText: {
-    fontFamily: typography.display,
-    fontSize: 16,
-    color: colors.text,
+    gap: 12,
   },
 });
