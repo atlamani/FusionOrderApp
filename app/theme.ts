@@ -2,10 +2,14 @@ export const colors = {
   background: "#ECE3CE",
   surface: "#739072",
   surfaceDeep: "#4F6F52",
+  surfaceSoft: "#D8CFB7",
   primary: "#3A4D39",
   text: "#1F2A1F",
   textMuted: "rgba(31, 42, 31, 0.68)",
   white: "#FFFFFF",
+  success: "#2F7A4B",
+  warning: "#A2652A",
+  danger: "#A63D40",
   border: "rgba(58, 77, 57, 0.14)",
   shadow: "rgba(58, 77, 57, 0.12)",
   inputTint: "rgba(236, 227, 206, 0.28)",
@@ -23,4 +27,12 @@ export const spacing = {
   lg: 20,
   xl: 24,
   xxl: 32,
+  xxxl: 40,
+};
+
+export const radii = {
+  sm: 12,
+  md: 18,
+  lg: 24,
+  pill: 999,
 };

@@ -1,79 +1,117 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
-import { checkoutOrder, savedCards } from "./mockData";
+import BrandLogo from "./BrandLogo";
+import FadeInView from "./FadeInView";
+import { savedCards } from "./mockData";
+import {
+  formatCurrency,
+  getCartItemCount,
+  getCartSubtotal,
+  getCartTaxes,
+  getTipAmount,
+  usePrototypeState,
+} from "./prototypeState";
 import { colors, typography } from "./theme";
 
-function BrandMark({ brand }: { brand: string }) {
-  if (brand === "VISA") {
-    return <Text style={[styles.brandText, { color: "#1D4ED8" }]}>VISA</Text>;
-  }
-
-  if (brand === "MASTERCARD") {
-    return (
-      <View style={styles.mastercardWrap}>
-        <View style={[styles.mastercardCircle, { backgroundColor: "#EF4444" }]} />
-        <View
-          style={[styles.mastercardCircle, styles.mastercardOverlap, { backgroundColor: "#F59E0B" }]}
-        />
-      </View>
-    );
-  }
-
-  return <Text style={[styles.brandText, { color: "#2563EB" }]}>AMEX</Text>;
-}
-
 export default function PaymentScreen() {
+  const {
+    cartItems,
+    customTip,
+    placeOrder,
+    savedCardsExpanded,
+    selectedCardId,
+    selectedTip,
+    toggleSavedCardsExpanded,
+    selectCard,
+  } = usePrototypeState();
+  const [splitPayEnabled, setSplitPayEnabled] = useState(false);
+
+  const subtotal = getCartSubtotal(cartItems);
+  const taxes = getCartTaxes(cartItems);
+  const tipAmount = getTipAmount(cartItems, selectedTip, customTip);
+  const total = subtotal + taxes + 5 + tipAmount;
+  const hasItems = cartItems.length > 0;
+  const itemCount = getCartItemCount(cartItems);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.header}>
+        <FadeInView delay={40} style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>PAYMENT</Text>
           <View style={styles.headerSpacer} />
-        </View>
+        </FadeInView>
 
-        <View style={styles.card}>
-          <View style={styles.rowHeader}>
+        <FadeInView delay={90} style={[styles.card, !savedCardsExpanded && styles.collapsedCard]}>
+          <Pressable style={styles.rowHeader} onPress={toggleSavedCardsExpanded}>
             <Text style={styles.cardTitle}>Saved Cards ({savedCards.length})</Text>
-            <Feather name="chevron-up" size={20} color={colors.text} />
-          </View>
-          <View style={styles.savedCardsList}>
-            {savedCards.map((card, index) => (
-              <View
-                key={card.id}
-                style={[styles.savedCard, index === 0 ? styles.savedCardSelected : undefined]}
-              >
-                <View style={styles.savedCardLeft}>
-                  <BrandMark brand={card.brand} />
-                  <View style={styles.savedCardCopy}>
-                    <Text style={styles.savedCardName}>{card.holder}</Text>
-                    <Text style={styles.savedCardMeta}>**** **** **** {card.last4}</Text>
-                  </View>
-                </View>
-                <View style={styles.savedCardRight}>
-                  <Text style={styles.savedCardExpiry}>{card.expiry}</Text>
-                  {index === 0 ? (
-                    <View style={styles.selectedDot} />
-                  ) : (
-                    <View style={styles.unselectedDot} />
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
+            <Feather
+              name={savedCardsExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={colors.text}
+            />
+          </Pressable>
 
-        <View style={styles.card}>
+          {savedCardsExpanded ? (
+            <View style={styles.savedCardsList}>
+              {savedCards.map((card) => {
+                const isSelected = card.id === selectedCardId;
+
+                return (
+                  <Pressable
+                    key={card.id}
+                    style={[styles.savedCard, isSelected && styles.savedCardSelected]}
+                    onPress={() => selectCard(card.id)}
+                  >
+                    <View style={styles.savedCardLeft}>
+                      <View style={styles.savedCardLogoWrap}>
+                        <BrandLogo
+                          brand={
+                            card.brand === "VISA"
+                              ? "visa"
+                              : card.brand === "MASTERCARD"
+                                ? "mastercard"
+                                : "amex"
+                          }
+                          type="payment"
+                          imageStyle={styles.savedCardLogo}
+                        />
+                      </View>
+                      <View style={styles.savedCardCopy}>
+                        <Text style={styles.savedCardName}>{card.holder}</Text>
+                        <Text style={styles.savedCardMeta}>**** **** **** {card.last4}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.savedCardRight}>
+                      <Text style={styles.savedCardExpiry}>{card.expiry}</Text>
+                      {isSelected ? <View style={styles.selectedDot} /> : <View style={styles.unselectedDot} />}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </FadeInView>
+
+        <FadeInView delay={150} style={styles.card}>
           <Text style={styles.cardTitle}>Add New Card</Text>
           <View style={styles.brandRow}>
-            <BrandMark brand="VISA" />
-            <BrandMark brand="MASTERCARD" />
-            <BrandMark brand="AMEX" />
-            <Text style={[styles.brandText, { color: "#D97706" }]}>DISC</Text>
+            <View style={styles.brandBadge}>
+              <BrandLogo brand="visa" type="payment" />
+            </View>
+            <View style={styles.brandBadge}>
+              <BrandLogo brand="mastercard" type="payment" />
+            </View>
+            <View style={styles.brandBadge}>
+              <BrandLogo brand="amex" type="payment" />
+            </View>
+            <View style={styles.brandBadge}>
+              <BrandLogo brand="discover" type="payment" imageStyle={styles.discoverLogo} />
+            </View>
           </View>
           <View style={styles.inputMock}>
             <Text style={styles.inputText}>Card Number</Text>
@@ -95,49 +133,69 @@ export default function PaymentScreen() {
             </View>
             <Text style={styles.checkboxLabel}>Save this card for future purchases</Text>
           </View>
-        </View>
+        </FadeInView>
 
-        <View style={styles.card}>
+        <FadeInView delay={210} style={styles.card}>
           <View style={styles.rowHeader}>
             <Text style={styles.cardTitle}>Split Pay</Text>
-            <Pressable style={styles.enableButton}>
-              <Text style={styles.enableButtonText}>Enable</Text>
+            <Pressable style={styles.enableButton} onPress={() => setSplitPayEnabled((current) => !current)}>
+              <Text style={styles.enableButtonText}>{splitPayEnabled ? "Enabled" : "Enable"}</Text>
             </Pressable>
           </View>
           <Text style={styles.splitPayCopy}>
             Invite a friend to cover drinks or dessert. This stays mock-only in the prototype.
           </Text>
-        </View>
+          {splitPayEnabled ? (
+            <View style={styles.splitPayActive}>
+              <Feather name="check-circle" size={16} color={colors.success} />
+              <Text style={styles.splitPayActiveText}>Split pay invite ready to send after confirmation.</Text>
+            </View>
+          ) : null}
+        </FadeInView>
 
-        <View style={styles.card}>
+        <FadeInView delay={270} style={styles.card}>
           <Text style={styles.cardTitle}>Order Summary</Text>
           <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Items</Text>
+            <Text style={styles.summaryValue}>{itemCount}</Text>
+          </View>
+          <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>{checkoutOrder.summary.subtotal}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(subtotal)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryValue}>{checkoutOrder.summary.deliveryFee}</Text>
+            <Text style={styles.summaryValue}>$5.00</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Taxes</Text>
-            <Text style={styles.summaryValue}>{checkoutOrder.summary.taxes}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(taxes)}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Tip ({checkoutOrder.selectedTip})</Text>
-            <Text style={styles.summaryValue}>{checkoutOrder.summary.driverTip}</Text>
+            <Text style={styles.summaryLabel}>Tip ({selectedTip})</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(tipAmount)}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{checkoutOrder.summary.total}</Text>
+            <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
           </View>
-        </View>
+        </FadeInView>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable style={styles.footerButton} onPress={() => router.push("/order-placed")}>
-          <Text style={styles.footerButtonText}>Confirm Order</Text>
+        <Pressable
+          style={[styles.footerButton, !hasItems && styles.footerButtonDisabled]}
+          onPress={() => {
+            if (hasItems) {
+              placeOrder();
+              router.push("/order-placed");
+            } else {
+              router.replace("/checkout");
+            }
+          }}
+        >
+          <Text style={styles.footerButtonText}>{hasItems ? "Confirm Order" : "Return to Checkout"}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -197,6 +255,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 4,
   },
+  collapsedCard: {
+    minHeight: 60,
+  },
   rowHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -230,6 +291,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
+  },
+  savedCardLogoWrap: {
+    width: 78,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  savedCardLogo: {
+    width: 56,
+    height: 20,
   },
   savedCardCopy: {
     gap: 2,
@@ -271,22 +344,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    flexWrap: "wrap",
   },
-  brandText: {
-    fontFamily: typography.display,
-    fontSize: 14,
-  },
-  mastercardWrap: {
-    flexDirection: "row",
+  brandBadge: {
+    minWidth: 78,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 10,
   },
-  mastercardCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-  },
-  mastercardOverlap: {
-    marginLeft: -6,
+  discoverLogo: {
+    width: 46,
+    height: 16,
   },
   inputMock: {
     minHeight: 48,
@@ -352,6 +425,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "rgba(0,0,0,0.7)",
   },
+  splitPayActive: {
+    borderRadius: 14,
+    backgroundColor: "#ECFDF3",
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  splitPayActiveText: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.success,
+  },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -402,6 +489,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceDeep,
     justifyContent: "center",
     alignItems: "center",
+  },
+  footerButtonDisabled: {
+    opacity: 0.5,
   },
   footerButtonText: {
     fontFamily: typography.display,
