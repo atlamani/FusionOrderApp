@@ -1,19 +1,33 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import {
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 import BrandLogo from "./BrandLogo";
 import FadeInView from "./FadeInView";
 import { savedCards } from "./mockData";
 import {
-  formatCurrency,
-  getCartItemCount,
-  getCartSubtotal,
-  getCartTaxes,
-  getTipAmount,
-  usePrototypeState,
+    formatCurrency,
+    getCartItemCount,
+    getCartSubtotal,
+    getCartTaxes,
+    getTipAmount,
+    usePrototypeState,
 } from "./prototypeState";
 import { colors, typography } from "./theme";
+
+type SplitPaymentCard = {
+  id: string;
+  amount: number;
+  isCustom: boolean;
+};
 
 export default function PaymentScreen() {
   const {
@@ -27,6 +41,8 @@ export default function PaymentScreen() {
     selectCard,
   } = usePrototypeState();
   const [splitPayEnabled, setSplitPayEnabled] = useState(false);
+  const [splitCards, setSplitCards] = useState<SplitPaymentCard[]>([]);
+  const [splitMode, setSplitMode] = useState<"equal" | "custom">("equal");
 
   const subtotal = getCartSubtotal(cartItems);
   const taxes = getCartTaxes(cartItems);
@@ -35,9 +51,86 @@ export default function PaymentScreen() {
   const hasItems = cartItems.length > 0;
   const itemCount = getCartItemCount(cartItems);
 
+  // Calculate split amounts
+  const splitAmounts = useMemo(() => {
+    if (!splitPayEnabled || splitCards.length === 0) return [];
+
+    const customCards = splitCards.filter((card) => card.isCustom);
+    const equalCards = splitCards.filter((card) => !card.isCustom);
+
+    if (splitMode === "equal") {
+      const equalAmount = total / splitCards.length;
+      return splitCards.map((card) => ({
+        ...card,
+        amount: equalAmount,
+      }));
+    } else {
+      // Custom mode - distribute remaining amount equally among non-custom cards
+      const customTotal = customCards.reduce(
+        (sum, card) => sum + card.amount,
+        0,
+      );
+      const remainingTotal = total - customTotal;
+      const remainingCards = equalCards.length;
+
+      if (remainingCards === 0) {
+        // All cards are custom, just return as is
+        return splitCards;
+      }
+
+      const equalAmount = remainingTotal / remainingCards;
+      return splitCards.map((card) =>
+        card.isCustom ? card : { ...card, amount: equalAmount },
+      );
+    }
+  }, [splitCards, total, splitMode, splitPayEnabled]);
+
+  const addSplitCard = (cardId: string) => {
+    if (splitCards.length >= 5) return;
+
+    const card = savedCards.find((c) => c.id === cardId);
+    if (!card) return;
+
+    // Check if card is already added
+    if (splitCards.some((c) => c.id === cardId)) return;
+
+    setSplitCards((prev) => [
+      ...prev,
+      {
+        id: cardId,
+        amount: 0,
+        isCustom: false,
+      },
+    ]);
+  };
+
+  const removeSplitCard = (cardId: string) => {
+    setSplitCards((prev) => prev.filter((card) => card.id !== cardId));
+  };
+
+  const toggleCardCustom = (cardId: string) => {
+    setSplitCards((prev) =>
+      prev.map((card) =>
+        card.id === cardId ? { ...card, isCustom: !card.isCustom } : card,
+      ),
+    );
+  };
+
+  const updateCardAmount = (cardId: string, amount: string) => {
+    const numAmount = parseFloat(amount) || 0;
+    setSplitCards((prev) =>
+      prev.map((card) =>
+        card.id === cardId ? { ...card, amount: numAmount } : card,
+      ),
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
         <FadeInView delay={40} style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Feather name="arrow-left" size={18} color={colors.background} />
@@ -46,9 +139,17 @@ export default function PaymentScreen() {
           <View style={styles.headerSpacer} />
         </FadeInView>
 
-        <FadeInView delay={90} style={[styles.card, !savedCardsExpanded && styles.collapsedCard]}>
-          <Pressable style={styles.rowHeader} onPress={toggleSavedCardsExpanded}>
-            <Text style={styles.cardTitle}>Saved Cards ({savedCards.length})</Text>
+        <FadeInView
+          delay={90}
+          style={[styles.card, !savedCardsExpanded && styles.collapsedCard]}
+        >
+          <Pressable
+            style={styles.rowHeader}
+            onPress={toggleSavedCardsExpanded}
+          >
+            <Text style={styles.cardTitle}>
+              Saved Cards ({savedCards.length})
+            </Text>
             <Feather
               name={savedCardsExpanded ? "chevron-up" : "chevron-down"}
               size={20}
@@ -64,7 +165,10 @@ export default function PaymentScreen() {
                 return (
                   <Pressable
                     key={card.id}
-                    style={[styles.savedCard, isSelected && styles.savedCardSelected]}
+                    style={[
+                      styles.savedCard,
+                      isSelected && styles.savedCardSelected,
+                    ]}
                     onPress={() => selectCard(card.id)}
                   >
                     <View style={styles.savedCardLeft}>
@@ -83,12 +187,18 @@ export default function PaymentScreen() {
                       </View>
                       <View style={styles.savedCardCopy}>
                         <Text style={styles.savedCardName}>{card.holder}</Text>
-                        <Text style={styles.savedCardMeta}>**** **** **** {card.last4}</Text>
+                        <Text style={styles.savedCardMeta}>
+                          **** **** **** {card.last4}
+                        </Text>
                       </View>
                     </View>
                     <View style={styles.savedCardRight}>
                       <Text style={styles.savedCardExpiry}>{card.expiry}</Text>
-                      {isSelected ? <View style={styles.selectedDot} /> : <View style={styles.unselectedDot} />}
+                      {isSelected ? (
+                        <View style={styles.selectedDot} />
+                      ) : (
+                        <View style={styles.unselectedDot} />
+                      )}
                     </View>
                   </Pressable>
                 );
@@ -110,7 +220,11 @@ export default function PaymentScreen() {
               <BrandLogo brand="amex" type="payment" />
             </View>
             <View style={styles.brandBadge}>
-              <BrandLogo brand="discover" type="payment" imageStyle={styles.discoverLogo} />
+              <BrandLogo
+                brand="discover"
+                type="payment"
+                imageStyle={styles.discoverLogo}
+              />
             </View>
           </View>
           <View style={styles.inputMock}>
@@ -131,24 +245,226 @@ export default function PaymentScreen() {
             <View style={styles.checkbox}>
               <Feather name="check" size={12} color={colors.surfaceDeep} />
             </View>
-            <Text style={styles.checkboxLabel}>Save this card for future purchases</Text>
+            <Text style={styles.checkboxLabel}>
+              Save this card for future purchases
+            </Text>
           </View>
         </FadeInView>
 
         <FadeInView delay={210} style={styles.card}>
           <View style={styles.rowHeader}>
             <Text style={styles.cardTitle}>Split Pay</Text>
-            <Pressable style={styles.enableButton} onPress={() => setSplitPayEnabled((current) => !current)}>
-              <Text style={styles.enableButtonText}>{splitPayEnabled ? "Enabled" : "Enable"}</Text>
+            <Pressable
+              style={styles.enableButton}
+              onPress={() => setSplitPayEnabled((current) => !current)}
+            >
+              <Text style={styles.enableButtonText}>
+                {splitPayEnabled ? "Enabled" : "Enable"}
+              </Text>
             </Pressable>
           </View>
           <Text style={styles.splitPayCopy}>
-            Invite a friend to cover drinks or dessert. This stays mock-only in the prototype.
+            Split the bill between up to 5 cards. Choose equal split or set
+            custom amounts.
           </Text>
           {splitPayEnabled ? (
-            <View style={styles.splitPayActive}>
-              <Feather name="check-circle" size={16} color={colors.success} />
-              <Text style={styles.splitPayActiveText}>Split pay invite ready to send after confirmation.</Text>
+            <View style={styles.splitPayContent}>
+              {/* Split Mode Toggle */}
+              <View style={styles.splitModeRow}>
+                <Pressable
+                  style={[
+                    styles.splitModeButton,
+                    splitMode === "equal" && styles.splitModeButtonActive,
+                  ]}
+                  onPress={() => setSplitMode("equal")}
+                >
+                  <Text
+                    style={[
+                      styles.splitModeText,
+                      splitMode === "equal" && styles.splitModeTextActive,
+                    ]}
+                  >
+                    Split Equally
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.splitModeButton,
+                    splitMode === "custom" && styles.splitModeButtonActive,
+                  ]}
+                  onPress={() => setSplitMode("custom")}
+                >
+                  <Text
+                    style={[
+                      styles.splitModeText,
+                      splitMode === "custom" && styles.splitModeTextActive,
+                    ]}
+                  >
+                    Custom Amounts
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Selected Cards for Split Pay */}
+              {splitCards.length > 0 && (
+                <View style={styles.splitCardsList}>
+                  {splitCards.map((splitCard) => {
+                    const card = savedCards.find((c) => c.id === splitCard.id);
+                    if (!card) return null;
+
+                    const splitAmount =
+                      splitAmounts.find((sa) => sa.id === splitCard.id)
+                        ?.amount || 0;
+
+                    return (
+                      <View key={splitCard.id} style={styles.splitCardItem}>
+                        <View style={styles.splitCardInfo}>
+                          <View style={styles.splitCardLogoWrap}>
+                            <BrandLogo
+                              brand={
+                                card.brand === "VISA"
+                                  ? "visa"
+                                  : card.brand === "MASTERCARD"
+                                    ? "mastercard"
+                                    : "amex"
+                              }
+                              type="payment"
+                              imageStyle={styles.splitCardLogo}
+                            />
+                          </View>
+                          <View style={styles.splitCardCopy}>
+                            <Text style={styles.splitCardName}>
+                              {card.holder}
+                            </Text>
+                            <Text style={styles.splitCardMeta}>
+                              **** **** **** {card.last4}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.splitCardControls}>
+                          {splitMode === "custom" && (
+                            <View style={styles.customAmountRow}>
+                              <Pressable
+                                style={[
+                                  styles.customToggle,
+                                  splitCard.isCustom &&
+                                    styles.customToggleActive,
+                                ]}
+                                onPress={() => toggleCardCustom(splitCard.id)}
+                              >
+                                <Text
+                                  style={[
+                                    styles.customToggleText,
+                                    splitCard.isCustom &&
+                                      styles.customToggleTextActive,
+                                  ]}
+                                >
+                                  {splitCard.isCustom ? "Custom" : "Auto"}
+                                </Text>
+                              </Pressable>
+                              {splitCard.isCustom && (
+                                <View style={styles.amountInput}>
+                                  <Text style={styles.currencySymbol}>$</Text>
+                                  <TextInput
+                                    style={styles.amountField}
+                                    value={splitCard.amount.toFixed(2)}
+                                    onChangeText={(value) =>
+                                      updateCardAmount(splitCard.id, value)
+                                    }
+                                    placeholder="0.00"
+                                    placeholderTextColor="rgba(0,0,0,0.5)"
+                                    keyboardType="numeric"
+                                  />
+                                </View>
+                              )}
+                            </View>
+                          )}
+                          <Text style={styles.splitAmount}>
+                            {formatCurrency(splitAmount)}
+                          </Text>
+                          <Pressable
+                            style={styles.removeCardButton}
+                            onPress={() => removeSplitCard(splitCard.id)}
+                          >
+                            <Feather name="x" size={16} color={colors.danger} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Add Card Section */}
+              {splitCards.length < 5 && (
+                <View style={styles.addCardSection}>
+                  <Text style={styles.addCardTitle}>Add Payment Method</Text>
+                  <View style={styles.availableCardsList}>
+                    {savedCards
+                      .filter(
+                        (card) => !splitCards.some((sc) => sc.id === card.id),
+                      )
+                      .map((card) => (
+                        <Pressable
+                          key={card.id}
+                          style={styles.availableCard}
+                          onPress={() => addSplitCard(card.id)}
+                        >
+                          <View style={styles.availableCardLogoWrap}>
+                            <BrandLogo
+                              brand={
+                                card.brand === "VISA"
+                                  ? "visa"
+                                  : card.brand === "MASTERCARD"
+                                    ? "mastercard"
+                                    : "amex"
+                              }
+                              type="payment"
+                              imageStyle={styles.availableCardLogo}
+                            />
+                          </View>
+                          <View style={styles.availableCardCopy}>
+                            <Text style={styles.availableCardName}>
+                              {card.brand}
+                            </Text>
+                            <Text style={styles.availableCardMeta}>
+                              **** {card.last4}
+                            </Text>
+                          </View>
+                          <Feather
+                            name="plus"
+                            size={16}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+                      ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Split Summary */}
+              {splitCards.length > 0 && (
+                <View style={styles.splitSummary}>
+                  <View style={styles.splitSummaryRow}>
+                    <Text style={styles.splitSummaryLabel}>Total Split</Text>
+                    <Text style={styles.splitSummaryValue}>
+                      {formatCurrency(
+                        splitAmounts.reduce(
+                          (sum, card) => sum + card.amount,
+                          0,
+                        ),
+                      )}
+                    </Text>
+                  </View>
+                  {splitAmounts.reduce((sum, card) => sum + card.amount, 0) !==
+                    total && (
+                    <Text style={styles.splitWarning}>
+                      Split total doesn&apos;t match order total
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
           ) : null}
         </FadeInView>
@@ -185,7 +501,10 @@ export default function PaymentScreen() {
 
       <View style={styles.footer}>
         <Pressable
-          style={[styles.footerButton, !hasItems && styles.footerButtonDisabled]}
+          style={[
+            styles.footerButton,
+            !hasItems && styles.footerButtonDisabled,
+          ]}
           onPress={() => {
             if (hasItems) {
               placeOrder();
@@ -195,7 +514,9 @@ export default function PaymentScreen() {
             }
           }}
         >
-          <Text style={styles.footerButtonText}>{hasItems ? "Confirm Order" : "Return to Checkout"}</Text>
+          <Text style={styles.footerButtonText}>
+            {hasItems ? "Confirm Order" : "Return to Checkout"}
+          </Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -497,5 +818,214 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 16,
     color: colors.white,
+  },
+  // Split Pay Styles
+  splitPayContent: {
+    gap: 16,
+  },
+  splitModeRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  splitModeButton: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  splitModeButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  splitModeText: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+  },
+  splitModeTextActive: {
+    color: colors.white,
+  },
+  splitCardsList: {
+    gap: 12,
+  },
+  splitCardItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    gap: 12,
+  },
+  splitCardInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  splitCardLogoWrap: {
+    width: 32,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  splitCardLogo: {
+    width: 24,
+    height: 16,
+  },
+  splitCardCopy: {
+    flex: 1,
+  },
+  splitCardName: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+  },
+  splitCardMeta: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: "rgba(0,0,0,0.6)",
+  },
+  splitCardControls: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  customAmountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  customToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  customToggleActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  customToggleText: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.text,
+  },
+  customToggleTextActive: {
+    color: colors.white,
+  },
+  amountInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    minWidth: 80,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
+  },
+  currencySymbol: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+    marginRight: 4,
+  },
+  amountField: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+    textAlign: "right",
+  },
+  splitAmount: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.primary,
+    minWidth: 60,
+    textAlign: "right",
+  },
+  removeCardButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addCardSection: {
+    gap: 12,
+  },
+  addCardTitle: {
+    fontFamily: typography.body,
+    fontSize: 16,
+    color: colors.text,
+  },
+  availableCardsList: {
+    gap: 8,
+  },
+  availableCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  availableCardLogoWrap: {
+    width: 32,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  availableCardLogo: {
+    width: 24,
+    height: 16,
+  },
+  availableCardCopy: {
+    flex: 1,
+  },
+  availableCardName: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+  },
+  availableCardMeta: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: "rgba(0,0,0,0.6)",
+  },
+  splitSummary: {
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    gap: 8,
+  },
+  splitSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  splitSummaryLabel: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+  },
+  splitSummaryValue: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.primary,
+  },
+  splitWarning: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.danger,
+    textAlign: "center",
   },
 });
