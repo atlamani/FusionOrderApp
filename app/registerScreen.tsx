@@ -3,33 +3,55 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import AuthScreenLayout from "./AuthScreenLayout";
-import SocialButton from "./socialButton";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
-import { usePrototypeState } from "./prototypeState";
+import { signInWithGoogle, signUpUser } from "./Firebase/auth";
+import SocialButton from "./socialButton";
 import { colors, spacing, typography } from "./theme";
 
 export default function RegisterScreen() {
-  const { loginAsMember } = usePrototypeState();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const passwordMatch = password.trim().length > 0 && password === confirm;
-  const allFilled = Boolean(identifier.trim() && password.trim() && confirm.trim());
+  const allFilled = Boolean(
+    identifier.trim() && password.trim() && confirm.trim(),
+  );
   const canSubmit = allFilled && passwordMatch;
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     if (!canSubmit) {
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
+    setError("");
+
+    try {
+      await signUpUser(identifier, password);
+      router.push("/home");
+    } catch (err: any) {
+      setError(err.message || "Failed to create account");
+    } finally {
       setLoading(false);
-      router.push("/LoginScreen");
-    }, 650);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      await signInWithGoogle();
+      router.push("/home");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in with Google");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,11 +65,18 @@ export default function RegisterScreen() {
           <View style={styles.primaryBlock}>
             <View style={styles.helperCard}>
               <Feather name="star" size={16} color={colors.surfaceDeep} />
-              <Text style={styles.helperCardText}>Your account stays local in this prototype, but the experience is fully connected.</Text>
+              <Text style={styles.helperCardText}>
+                Create your account to save favorites, unlock rewards, and enjoy
+                a personalized experience.
+              </Text>
             </View>
 
             {!passwordMatch && confirm.length > 0 ? (
-              <Text style={styles.errorText}>Passwords need to match before you continue.</Text>
+              <Text style={styles.errorText}>
+                Passwords need to match before you continue.
+              </Text>
+            ) : error ? (
+              <Text style={styles.errorText}>{error}</Text>
             ) : null}
 
             <CustomButton
@@ -55,7 +84,9 @@ export default function RegisterScreen() {
               onPress={handleSignUp}
               disabled={!canSubmit}
               loading={loading}
-              leftSlot={<Feather name="user-plus" size={16} color={colors.background} />}
+              leftSlot={
+                <Feather name="user-plus" size={16} color={colors.background} />
+              }
             />
           </View>
 
@@ -67,29 +98,13 @@ export default function RegisterScreen() {
 
           <View style={styles.socialBlock}>
             <View style={styles.socialRow}>
-              <SocialButton
-                brand="Facebook"
-                onPress={() => {
-                  loginAsMember("facebook@fusionyum.com");
-                  router.push("/home");
-                }}
-              />
-              <SocialButton
-                brand="Google"
-                onPress={() => {
-                  loginAsMember("google@fusionyum.com");
-                  router.push("/home");
-                }}
-              />
-              <SocialButton
-                brand="Apple"
-                onPress={() => {
-                  loginAsMember("apple@fusionyum.com");
-                  router.push("/home");
-                }}
-              />
+              <SocialButton brand="Facebook" onPress={() => {}} />
+              <SocialButton brand="Google" onPress={handleGoogleSignIn} />
+              <SocialButton brand="Apple" onPress={() => {}} />
             </View>
-            <Text style={styles.socialHint}>Use social sign-in to jump directly into the member flow.</Text>
+            <Text style={styles.socialHint}>
+              Sign in with Google or create an account above.
+            </Text>
           </View>
         </View>
       }
@@ -97,7 +112,9 @@ export default function RegisterScreen() {
       <View style={styles.form}>
         <View style={styles.formIntro}>
           <Text style={styles.formTitle}>Create your account</Text>
-          <Text style={styles.formSubtitle}>A simple setup for favorites, rewards, and smoother checkout later.</Text>
+          <Text style={styles.formSubtitle}>
+            A simple setup for favorites, rewards, and smoother checkout later.
+          </Text>
         </View>
 
         <CustomInput
@@ -130,7 +147,11 @@ export default function RegisterScreen() {
           label="Repeat password"
           leadingIcon="shield"
           secureToggle
-          errorText={!passwordMatch && confirm.length > 0 ? "Passwords need to match." : undefined}
+          errorText={
+            !passwordMatch && confirm.length > 0
+              ? "Passwords need to match."
+              : undefined
+          }
           inputProps={{
             placeholder: "Repeat your password",
             secureTextEntry: true,

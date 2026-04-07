@@ -5,7 +5,7 @@ import { Alert, StyleSheet, Text, View } from "react-native";
 import AuthScreenLayout from "./AuthScreenLayout";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
-import { firebaseAuth } from "./Firebase/config";
+import { signInUser, signInWithGoogle } from "./Firebase/auth";
 import SocialButton from "./socialButton";
 import { colors, spacing, typography } from "./theme";
 
@@ -30,7 +30,7 @@ export default function LoginScreen() {
     setStatus("loading");
 
     try {
-      await firebaseAuth.signInWithEmailAndPassword(email.trim(), password);
+      await signInUser(email.trim(), password);
 
       setStatus("success");
       router.push("/home");
@@ -52,6 +52,21 @@ export default function LoginScreen() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setStatus("loading");
+    setErrorMessage("");
+
+    try {
+      await signInWithGoogle();
+      setStatus("success");
+      router.push("/home");
+    } catch (error: any) {
+      setStatus("error");
+      setErrorMessage("Failed to sign in with Google. Please try again.");
+      console.error(error);
+    }
+  };
+
   return (
     <AuthScreenLayout
       backHref="/"
@@ -69,7 +84,7 @@ export default function LoginScreen() {
             </View>
 
             {status === "error" ? (
-              <Text style={styles.errorText}>Add both fields to continue.</Text>
+              <Text style={styles.errorText}>{errorMessage}</Text>
             ) : null}
 
             <CustomButton
@@ -104,10 +119,7 @@ export default function LoginScreen() {
               />
               <SocialButton
                 brand="Google"
-                onPress={() => {
-                  Alert.alert("Coming Soon!");
-                  router.push("/home");
-                }}
+                onPress={handleGoogleSignIn}
               />
               <SocialButton
                 brand="Apple"
@@ -118,7 +130,7 @@ export default function LoginScreen() {
               />
             </View>
             <Text style={styles.socialHint}>
-              Quick sign-in for the prototype flow.
+              Sign in with Google or use your email and password above.
             </Text>
           </View>
         </View>

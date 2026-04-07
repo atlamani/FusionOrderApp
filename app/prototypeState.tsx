@@ -1,9 +1,16 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { onAuthStateChanged, signOutUser } from "./Firebase/auth";
 import {
+  allRestaurants,
   adminFeedback as initialAdminFeedback,
   adminOrders as initialAdminOrders,
   adminRestaurants as initialAdminRestaurants,
-  allRestaurants,
   currentOrder as initialCurrentOrder,
   driverProfiles as initialDriverProfiles,
   orderHistory as initialOrderHistory,
@@ -11,8 +18,19 @@ import {
 } from "./mockData";
 
 type PaymentCardId = "visa" | "mastercard" | "amex";
-type SessionMode = "signed-out" | "guest" | "member" | "admin" | "restaurant" | "driver";
-type AdminOrderStatus = "Pending" | "Preparing" | "Ready for Driver" | "Out for Delivery" | "Completed";
+type SessionMode =
+  | "signed-out"
+  | "guest"
+  | "member"
+  | "admin"
+  | "restaurant"
+  | "driver";
+type AdminOrderStatus =
+  | "Pending"
+  | "Preparing"
+  | "Ready for Driver"
+  | "Out for Delivery"
+  | "Completed";
 
 export type CartItem = {
   id: string;
@@ -63,13 +81,17 @@ type DiscoveryFilters = {
 
 function buildCustomerStatuses(status: AdminOrderStatus, driverName?: string) {
   const preparingDetail =
-    status === "Pending" ? "Restaurant is reviewing your order" : "Restaurant is preparing your order";
+    status === "Pending"
+      ? "Restaurant is reviewing your order"
+      : "Restaurant is preparing your order";
   const deliveryDetail =
     status === "Out for Delivery"
       ? `${driverName && driverName !== "Unassigned" ? driverName : "Your driver"} is on the way`
       : "Driver assignment is pending";
   const deliveredDetail =
-    status === "Completed" ? "Your order has been delivered" : "Waiting for delivery";
+    status === "Completed"
+      ? "Your order has been delivered"
+      : "Waiting for delivery";
 
   return [
     {
@@ -84,7 +106,10 @@ function buildCustomerStatuses(status: AdminOrderStatus, driverName?: string) {
     },
     {
       id: "delivery",
-      title: status === "Out for Delivery" ? "Out for Delivery" : "Driver Assignment",
+      title:
+        status === "Out for Delivery"
+          ? "Out for Delivery"
+          : "Driver Assignment",
       detail: deliveryDetail,
     },
     {
@@ -155,7 +180,10 @@ type PrototypeStateValue = {
   resetDiscoveryFilters: () => void;
   placeOrder: () => string | null;
   updateAdminOrderStatus: (orderId: string, status: AdminOrderStatus) => void;
-  toggleAdminMenuItemAvailability: (restaurantId: string, itemId: string) => void;
+  toggleAdminMenuItemAvailability: (
+    restaurantId: string,
+    itemId: string,
+  ) => void;
   approveRestaurant: (restaurantId: string) => void;
   updateRestaurantPrepTime: (restaurantId: string, prepTime: string) => void;
   claimDriverAssignment: (orderId: string) => void;
@@ -196,10 +224,16 @@ function formatPlacedAt() {
 }
 
 function resolveQuantity(value: number | CartItem[]) {
-  return Array.isArray(value) ? value.reduce((sum, item) => sum + item.quantity, 0) : value;
+  return Array.isArray(value)
+    ? value.reduce((sum, item) => sum + item.quantity, 0)
+    : value;
 }
 
-export function PrototypeStateProvider({ children }: { children: React.ReactNode }) {
+export function PrototypeStateProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const defaultRestaurant = allRestaurants[1] ?? allRestaurants[0];
   const [cartItems, setCartItems] = useState<CartItem[]>([
     {
@@ -211,7 +245,11 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
       restaurantName: defaultRestaurant?.name ?? "Tacos Numero 1",
     },
   ]);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>(["featured-1", "featured-2", "nearby-1"]);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([
+    "featured-1",
+    "featured-2",
+    "nearby-1",
+  ]);
   const [savedCardsExpanded, setSavedCardsExpanded] = useState(true);
   const [selectedCardId, setSelectedCardId] = useState<PaymentCardId>("visa");
   const [selectedTip, setSelectedTip] = useState("15%");
@@ -222,19 +260,61 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
   const [joinedRewards, setJoinedRewards] = useState(false);
   const [rewardsEmail, setRewardsEmail] = useState(defaultProfile.email);
   const [savedLocationOptions] = useState(savedAddresses);
-  const [selectedRestaurantId, setSelectedRestaurantId] = useState(defaultRestaurant?.id ?? "");
-  const [selectedPartnerRestaurantId, setSelectedPartnerRestaurantId] = useState("featured-2");
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState(
+    defaultRestaurant?.id ?? "",
+  );
+  const [selectedPartnerRestaurantId, setSelectedPartnerRestaurantId] =
+    useState("featured-2");
   const [selectedDriverId, setSelectedDriverId] = useState("driver-1");
   const [searchQuery, setSearchQuery] = useState("");
-  const [recentSearches, setRecentSearches] = useState<string[]>(["Tacos", "Dessert delivery", "Healthy bowls"]);
-  const [savedSearches, setSavedSearches] = useState<string[]>(["Pizza near campus"]);
-  const [discoveryFilters, setDiscoveryFilters] = useState<DiscoveryFilters>(defaultFilters);
-  const [currentOrder, setCurrentOrder] = useState<CustomerOrder | null>(initialCurrentOrder);
+  const [recentSearches, setRecentSearches] = useState<string[]>([
+    "Tacos",
+    "Dessert delivery",
+    "Healthy bowls",
+  ]);
+  const [savedSearches, setSavedSearches] = useState<string[]>([
+    "Pizza near campus",
+  ]);
+  const [discoveryFilters, setDiscoveryFilters] =
+    useState<DiscoveryFilters>(defaultFilters);
+  const [currentOrder, setCurrentOrder] = useState<CustomerOrder | null>(
+    initialCurrentOrder,
+  );
   const [orderHistory, setOrderHistory] = useState(initialOrderHistory);
   const [adminOrders, setAdminOrders] = useState(initialAdminOrders);
-  const [adminRestaurants, setAdminRestaurants] = useState(initialAdminRestaurants);
+  const [adminRestaurants, setAdminRestaurants] = useState(
+    initialAdminRestaurants,
+  );
   const [adminFeedback] = useState(initialAdminFeedback);
   const [driverProfiles, setDriverProfiles] = useState(initialDriverProfiles);
+
+  // Listen to Firebase authentication state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged((user) => {
+      if (user) {
+        // User is signed in with Firebase
+        setSessionMode("member");
+        // Update profile with Firebase user data
+        setProfile((current) => ({
+          ...current,
+          fullName: user.displayName || current.fullName,
+          email: user.email || current.email,
+        }));
+      } else {
+        // User is signed out
+        if (
+          sessionMode !== "guest" &&
+          sessionMode !== "admin" &&
+          sessionMode !== "restaurant" &&
+          sessionMode !== "driver"
+        ) {
+          setSessionMode("signed-out");
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [sessionMode]);
 
   const cartQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -267,12 +347,16 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
       adminFeedback,
       driverProfiles,
       addToCart: () => {
-        const restaurant = allRestaurants.find((entry) => entry.id === selectedRestaurantId) ?? defaultRestaurant;
+        const restaurant =
+          allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??
+          defaultRestaurant;
         setCartItems((current) => {
           const existing = current.find((item) => item.id === "menu-1");
           if (existing) {
             return current.map((item) =>
-              item.id === "menu-1" ? { ...item, quantity: item.quantity + 1 } : item,
+              item.id === "menu-1"
+                ? { ...item, quantity: item.quantity + 1 }
+                : item,
             );
           }
 
@@ -292,19 +376,29 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
       decreaseCart: () =>
         setCartItems((current) =>
           current
-            .map((item) => (item.id === "menu-1" ? { ...item, quantity: Math.max(0, item.quantity - 1) } : item))
+            .map((item) =>
+              item.id === "menu-1"
+                ? { ...item, quantity: Math.max(0, item.quantity - 1) }
+                : item,
+            )
             .filter((item) => item.quantity > 0),
         ),
       addMenuItem: (item) => {
-        const restaurant = allRestaurants.find((entry) => entry.id === selectedRestaurantId) ?? defaultRestaurant;
+        const restaurant =
+          allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??
+          defaultRestaurant;
         setCartItems((current) => {
           const existing = current.find(
-            (cartItem) => cartItem.id === item.id && cartItem.restaurantId === (restaurant?.id ?? selectedRestaurantId),
+            (cartItem) =>
+              cartItem.id === item.id &&
+              cartItem.restaurantId ===
+                (restaurant?.id ?? selectedRestaurantId),
           );
 
           if (existing) {
             return current.map((cartItem) =>
-              cartItem.id === item.id && cartItem.restaurantId === existing.restaurantId
+              cartItem.id === item.id &&
+              cartItem.restaurantId === existing.restaurantId
                 ? { ...cartItem, quantity: cartItem.quantity + 1 }
                 : cartItem,
             );
@@ -326,10 +420,15 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
       decreaseMenuItem: (itemId: string) =>
         setCartItems((current) =>
           current
-            .map((item) => (item.id === itemId ? { ...item, quantity: item.quantity - 1 } : item))
+            .map((item) =>
+              item.id === itemId
+                ? { ...item, quantity: item.quantity - 1 }
+                : item,
+            )
             .filter((item) => item.quantity > 0),
         ),
-      removeCartItem: (itemId: string) => setCartItems((current) => current.filter((item) => item.id !== itemId)),
+      removeCartItem: (itemId: string) =>
+        setCartItems((current) => current.filter((item) => item.id !== itemId)),
       clearCart: () => setCartItems([]),
       toggleFavorite: (restaurantId: string) =>
         setFavoriteIds((current) =>
@@ -337,7 +436,8 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
             ? current.filter((id) => id !== restaurantId)
             : [...current, restaurantId],
         ),
-      toggleSavedCardsExpanded: () => setSavedCardsExpanded((current) => !current),
+      toggleSavedCardsExpanded: () =>
+        setSavedCardsExpanded((current) => !current),
       selectCard: (cardId: PaymentCardId) => setSelectedCardId(cardId),
       setSelectedTip,
       setCustomTip,
@@ -348,7 +448,10 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
           setProfile((current) => ({
             ...current,
             email: identifier.includes("@") ? identifier : current.email,
-            fullName: current.fullName === "Guest Explorer" ? defaultProfile.fullName : current.fullName,
+            fullName:
+              current.fullName === "Guest Explorer"
+                ? defaultProfile.fullName
+                : current.fullName,
           }));
           setRewardsEmail(identifier.includes("@") ? identifier : rewardsEmail);
         }
@@ -367,6 +470,7 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
         }
       },
       logout: () => {
+        signOutUser();
         setSessionMode("signed-out");
         setCartItems([]);
         setSelectedTip("15%");
@@ -444,12 +548,19 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
           return;
         }
         setSearchQuery(trimmed);
-        setRecentSearches((current) => [trimmed, ...current.filter((entry) => entry !== trimmed)].slice(0, 6));
+        setRecentSearches((current) =>
+          [trimmed, ...current.filter((entry) => entry !== trimmed)].slice(
+            0,
+            6,
+          ),
+        );
       },
       clearSearch: () => setSearchQuery(""),
       toggleSavedSearch: (value: string) =>
         setSavedSearches((current) =>
-          current.includes(value) ? current.filter((entry) => entry !== value) : [value, ...current].slice(0, 6),
+          current.includes(value)
+            ? current.filter((entry) => entry !== value)
+            : [value, ...current].slice(0, 6),
         ),
       applyDiscoveryFilters: (patch: Partial<DiscoveryFilters>) =>
         setDiscoveryFilters((current) => ({
@@ -457,49 +568,61 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
           ...patch,
         })),
       resetDiscoveryFilters: () => setDiscoveryFilters(defaultFilters),
-      updateAdminOrderStatus: (orderId: string, status: AdminOrderStatus) =>
-        {
-          let updatedOrder:
-            | {
-                id: string;
-                driver: string;
-                eta: string;
-              }
-            | undefined;
+      updateAdminOrderStatus: (orderId: string, status: AdminOrderStatus) => {
+        let updatedOrder:
+          | {
+              id: string;
+              driver: string;
+              eta: string;
+            }
+          | undefined;
 
-          setAdminOrders((current) =>
-            current.map((order) => {
-              if (order.id !== orderId) {
-                return order;
-              }
+        setAdminOrders((current) =>
+          current.map((order) => {
+            if (order.id !== orderId) {
+              return order;
+            }
 
-              updatedOrder = {
-                id: order.id,
-                driver: order.driver,
-                eta: status === "Pending" ? "18 min" : status === "Preparing" ? "14 min" : status === "Ready for Driver" ? "9 min" : status === "Out for Delivery" ? "6 min" : "Delivered",
-              };
+            updatedOrder = {
+              id: order.id,
+              driver: order.driver,
+              eta:
+                status === "Pending"
+                  ? "18 min"
+                  : status === "Preparing"
+                    ? "14 min"
+                    : status === "Ready for Driver"
+                      ? "9 min"
+                      : status === "Out for Delivery"
+                        ? "6 min"
+                        : "Delivered",
+            };
 
-              return {
-                ...order,
-                status,
-                eta: updatedOrder.eta,
-                issue: status === "Completed" ? null : order.issue,
-              };
-            }),
+            return {
+              ...order,
+              status,
+              eta: updatedOrder.eta,
+              issue: status === "Completed" ? null : order.issue,
+            };
+          }),
+        );
+
+        if (updatedOrder) {
+          const order = updatedOrder;
+          setCurrentOrder((current) =>
+            current?.id === order.id
+              ? {
+                  ...current,
+                  eta:
+                    order.eta === "Delivered"
+                      ? "Delivered"
+                      : `Estimated: ${order.eta}`,
+                  statuses: buildCustomerStatuses(status, order.driver),
+                }
+              : current,
           );
-
-          if (updatedOrder) {
-            setCurrentOrder((current) =>
-              current?.id === updatedOrder?.id
-                ? {
-                    ...current,
-                    eta: updatedOrder.eta === "Delivered" ? "Delivered" : `Estimated: ${updatedOrder.eta}`,
-                    statuses: buildCustomerStatuses(status, updatedOrder.driver),
-                  }
-                : current,
-            );
-          }
-        },
+        }
+      },
       toggleAdminMenuItemAvailability: (restaurantId: string, itemId: string) =>
         setAdminRestaurants((current) =>
           current.map((restaurant) =>
@@ -507,7 +630,9 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
               ? {
                   ...restaurant,
                   menuItems: restaurant.menuItems.map((item) =>
-                    item.id === itemId ? { ...item, available: !item.available } : item,
+                    item.id === itemId
+                      ? { ...item, available: !item.available }
+                      : item,
                   ),
                 }
               : restaurant,
@@ -516,17 +641,24 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
       approveRestaurant: (restaurantId: string) =>
         setAdminRestaurants((current) =>
           current.map((restaurant) =>
-            restaurant.id === restaurantId && restaurant.status === "Needs Approval"
+            restaurant.id === restaurantId &&
+            restaurant.status === "Needs Approval"
               ? { ...restaurant, status: "Live" }
               : restaurant,
           ),
         ),
       updateRestaurantPrepTime: (restaurantId: string, prepTime: string) =>
         setAdminRestaurants((current) =>
-          current.map((restaurant) => (restaurant.id === restaurantId ? { ...restaurant, avgPrepTime: prepTime } : restaurant)),
+          current.map((restaurant) =>
+            restaurant.id === restaurantId
+              ? { ...restaurant, avgPrepTime: prepTime }
+              : restaurant,
+          ),
         ),
       claimDriverAssignment: (orderId: string) => {
-        const activeDriver = driverProfiles.find((driver) => driver.id === selectedDriverId);
+        const activeDriver = driverProfiles.find(
+          (driver) => driver.id === selectedDriverId,
+        );
         if (!activeDriver) {
           return;
         }
@@ -546,7 +678,9 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
         );
         setDriverProfiles((current) =>
           current.map((driver) =>
-            driver.id === selectedDriverId ? { ...driver, status: "Delivering" } : driver,
+            driver.id === selectedDriverId
+              ? { ...driver, status: "Delivering" }
+              : driver,
           ),
         );
         setCurrentOrder((current) =>
@@ -554,13 +688,18 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
             ? {
                 ...current,
                 eta: "Estimated: 6 min",
-                statuses: buildCustomerStatuses("Out for Delivery", activeDriver.name),
+                statuses: buildCustomerStatuses(
+                  "Out for Delivery",
+                  activeDriver.name,
+                ),
               }
             : current,
         );
       },
       completeDriverDelivery: (orderId: string) => {
-        const activeDriver = driverProfiles.find((driver) => driver.id === selectedDriverId);
+        const activeDriver = driverProfiles.find(
+          (driver) => driver.id === selectedDriverId,
+        );
         setAdminOrders((current) =>
           current.map((order) =>
             order.id === orderId
@@ -574,7 +713,9 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
         );
         setDriverProfiles((current) =>
           current.map((driver) =>
-            driver.id === selectedDriverId ? { ...driver, status: "Available" } : driver,
+            driver.id === selectedDriverId
+              ? { ...driver, status: "Available" }
+              : driver,
           ),
         );
         setCurrentOrder((current) =>
@@ -582,7 +723,10 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
             ? {
                 ...current,
                 eta: "Delivered",
-                statuses: buildCustomerStatuses("Completed", activeDriver?.name),
+                statuses: buildCustomerStatuses(
+                  "Completed",
+                  activeDriver?.name,
+                ),
               }
             : current,
         );
@@ -610,15 +754,23 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
         const taxes = getCartTaxes(cartItems);
         const tip = getTipAmount(cartItems, selectedTip, customTip);
         const total = subtotal + taxes + 5 + tip;
-        const restaurantNames = [...new Set(cartItems.map((item) => item.restaurantName))];
+        const restaurantNames = [
+          ...new Set(cartItems.map((item) => item.restaurantName)),
+        ];
         const orderId = `ORD-2026-${String(orderHistory.length + 6).padStart(3, "0")}`;
         const items = cartItems.map((item) => `${item.name} x${item.quantity}`);
 
         const nextOrder: CustomerOrder = {
           id: orderId,
-          restaurant: restaurantNames.length === 1 ? restaurantNames[0] : "FusionYum Mixed Order",
+          restaurant:
+            restaurantNames.length === 1
+              ? restaurantNames[0]
+              : "FusionYum Mixed Order",
           placedAt: formatPlacedAt(),
-          eta: restaurantNames.length === 1 ? "Estimated: 18-25 min" : "Estimated: 25-35 min",
+          eta:
+            restaurantNames.length === 1
+              ? "Estimated: 18-25 min"
+              : "Estimated: 25-35 min",
           address: profile.address,
           total: formatCurrency(total),
           items,
@@ -688,14 +840,20 @@ export function PrototypeStateProvider({ children }: { children: React.ReactNode
     ],
   );
 
-  return <PrototypeStateContext.Provider value={value}>{children}</PrototypeStateContext.Provider>;
+  return (
+    <PrototypeStateContext.Provider value={value}>
+      {children}
+    </PrototypeStateContext.Provider>
+  );
 }
 
 export function usePrototypeState() {
   const context = useContext(PrototypeStateContext);
 
   if (!context) {
-    throw new Error("usePrototypeState must be used within PrototypeStateProvider");
+    throw new Error(
+      "usePrototypeState must be used within PrototypeStateProvider",
+    );
   }
 
   return context;
@@ -717,7 +875,11 @@ export function getCartTaxes(value: number | CartItem[]) {
   return value > 0 ? 0.74 * value : 0;
 }
 
-export function getTipAmount(value: number | CartItem[], selectedTip: string, customTip: string) {
+export function getTipAmount(
+  value: number | CartItem[],
+  selectedTip: string,
+  customTip: string,
+) {
   const parsedCustomTip = Number.parseFloat(customTip || "0");
 
   if (parsedCustomTip > 0) {
