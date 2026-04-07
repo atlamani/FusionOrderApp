@@ -5,23 +5,37 @@ import { StyleSheet, Text, View } from "react-native";
 import AuthScreenLayout from "./AuthScreenLayout";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
+import { sendPasswordResetEmail } from "./Firebase/auth";
 import { colors, spacing, typography } from "./theme";
 
 export default function PassResetScreen() {
   const [identifier, setIdentifier] = useState("");
-  const [status, setStatus] = useState<"idle" | "sent">("idle");
-  const canSubmit = identifier.trim().length > 0;
+  const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">(
+    "idle",
+  );
+  const [errorMessage, setErrorMessage] = useState("");
+  const canSubmit = identifier.trim().length > 0 && status !== "loading";
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!canSubmit) {
       return;
     }
 
-    setStatus("sent");
+    setStatus("loading");
+    setErrorMessage("");
 
-    setTimeout(() => {
-      router.push("/LoginScreen");
-    }, 700);
+    try {
+      await sendPasswordResetEmail(identifier.trim());
+      setStatus("sent");
+      setTimeout(() => {
+        router.push("/LoginScreen");
+      }, 2000);
+    } catch (error: any) {
+      setStatus("error");
+      setErrorMessage(
+        error.message || "Failed to send reset email. Please try again.",
+      );
+    }
   };
 
   return (
@@ -29,23 +43,51 @@ export default function PassResetScreen() {
       backHref="/LoginScreen"
       eyebrow="FusionYum"
       title="Reset password"
-      subtitle="We’ll help you get back in quickly with a simple reset link preview."
+      subtitle="Enter your email address and we'll send you a link to reset your password."
       footer={
         <View style={styles.footer}>
           <View style={styles.helperCard}>
-            <Feather name={status === "sent" ? "check-circle" : "mail"} size={16} color={colors.surfaceDeep} />
+            <Feather
+              name={
+                status === "sent"
+                  ? "check-circle"
+                  : status === "loading"
+                    ? "clock"
+                    : status === "error"
+                      ? "alert-circle"
+                      : "mail"
+              }
+              size={16}
+              color={colors.surfaceDeep}
+            />
             <Text style={styles.helperCardText}>
               {status === "sent"
-                ? "A mock reset confirmation is on the way."
-                : "This prototype previews the recovery experience without sending anything real."}
+                ? "Password reset email sent! Check your inbox."
+                : status === "loading"
+                  ? "Sending reset email..."
+                  : status === "error"
+                    ? errorMessage
+                    : "Enter your email to receive a password reset link."}
             </Text>
           </View>
 
           <CustomButton
-            title={status === "sent" ? "Link Sent" : "Send reset link"}
+            title={
+              status === "sent"
+                ? "Email Sent"
+                : status === "loading"
+                  ? "Sending..."
+                  : "Send reset link"
+            }
             onPress={handleReset}
             disabled={!canSubmit}
-            leftSlot={<Feather name="send" size={16} color={colors.background} />}
+            leftSlot={
+              <Feather
+                name={status === "loading" ? "clock" : "send"}
+                size={16}
+                color={colors.background}
+              />
+            }
           />
         </View>
       }
@@ -53,7 +95,9 @@ export default function PassResetScreen() {
       <View style={styles.form}>
         <View style={styles.formIntro}>
           <Text style={styles.formTitle}>Recover your account</Text>
-          <Text style={styles.formSubtitle}>Enter the email or phone number linked to your account.</Text>
+          <Text style={styles.formSubtitle}>
+            Enter the email address linked to your account.
+          </Text>
         </View>
 
         <CustomInput

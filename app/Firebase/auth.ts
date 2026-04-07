@@ -81,3 +81,12 @@ export const onAuthStateChanged = (
 ) => {
   return firebaseAuth.onAuthStateChanged(callback);
 };
+
+export const sendPasswordResetEmail = async (email: string): Promise<void> => {
+  try {
+    await firebaseAuth.sendPasswordResetEmail(email);
+  } catch (error) {
+    console.error("Password reset error: ", error);
+    throw error;
+  }
+};
