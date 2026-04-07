@@ -2,24 +2,24 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import BrandLogo from "./BrandLogo";
 import FadeInView from "./FadeInView";
 import { savedCards } from "./mockData";
 import {
-    formatCurrency,
-    getCartItemCount,
-    getCartSubtotal,
-    getCartTaxes,
-    getTipAmount,
-    usePrototypeState,
+  formatCurrency,
+  getCartItemCount,
+  getCartSubtotal,
+  getCartTaxes,
+  getTipAmount,
+  usePrototypeState,
 } from "./prototypeState";
 import { colors, typography } from "./theme";
 
@@ -505,10 +505,15 @@ export default function PaymentScreen() {
             styles.footerButton,
             !hasItems && styles.footerButtonDisabled,
           ]}
-          onPress={() => {
+          onPress={async () => {
             if (hasItems) {
-              placeOrder();
-              router.push("/order-placed");
+              try {
+                await placeOrder();
+                router.push("/order-placed");
+              } catch (error: any) {
+                console.error("Checkout error:", error);
+                alert("Failed to process order. Please try again.");
+              }
             } else {
               router.replace("/checkout");
             }

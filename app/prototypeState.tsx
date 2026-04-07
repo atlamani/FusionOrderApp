@@ -178,7 +178,7 @@ type PrototypeStateValue = {
   toggleSavedSearch: (value: string) => void;
   applyDiscoveryFilters: (patch: Partial<DiscoveryFilters>) => void;
   resetDiscoveryFilters: () => void;
-  placeOrder: () => string | null;
+  placeOrder: () => Promise<string | null>;
   updateAdminOrderStatus: (orderId: string, status: AdminOrderStatus) => void;
   toggleAdminMenuItemAvailability: (
     restaurantId: string,
@@ -745,68 +745,140 @@ export function PrototypeStateProvider({
           );
         }
       },
-      placeOrder: () => {
+      placeOrder: async () => {
         if (cartItems.length === 0) {
           return null;
         }
 
-        const subtotal = getCartSubtotal(cartItems);
-        const taxes = getCartTaxes(cartItems);
-        const tip = getTipAmount(cartItems, selectedTip, customTip);
-        const total = subtotal + taxes + 5 + tip;
-        const restaurantNames = [
-          ...new Set(cartItems.map((item) => item.restaurantName)),
-        ];
-        const orderId = `ORD-2026-${String(orderHistory.length + 6).padStart(3, "0")}`;
-        const items = cartItems.map((item) => `${item.name} x${item.quantity}`);
+        try {
+          const subtotal = getCartSubtotal(cartItems);
+          const taxes = getCartTaxes(cartItems);
+          const tip = getTipAmount(cartItems, selectedTip, customTip);
+          const total = subtotal + taxes + 5 + tip;
+          const restaurantNames = [
+            ...new Set(cartItems.map((item) => item.restaurantName)),
+          ];
 
-        const nextOrder: CustomerOrder = {
-          id: orderId,
-          restaurant:
-            restaurantNames.length === 1
-              ? restaurantNames[0]
-              : "FusionYum Mixed Order",
-          placedAt: formatPlacedAt(),
-          eta:
-            restaurantNames.length === 1
-              ? "Estimated: 18-25 min"
-              : "Estimated: 25-35 min",
-          address: profile.address,
-          total: formatCurrency(total),
-          items,
-          statuses: buildCustomerStatuses("Pending"),
-        };
+          // Import the checkout function dynamically to avoid circular imports
+          const { processCheckout, processCheckoutDemo } =
+            await import("./Firebase/checkout");
 
-        setCurrentOrder(nextOrder);
-        setOrderHistory((current) => [
-          {
-            id: nextOrder.id,
-            restaurant: nextOrder.restaurant,
-            status: "Delivered",
-            date: "Just now | Added from current prototype session",
-            total: nextOrder.total,
-            items: nextOrder.items,
-            accent: "#016630",
-          },
-          ...current,
-        ]);
-        setAdminOrders((current) => [
-          {
-            id: nextOrder.id,
-            customer: profile.fullName,
-            restaurantId: cartItems[0]?.restaurantId ?? selectedRestaurantId,
-            restaurant: nextOrder.restaurant,
-            total: nextOrder.total,
-            status: "Pending",
-            placedAt: "Just now",
-            eta: nextOrder.eta.replace("Estimated: ", ""),
-            driver: "Unassigned",
-            issue: null,
-          },
-          ...current,
-        ]);
-        setCartItems([]);
-        return orderId;
+          // Get the current authenticated user
+          const { firebaseAuth } = await import("./Firebase/auth");
+          const currentUser = firebaseAuth.currentUser;
+
+          let orderId: string;
+
+          if (currentUser) {
+            // User is authenticated, use Firebase checkout
+            orderId = await processCheckout({
+              userId: currentUser.uid, // Use the actual Firebase user ID
+              restaurantId: cartItems[0]?.restaurantId ?? selectedRestaurantId,
+              restaurantName:
+                restaurantNames.length === 1
+                  ? restaurantNames[0]
+                  : "FusionYum Mixed Order",
+              items: cartItems.map((item) => ({
+                id: item.id,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                specialInstructions: "", // Cart items don't have special instructions in this prototype
+              })),
+              subtotal,
+              taxes,
+              deliveryFee: 5,
+              tip,
+              totalAmount: total,
+              deliveryAddress: profile.address,
+              deliveryNote: profile.deliveryNote,
+              specialInstructions: "",
+              paymentMethodId: selectedCardId,
+            });
+          } else {
+            // User is not authenticated, use demo checkout
+            console.log("Using demo checkout mode - user not authenticated");
+            orderId = await processCheckoutDemo({
+              userId: `demo_${Date.now()}`, // Demo user ID
+              restaurantId: cartItems[0]?.restaurantId ?? selectedRestaurantId,
+              restaurantName:
+                restaurantNames.length === 1
+                  ? restaurantNames[0]
+                  : "FusionYum Mixed Order",
+              items: cartItems.map((item) => ({
+                id: item.id,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                specialInstructions: "", // Cart items don't have special instructions in this prototype
+              })),
+              subtotal,
+              taxes,
+              deliveryFee: 5,
+              tip,
+              totalAmount: total,
+              deliveryAddress: profile.address,
+              deliveryNote: profile.deliveryNote,
+              specialInstructions: "",
+              paymentMethodId: selectedCardId,
+            });
+          }
+
+          // Update local state for UI
+          const items = cartItems.map(
+            (item) => `${item.name} x${item.quantity}`,
+          );
+          const nextOrder: CustomerOrder = {
+            id: orderId,
+            restaurant:
+              restaurantNames.length === 1
+                ? restaurantNames[0]
+                : "FusionYum Mixed Order",
+            placedAt: formatPlacedAt(),
+            eta:
+              restaurantNames.length === 1
+                ? "Estimated: 18-25 min"
+                : "Estimated: 25-35 min",
+            address: profile.address,
+            total: formatCurrency(total),
+            items,
+            statuses: buildCustomerStatuses("Pending"),
+          };
+
+          setCurrentOrder(nextOrder);
+          setOrderHistory((current) => [
+            {
+              id: nextOrder.id,
+              restaurant: nextOrder.restaurant,
+              status: "Delivered",
+              date: "Just now | Added from current prototype session",
+              total: nextOrder.total,
+              items: nextOrder.items,
+              accent: "#016630",
+            },
+            ...current,
+          ]);
+          setAdminOrders((current) => [
+            {
+              id: nextOrder.id,
+              customer: profile.fullName,
+              restaurantId: cartItems[0]?.restaurantId ?? selectedRestaurantId,
+              restaurant: nextOrder.restaurant,
+              total: nextOrder.total,
+              status: "Pending",
+              placedAt: "Just now",
+              eta: nextOrder.eta.replace("Estimated: ", ""),
+              driver: "Unassigned",
+              issue: null,
+            },
+            ...current,
+          ]);
+          setCartItems([]);
+          return orderId;
+        } catch (error) {
+          console.error("Checkout error:", error);
+          throw error;
+        }
       },
     }),
     [
