@@ -5,6 +5,11 @@ export interface UserProfile {
   email: string | null;
   displayName: string;
   photoURL?: string;
+  phone?: string;
+  address?: string;
+  deliveryNote?: string;
+  rewardsPoints?: number;
+  rewardsTier?: string;
   createdAt: FirebaseFirestoreTypes.FieldValue;
   lastLogin: FirebaseFirestoreTypes.FieldValue;
 }

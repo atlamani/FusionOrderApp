@@ -1,29 +1,45 @@
 import { Feather } from "@expo/vector-icons";
+import firestore from "@react-native-firebase/firestore";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import AuthScreenLayout from "./AuthScreenLayout";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
-import { signInWithGoogle, signUpUser } from "./Firebase/auth";
+import { signUpUser } from "./Firebase/auth";
+import { saveUserProfile } from "./Firebase/firestore";
+import { usePrototypeState } from "./prototypeState";
 import SocialButton from "./socialButton";
 import { colors, spacing, typography } from "./theme";
 
 export default function RegisterScreen() {
-  const [identifier, setIdentifier] = useState("");
+  const { updateProfile } = usePrototypeState();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const emailValid = /^\S+@\S+\.\S+$/.test(email.trim());
+  const phoneDigits = phone.replace(/\D/g, "");
+  const phoneValid = phoneDigits.length >= 10;
   const passwordMatch = password.trim().length > 0 && password === confirm;
   const allFilled = Boolean(
-    identifier.trim() && password.trim() && confirm.trim(),
+    fullName.trim() &&
+    email.trim() &&
+    phone.trim() &&
+    address.trim() &&
+    password.trim() &&
+    confirm.trim(),
   );
-  const canSubmit = allFilled && passwordMatch;
+  const canSubmit = allFilled && emailValid && phoneValid && passwordMatch;
 
   const handleSignUp = async () => {
     if (!canSubmit) {
+      setError("Please fill out all required fields with valid information.");
       return;
     }
 
@@ -31,7 +47,35 @@ export default function RegisterScreen() {
     setError("");
 
     try {
-      await signUpUser(identifier, password);
+      const userCredential = await signUpUser(email.trim(), password);
+      const user = userCredential.user;
+
+      await user.updateProfile({
+        displayName: fullName.trim(),
+      });
+
+      await saveUserProfile(user.uid, {
+        uid: user.uid,
+        email: user.email,
+        displayName: fullName.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        deliveryNote: "",
+        rewardsPoints: 0,
+        rewardsTier: "Bronze Member",
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+      updateProfile({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        deliveryNote: "",
+        rewardsPoints: 0,
+        rewardsTier: "Bronze Member",
+      });
+
       router.push("/home");
     } catch (err: any) {
       setError(err.message || "Failed to create account");
@@ -40,18 +84,10 @@ export default function RegisterScreen() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      await signInWithGoogle();
-      router.push("/home");
-    } catch (err: any) {
-      setError(err.message || "Failed to sign in with Google");
-    } finally {
-      setLoading(false);
-    }
+  const handleGoogleSignIn = () => {
+    setError(
+      "Use the form above so we can collect your name, phone, and delivery address.",
+    );
   };
 
   return (
@@ -103,7 +139,8 @@ export default function RegisterScreen() {
               <SocialButton brand="Apple" onPress={() => {}} />
             </View>
             <Text style={styles.socialHint}>
-              Sign in with Google or create an account above.
+              Google sign-in is available on the login screen for existing
+              users.
             </Text>
           </View>
         </View>
@@ -118,14 +155,58 @@ export default function RegisterScreen() {
         </View>
 
         <CustomInput
-          label="Email or phone"
+          label="Full name"
           leadingIcon="user"
           inputProps={{
-            placeholder: "Enter your email or phone",
+            placeholder: "Enter your full name",
+            autoCapitalize: "words",
+            value: fullName,
+            onChangeText: setFullName,
+          }}
+        />
+
+        <CustomInput
+          label="Email"
+          leadingIcon="user"
+          errorText={
+            !emailValid && email.length > 0
+              ? "Enter a valid email address."
+              : undefined
+          }
+          inputProps={{
+            placeholder: "Enter your email",
             keyboardType: "email-address",
             autoCapitalize: "none",
-            value: identifier,
-            onChangeText: setIdentifier,
+            value: email,
+            onChangeText: setEmail,
+          }}
+        />
+
+        <CustomInput
+          label="Phone number"
+          leadingIcon="phone"
+          errorText={
+            !phoneValid && phone.length > 0
+              ? "Enter at least 10 digits."
+              : undefined
+          }
+          inputProps={{
+            placeholder: "Enter your phone number",
+            keyboardType: "phone-pad",
+            autoCapitalize: "none",
+            value: phone,
+            onChangeText: setPhone,
+          }}
+        />
+
+        <CustomInput
+          label="Delivery address"
+          leadingIcon="map-pin"
+          inputProps={{
+            placeholder: "Enter one delivery address",
+            autoCapitalize: "words",
+            value: address,
+            onChangeText: setAddress,
           }}
         />
 

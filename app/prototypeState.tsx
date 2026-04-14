@@ -1,3 +1,4 @@
+import firestore from "@react-native-firebase/firestore";
 import React, {
   createContext,
   useContext,
@@ -6,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { onAuthStateChanged, signOutUser } from "./Firebase/auth";
+import { getUserProfile, saveUserProfile } from "./Firebase/firestore";
 import {
   allRestaurants,
   adminFeedback as initialAdminFeedback,
@@ -130,6 +132,7 @@ type PrototypeStateValue = {
   customTip: string;
   sessionMode: SessionMode;
   profile: UserProfile;
+  currentUser: any;
   settings: AppSettings;
   joinedRewards: boolean;
   rewardsEmail: string;
@@ -229,6 +232,27 @@ function resolveQuantity(value: number | CartItem[]) {
     : value;
 }
 
+function resolveProfileName(
+  displayName: string | null | undefined,
+  email: string | null | undefined,
+  fallback: string,
+) {
+  const trimmedName = displayName?.trim();
+  if (trimmedName && trimmedName.toLowerCase() !== "user") {
+    return trimmedName;
+  }
+
+  const localPart = email?.split("@")[0]?.trim();
+  if (localPart) {
+    return localPart
+      .replace(/[._-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  return fallback;
+}
+
 export function PrototypeStateProvider({
   children,
 }: {
@@ -256,6 +280,7 @@ export function PrototypeStateProvider({
   const [customTip, setCustomTip] = useState("0.00");
   const [sessionMode, setSessionMode] = useState<SessionMode>("signed-out");
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [joinedRewards, setJoinedRewards] = useState(false);
   const [rewardsEmail, setRewardsEmail] = useState(defaultProfile.email);
@@ -290,18 +315,78 @@ export function PrototypeStateProvider({
 
   // Listen to Firebase authentication state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged((user) => {
+    const unsubscribe = onAuthStateChanged(async (user) => {
       if (user) {
         // User is signed in with Firebase
+        setCurrentUser(user);
         setSessionMode("member");
-        // Update profile with Firebase user data
-        setProfile((current) => ({
-          ...current,
-          fullName: user.displayName || current.fullName,
-          email: user.email || current.email,
-        }));
+
+        // Try to get user profile from Firestore
+        try {
+          const firestoreProfile = await getUserProfile(user.uid);
+          if (firestoreProfile) {
+            // Update profile with Firestore data
+            const resolvedFullName = resolveProfileName(
+              firestoreProfile.displayName || user.displayName,
+              firestoreProfile.email || user.email,
+              defaultProfile.fullName,
+            );
+
+            setProfile({
+              fullName: resolvedFullName,
+              email: firestoreProfile.email || user.email || "",
+              phone: firestoreProfile.phone || "",
+              address: firestoreProfile.address || "",
+              deliveryNote: firestoreProfile.deliveryNote || "",
+              rewardsPoints: firestoreProfile.rewardsPoints || 0,
+              rewardsTier: firestoreProfile.rewardsTier || "Bronze Member",
+            });
+          } else {
+            // No profile in Firestore, create one
+            const resolvedFullName = resolveProfileName(
+              user.displayName,
+              user.email,
+              defaultProfile.fullName,
+            );
+
+            const newProfile = {
+              uid: user.uid,
+              email: user.email,
+              displayName: resolvedFullName,
+              phone: "",
+              address: "",
+              deliveryNote: "",
+              rewardsPoints: 0,
+              rewardsTier: "Bronze Member",
+              createdAt: firestore.FieldValue.serverTimestamp(),
+            };
+            await saveUserProfile(user.uid, newProfile);
+            setProfile({
+              fullName: resolvedFullName,
+              email: newProfile.email || "",
+              phone: newProfile.phone,
+              address: newProfile.address,
+              deliveryNote: newProfile.deliveryNote,
+              rewardsPoints: newProfile.rewardsPoints,
+              rewardsTier: newProfile.rewardsTier,
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching/saving user profile:", error);
+          // Fallback to Firebase auth data
+          setProfile((current) => ({
+            ...current,
+            fullName: resolveProfileName(
+              user.displayName,
+              user.email,
+              current.fullName,
+            ),
+            email: user.email || current.email,
+          }));
+        }
       } else {
         // User is signed out
+        setCurrentUser(null);
         if (
           sessionMode !== "guest" &&
           sessionMode !== "admin" &&
@@ -329,6 +414,7 @@ export function PrototypeStateProvider({
       customTip,
       sessionMode,
       profile,
+      currentUser,
       settings,
       joinedRewards,
       rewardsEmail,
@@ -478,20 +564,51 @@ export function PrototypeStateProvider({
         setSavedCardsExpanded(true);
         setSearchQuery("");
       },
-      updateProfile: (patch: Partial<UserProfile>) =>
+      updateProfile: async (patch: Partial<UserProfile>) => {
         setProfile((current) => {
           const next = { ...current, ...patch };
           if (patch.email) {
             setRewardsEmail(patch.email);
           }
           return next;
-        }),
-      updateAddress: (address: string, deliveryNote?: string) =>
+        });
+
+        // Save to Firestore if user is signed in
+        if (currentUser) {
+          try {
+            await saveUserProfile(currentUser.uid, {
+              displayName: patch.fullName,
+              email: patch.email,
+              phone: patch.phone,
+              address: patch.address,
+              deliveryNote: patch.deliveryNote,
+              rewardsPoints: patch.rewardsPoints,
+              rewardsTier: patch.rewardsTier,
+            });
+          } catch (error) {
+            console.error("Error saving profile to Firestore:", error);
+          }
+        }
+      },
+      updateAddress: async (address: string, deliveryNote?: string) => {
         setProfile((current) => ({
           ...current,
           address,
           deliveryNote: deliveryNote ?? current.deliveryNote,
-        })),
+        }));
+
+        // Save to Firestore if user is signed in
+        if (currentUser) {
+          try {
+            await saveUserProfile(currentUser.uid, {
+              address,
+              deliveryNote: deliveryNote ?? "",
+            });
+          } catch (error) {
+            console.error("Error saving address to Firestore:", error);
+          }
+        }
+      },
       toggleSetting: (key: keyof AppSettings) =>
         setSettings((current) => ({
           ...current,
@@ -886,6 +1003,7 @@ export function PrototypeStateProvider({
       cartQuantity,
       customTip,
       currentOrder,
+      currentUser,
       defaultRestaurant,
       discoveryFilters,
       driverProfiles,
