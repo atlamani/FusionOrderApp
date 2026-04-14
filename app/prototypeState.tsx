@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { onAuthStateChanged, signOutUser } from "./Firebase/auth";
@@ -33,6 +34,49 @@ type AdminOrderStatus =
   | "Ready for Driver"
   | "Out for Delivery"
   | "Completed";
+
+type AdminOrder = (typeof initialAdminOrders)[number];
+type AdminRestaurant = (typeof initialAdminRestaurants)[number];
+type AdminFeedback = (typeof initialAdminFeedback)[number];
+type DriverProfile = (typeof initialDriverProfiles)[number];
+
+type AdminServiceModule = {
+  subscribeToAdminOrders?: (
+    callback: (orders: AdminOrder[]) => void,
+    onError?: (error: unknown) => void,
+  ) => () => void;
+  subscribeToAdminRestaurants?: (
+    callback: (restaurants: AdminRestaurant[]) => void,
+    onError?: (error: unknown) => void,
+  ) => () => void;
+  subscribeToAdminFeedback?: (
+    callback: (feedback: AdminFeedback[]) => void,
+    onError?: (error: unknown) => void,
+  ) => () => void;
+  subscribeToDriverProfiles?: (
+    callback: (drivers: DriverProfile[]) => void,
+    onError?: (error: unknown) => void,
+  ) => () => void;
+  updateAdminOrderStatus?: (
+    orderId: string,
+    status: AdminOrderStatus,
+  ) => Promise<void>;
+  toggleRestaurantMenuItemAvailability?: (
+    restaurantId: string,
+    itemId: string,
+  ) => Promise<void>;
+  approveRestaurant?: (restaurantId: string) => Promise<void>;
+  updateRestaurantPrepTime?: (
+    restaurantId: string,
+    prepTime: string,
+  ) => Promise<void>;
+  claimDriverAssignment?: (orderId: string, driverId: string) => Promise<void>;
+  completeDriverDelivery?: (
+    orderId: string,
+    driverId?: string,
+  ) => Promise<void>;
+  ensureAdminSeedData?: () => Promise<unknown>;
+};
 
 export type CartItem = {
   id: string;
@@ -80,6 +124,13 @@ type DiscoveryFilters = {
   dietaryTag: string | null;
   price: string | null;
 };
+
+function isPermissionDenied(error: unknown) {
+  return (
+    (error as { code?: string } | undefined)?.code ===
+    "firestore/permission-denied"
+  );
+}
 
 function buildCustomerStatuses(status: AdminOrderStatus, driverName?: string) {
   const preparingDetail =
@@ -182,15 +233,21 @@ type PrototypeStateValue = {
   applyDiscoveryFilters: (patch: Partial<DiscoveryFilters>) => void;
   resetDiscoveryFilters: () => void;
   placeOrder: () => Promise<string | null>;
-  updateAdminOrderStatus: (orderId: string, status: AdminOrderStatus) => void;
+  updateAdminOrderStatus: (
+    orderId: string,
+    status: AdminOrderStatus,
+  ) => Promise<void>;
   toggleAdminMenuItemAvailability: (
     restaurantId: string,
     itemId: string,
-  ) => void;
-  approveRestaurant: (restaurantId: string) => void;
-  updateRestaurantPrepTime: (restaurantId: string, prepTime: string) => void;
-  claimDriverAssignment: (orderId: string) => void;
-  completeDriverDelivery: (orderId: string) => void;
+  ) => Promise<void>;
+  approveRestaurant: (restaurantId: string) => Promise<void>;
+  updateRestaurantPrepTime: (
+    restaurantId: string,
+    prepTime: string,
+  ) => Promise<void>;
+  claimDriverAssignment: (orderId: string) => Promise<void>;
+  completeDriverDelivery: (orderId: string) => Promise<void>;
 };
 
 const PrototypeStateContext = createContext<PrototypeStateValue | null>(null);
@@ -253,6 +310,89 @@ function resolveProfileName(
   return fallback;
 }
 
+function getStatusEta(status: AdminOrderStatus) {
+  switch (status) {
+    case "Pending":
+      return "18 min";
+    case "Preparing":
+      return "14 min";
+    case "Ready for Driver":
+      return "9 min";
+    case "Out for Delivery":
+      return "6 min";
+    case "Completed":
+      return "Delivered";
+    default:
+      return "18 min";
+  }
+}
+
+function syncCurrentOrderFromAdminOrder(
+  current: CustomerOrder | null,
+  order: AdminOrder,
+): CustomerOrder | null {
+  if (!current || current.id !== order.id) {
+    return current;
+  }
+
+  return {
+    ...current,
+    eta: order.eta === "Delivered" ? "Delivered" : `Estimated: ${order.eta}`,
+    statuses: buildCustomerStatuses(order.status, order.driver),
+  };
+}
+
+function syncOrderHistoryDelivery(
+  current: typeof initialOrderHistory,
+  orderId: string,
+  driverName?: string,
+) {
+  return current.map((order) =>
+    order.id === orderId
+      ? {
+          ...order,
+          date: driverName ? `Today | Delivered by ${driverName}` : order.date,
+          status: "Delivered" as const,
+          accent: "#016630",
+        }
+      : order,
+  );
+}
+
+function createLocalAdminFallback(): AdminServiceModule {
+  return {
+    subscribeToAdminOrders: (callback: (orders: AdminOrder[]) => void) => {
+      callback(initialAdminOrders);
+      return () => undefined;
+    },
+    subscribeToAdminRestaurants: (
+      callback: (restaurants: AdminRestaurant[]) => void,
+    ) => {
+      callback(initialAdminRestaurants);
+      return () => undefined;
+    },
+    subscribeToAdminFeedback: (
+      callback: (feedback: AdminFeedback[]) => void,
+    ) => {
+      callback(initialAdminFeedback);
+      return () => undefined;
+    },
+    subscribeToDriverProfiles: (
+      callback: (drivers: DriverProfile[]) => void,
+    ) => {
+      callback(initialDriverProfiles);
+      return () => undefined;
+    },
+    updateAdminOrderStatus: async () => undefined,
+    toggleRestaurantMenuItemAvailability: async () => undefined,
+    approveRestaurant: async () => undefined,
+    updateRestaurantPrepTime: async () => undefined,
+    claimDriverAssignment: async () => undefined,
+    completeDriverDelivery: async () => undefined,
+    ensureAdminSeedData: async () => undefined,
+  };
+}
+
 export function PrototypeStateProvider({
   children,
 }: {
@@ -310,22 +450,159 @@ export function PrototypeStateProvider({
   const [adminRestaurants, setAdminRestaurants] = useState(
     initialAdminRestaurants,
   );
-  const [adminFeedback] = useState(initialAdminFeedback);
+  const [adminFeedback, setAdminFeedback] = useState(initialAdminFeedback);
   const [driverProfiles, setDriverProfiles] = useState(initialDriverProfiles);
+  const adminServiceRef = useRef<AdminServiceModule | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAdminService = async () => {
+      try {
+        const module =
+          (await import("./Firebase/admin")) as unknown as AdminServiceModule;
+        if (isMounted) {
+          adminServiceRef.current = module;
+          try {
+            await module.ensureAdminSeedData?.();
+          } catch (error) {
+            console.error("Error seeding admin collections:", error);
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Admin Firebase service unavailable, using mock fallback:",
+          error,
+        );
+        if (isMounted) {
+          adminServiceRef.current = createLocalAdminFallback();
+        }
+      }
+    };
+
+    loadAdminService();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let orderUnsubscribe: (() => void) | undefined;
+    let restaurantUnsubscribe: (() => void) | undefined;
+    let feedbackUnsubscribe: (() => void) | undefined;
+    let driverUnsubscribe: (() => void) | undefined;
+
+    const setupSubscriptions = async () => {
+      if (!adminServiceRef.current) {
+        try {
+          const module =
+            (await import("./Firebase/admin")) as unknown as AdminServiceModule;
+          adminServiceRef.current = module;
+        } catch (error) {
+          console.error("Unable to initialize admin subscriptions:", error);
+          adminServiceRef.current = createLocalAdminFallback();
+        }
+      }
+
+      const service = adminServiceRef.current ?? createLocalAdminFallback();
+
+      orderUnsubscribe = service.subscribeToAdminOrders?.(
+        (orders) => {
+          if (!cancelled) {
+            setAdminOrders(orders.length > 0 ? orders : initialAdminOrders);
+          }
+        },
+        (error) => {
+          console.error("Admin orders subscription error:", error);
+          if (!cancelled) {
+            setAdminOrders(initialAdminOrders);
+          }
+        },
+      );
+
+      restaurantUnsubscribe = service.subscribeToAdminRestaurants?.(
+        (restaurants) => {
+          if (!cancelled) {
+            setAdminRestaurants(
+              restaurants.length > 0 ? restaurants : initialAdminRestaurants,
+            );
+          }
+        },
+        (error) => {
+          console.error("Admin restaurants subscription error:", error);
+          if (!cancelled) {
+            setAdminRestaurants(initialAdminRestaurants);
+          }
+        },
+      );
+
+      feedbackUnsubscribe = service.subscribeToAdminFeedback?.(
+        (feedback) => {
+          if (!cancelled) {
+            setAdminFeedback(
+              feedback.length > 0 ? feedback : initialAdminFeedback,
+            );
+          }
+        },
+        (error) => {
+          console.error("Admin feedback subscription error:", error);
+          if (!cancelled) {
+            setAdminFeedback(initialAdminFeedback);
+          }
+        },
+      );
+
+      driverUnsubscribe = service.subscribeToDriverProfiles?.(
+        (drivers) => {
+          if (!cancelled) {
+            setDriverProfiles(
+              drivers.length > 0 ? drivers : initialDriverProfiles,
+            );
+          }
+        },
+        (error) => {
+          console.error("Driver subscription error:", error);
+          if (!cancelled) {
+            setDriverProfiles(initialDriverProfiles);
+          }
+        },
+      );
+    };
+
+    setupSubscriptions();
+
+    return () => {
+      cancelled = true;
+      orderUnsubscribe?.();
+      restaurantUnsubscribe?.();
+      feedbackUnsubscribe?.();
+      driverUnsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const matchingOrder = adminOrders.find(
+      (order) => order.id === currentOrder?.id,
+    );
+    if (matchingOrder) {
+      setCurrentOrder((current) =>
+        syncCurrentOrderFromAdminOrder(current, matchingOrder),
+      );
+    }
+  }, [adminOrders, currentOrder?.id]);
 
   // Listen to Firebase authentication state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(async (user) => {
       if (user) {
-        // User is signed in with Firebase
         setCurrentUser(user);
         setSessionMode("member");
 
-        // Try to get user profile from Firestore
         try {
           const firestoreProfile = await getUserProfile(user.uid);
           if (firestoreProfile) {
-            // Update profile with Firestore data
             const resolvedFullName = resolveProfileName(
               firestoreProfile.displayName || user.displayName,
               firestoreProfile.email || user.email,
@@ -342,7 +619,6 @@ export function PrototypeStateProvider({
               rewardsTier: firestoreProfile.rewardsTier || "Bronze Member",
             });
           } else {
-            // No profile in Firestore, create one
             const resolvedFullName = resolveProfileName(
               user.displayName,
               user.email,
@@ -373,7 +649,6 @@ export function PrototypeStateProvider({
           }
         } catch (error) {
           console.error("Error fetching/saving user profile:", error);
-          // Fallback to Firebase auth data
           setProfile((current) => ({
             ...current,
             fullName: resolveProfileName(
@@ -385,7 +660,6 @@ export function PrototypeStateProvider({
           }));
         }
       } else {
-        // User is signed out
         setCurrentUser(null);
         if (
           sessionMode !== "guest" &&
@@ -573,7 +847,6 @@ export function PrototypeStateProvider({
           return next;
         });
 
-        // Save to Firestore if user is signed in
         if (currentUser) {
           try {
             await saveUserProfile(currentUser.uid, {
@@ -597,7 +870,6 @@ export function PrototypeStateProvider({
           deliveryNote: deliveryNote ?? current.deliveryNote,
         }));
 
-        // Save to Firestore if user is signed in
         if (currentUser) {
           try {
             await saveUserProfile(currentUser.uid, {
@@ -685,62 +957,64 @@ export function PrototypeStateProvider({
           ...patch,
         })),
       resetDiscoveryFilters: () => setDiscoveryFilters(defaultFilters),
-      updateAdminOrderStatus: (orderId: string, status: AdminOrderStatus) => {
-        let updatedOrder:
-          | {
-              id: string;
-              driver: string;
-              eta: string;
-            }
-          | undefined;
+      updateAdminOrderStatus: async (
+        orderId: string,
+        status: AdminOrderStatus,
+      ) => {
+        const previousOrders = adminOrders;
+        const matchingOrder = adminOrders.find((order) => order.id === orderId);
+        const nextEta = getStatusEta(status);
 
         setAdminOrders((current) =>
-          current.map((order) => {
-            if (order.id !== orderId) {
-              return order;
-            }
-
-            updatedOrder = {
-              id: order.id,
-              driver: order.driver,
-              eta:
-                status === "Pending"
-                  ? "18 min"
-                  : status === "Preparing"
-                    ? "14 min"
-                    : status === "Ready for Driver"
-                      ? "9 min"
-                      : status === "Out for Delivery"
-                        ? "6 min"
-                        : "Delivered",
-            };
-
-            return {
-              ...order,
-              status,
-              eta: updatedOrder.eta,
-              issue: status === "Completed" ? null : order.issue,
-            };
-          }),
+          current.map((order) =>
+            order.id === orderId
+              ? {
+                  ...order,
+                  status,
+                  eta: nextEta,
+                  issue: status === "Completed" ? null : order.issue,
+                }
+              : order,
+          ),
         );
 
-        if (updatedOrder) {
-          const order = updatedOrder;
+        if (matchingOrder) {
+          const optimisticOrder = {
+            ...matchingOrder,
+            status,
+            eta: nextEta,
+            issue: status === "Completed" ? null : matchingOrder.issue,
+          };
           setCurrentOrder((current) =>
-            current?.id === order.id
-              ? {
-                  ...current,
-                  eta:
-                    order.eta === "Delivered"
-                      ? "Delivered"
-                      : `Estimated: ${order.eta}`,
-                  statuses: buildCustomerStatuses(status, order.driver),
-                }
-              : current,
+            syncCurrentOrderFromAdminOrder(current, optimisticOrder),
           );
         }
+
+        try {
+          await adminServiceRef.current?.updateAdminOrderStatus?.(
+            orderId,
+            status,
+          );
+        } catch (error) {
+          if (isPermissionDenied(error)) {
+            return;
+          }
+
+          console.error("Failed to update admin order status:", error);
+          setAdminOrders(previousOrders);
+          if (matchingOrder) {
+            setCurrentOrder((current) =>
+              syncCurrentOrderFromAdminOrder(current, matchingOrder),
+            );
+          }
+        }
       },
-      toggleAdminMenuItemAvailability: (restaurantId: string, itemId: string) =>
+      toggleAdminMenuItemAvailability: async (
+        restaurantId: string,
+        itemId: string,
+      ) => {
+        const previousRestaurants = adminRestaurants;
+
         setAdminRestaurants((current) =>
           current.map((restaurant) =>
             restaurant.id === restaurantId
@@ -754,8 +1028,23 @@ export function PrototypeStateProvider({
                 }
               : restaurant,
           ),
-        ),
-      approveRestaurant: (restaurantId: string) =>
+        );
+
+        try {
+          await adminServiceRef.current?.toggleRestaurantMenuItemAvailability?.(
+            restaurantId,
+            itemId,
+          );
+        } catch (error) {
+          if (!isPermissionDenied(error)) {
+            console.error("Failed to toggle menu item availability:", error);
+          }
+          setAdminRestaurants(previousRestaurants);
+        }
+      },
+      approveRestaurant: async (restaurantId: string) => {
+        const previousRestaurants = adminRestaurants;
+
         setAdminRestaurants((current) =>
           current.map((restaurant) =>
             restaurant.id === restaurantId &&
@@ -763,16 +1052,44 @@ export function PrototypeStateProvider({
               ? { ...restaurant, status: "Live" }
               : restaurant,
           ),
-        ),
-      updateRestaurantPrepTime: (restaurantId: string, prepTime: string) =>
+        );
+
+        try {
+          await adminServiceRef.current?.approveRestaurant?.(restaurantId);
+        } catch (error) {
+          if (!isPermissionDenied(error)) {
+            console.error("Failed to approve restaurant:", error);
+          }
+          setAdminRestaurants(previousRestaurants);
+        }
+      },
+      updateRestaurantPrepTime: async (
+        restaurantId: string,
+        prepTime: string,
+      ) => {
+        const previousRestaurants = adminRestaurants;
+
         setAdminRestaurants((current) =>
           current.map((restaurant) =>
             restaurant.id === restaurantId
               ? { ...restaurant, avgPrepTime: prepTime }
               : restaurant,
           ),
-        ),
-      claimDriverAssignment: (orderId: string) => {
+        );
+
+        try {
+          await adminServiceRef.current?.updateRestaurantPrepTime?.(
+            restaurantId,
+            prepTime,
+          );
+        } catch (error) {
+          if (!isPermissionDenied(error)) {
+            console.error("Failed to update restaurant prep time:", error);
+          }
+          setAdminRestaurants(previousRestaurants);
+        }
+      },
+      claimDriverAssignment: async (orderId: string) => {
         const activeDriver = driverProfiles.find(
           (driver) => driver.id === selectedDriverId,
         );
@@ -780,14 +1097,27 @@ export function PrototypeStateProvider({
           return;
         }
 
+        const previousOrders = adminOrders;
+        const previousDrivers = driverProfiles;
+        const matchingOrder = adminOrders.find((order) => order.id === orderId);
+        const optimisticOrder = matchingOrder
+          ? {
+              ...matchingOrder,
+              driver: activeDriver.name,
+              status: "Ready for Driver" as const,
+              eta: "Pickup pending",
+              issue: null,
+            }
+          : undefined;
+
         setAdminOrders((current) =>
           current.map((order) =>
             order.id === orderId
               ? {
                   ...order,
                   driver: activeDriver.name,
-                  status: "Out for Delivery",
-                  eta: "6 min",
+                  status: "Ready for Driver",
+                  eta: "Pickup pending",
                   issue: null,
                 }
               : order,
@@ -800,29 +1130,54 @@ export function PrototypeStateProvider({
               : driver,
           ),
         );
-        setCurrentOrder((current) =>
-          current?.id === orderId
-            ? {
-                ...current,
-                eta: "Estimated: 6 min",
-                statuses: buildCustomerStatuses(
-                  "Out for Delivery",
-                  activeDriver.name,
-                ),
-              }
-            : current,
-        );
+        if (optimisticOrder) {
+          setCurrentOrder((current) =>
+            syncCurrentOrderFromAdminOrder(current, optimisticOrder),
+          );
+        }
+
+        try {
+          await adminServiceRef.current?.claimDriverAssignment?.(
+            orderId,
+            selectedDriverId,
+          );
+        } catch (error) {
+          if (!isPermissionDenied(error)) {
+            console.error("Failed to claim driver assignment:", error);
+          }
+          setAdminOrders(previousOrders);
+          setDriverProfiles(previousDrivers);
+          if (matchingOrder) {
+            setCurrentOrder((current) =>
+              syncCurrentOrderFromAdminOrder(current, matchingOrder),
+            );
+          }
+        }
       },
-      completeDriverDelivery: (orderId: string) => {
+      completeDriverDelivery: async (orderId: string) => {
         const activeDriver = driverProfiles.find(
           (driver) => driver.id === selectedDriverId,
         );
+        const previousOrders = adminOrders;
+        const previousDrivers = driverProfiles;
+        const previousHistory = orderHistory;
+        const matchingOrder = adminOrders.find((order) => order.id === orderId);
+        const optimisticOrder = matchingOrder
+          ? {
+              ...matchingOrder,
+              status: "Completed" as const,
+              eta: "Delivered",
+              issue: null,
+            }
+          : undefined;
+
         setAdminOrders((current) =>
           current.map((order) =>
             order.id === orderId
               ? {
                   ...order,
                   status: "Completed",
+                  eta: "Delivered",
                   issue: null,
                 }
               : order,
@@ -835,31 +1190,34 @@ export function PrototypeStateProvider({
               : driver,
           ),
         );
-        setCurrentOrder((current) =>
-          current?.id === orderId
-            ? {
-                ...current,
-                eta: "Delivered",
-                statuses: buildCustomerStatuses(
-                  "Completed",
-                  activeDriver?.name,
-                ),
-              }
-            : current,
-        );
+        if (optimisticOrder) {
+          setCurrentOrder((current) =>
+            syncCurrentOrderFromAdminOrder(current, optimisticOrder),
+          );
+        }
         if (activeDriver) {
           setOrderHistory((current) =>
-            current.map((order) =>
-              order.id === orderId
-                ? {
-                    ...order,
-                    date: `Today | Delivered by ${activeDriver.name}`,
-                    status: "Delivered",
-                    accent: "#016630",
-                  }
-                : order,
-            ),
+            syncOrderHistoryDelivery(current, orderId, activeDriver.name),
           );
+        }
+
+        try {
+          await adminServiceRef.current?.completeDriverDelivery?.(
+            orderId,
+            selectedDriverId,
+          );
+        } catch (error) {
+          if (!isPermissionDenied(error)) {
+            console.error("Failed to complete driver delivery:", error);
+          }
+          setAdminOrders(previousOrders);
+          setDriverProfiles(previousDrivers);
+          setOrderHistory(previousHistory);
+          if (matchingOrder) {
+            setCurrentOrder((current) =>
+              syncCurrentOrderFromAdminOrder(current, matchingOrder),
+            );
+          }
         }
       },
       placeOrder: async () => {
@@ -876,20 +1234,16 @@ export function PrototypeStateProvider({
             ...new Set(cartItems.map((item) => item.restaurantName)),
           ];
 
-          // Import the checkout function dynamically to avoid circular imports
           const { processCheckout, processCheckoutDemo } =
             await import("./Firebase/checkout");
-
-          // Get the current authenticated user
           const { firebaseAuth } = await import("./Firebase/auth");
           const currentUser = firebaseAuth.currentUser;
 
           let orderId: string;
 
           if (currentUser) {
-            // User is authenticated, use Firebase checkout
             orderId = await processCheckout({
-              userId: currentUser.uid, // Use the actual Firebase user ID
+              userId: currentUser.uid,
               restaurantId: cartItems[0]?.restaurantId ?? selectedRestaurantId,
               restaurantName:
                 restaurantNames.length === 1
@@ -900,7 +1254,7 @@ export function PrototypeStateProvider({
                 name: item.name,
                 price: item.price,
                 quantity: item.quantity,
-                specialInstructions: "", // Cart items don't have special instructions in this prototype
+                specialInstructions: "",
               })),
               subtotal,
               taxes,
@@ -913,10 +1267,9 @@ export function PrototypeStateProvider({
               paymentMethodId: selectedCardId,
             });
           } else {
-            // User is not authenticated, use demo checkout
             console.log("Using demo checkout mode - user not authenticated");
             orderId = await processCheckoutDemo({
-              userId: `demo_${Date.now()}`, // Demo user ID
+              userId: `demo_${Date.now()}`,
               restaurantId: cartItems[0]?.restaurantId ?? selectedRestaurantId,
               restaurantName:
                 restaurantNames.length === 1
@@ -927,7 +1280,7 @@ export function PrototypeStateProvider({
                 name: item.name,
                 price: item.price,
                 quantity: item.quantity,
-                specialInstructions: "", // Cart items don't have special instructions in this prototype
+                specialInstructions: "",
               })),
               subtotal,
               taxes,
@@ -941,7 +1294,6 @@ export function PrototypeStateProvider({
             });
           }
 
-          // Update local state for UI
           const items = cartItems.map(
             (item) => `${item.name} x${item.quantity}`,
           );

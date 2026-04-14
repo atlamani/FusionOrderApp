@@ -1,30 +1,75 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import FadeInView from "./FadeInView";
 import { usePrototypeState } from "./prototypeState";
 import { colors, spacing, typography } from "./theme";
 
 export default function DriverRouteScreen() {
-  const { adminOrders, completeDriverDelivery, driverProfiles, profile, selectedDriverId } = usePrototypeState();
+  const {
+    adminOrders,
+    completeDriverDelivery,
+    driverProfiles,
+    profile,
+    selectedDriverId,
+    updateAdminOrderStatus,
+  } = usePrototypeState();
 
   const activeDriver = useMemo(
-    () => driverProfiles.find((driver) => driver.id === selectedDriverId) ?? driverProfiles[0],
+    () =>
+      driverProfiles.find((driver) => driver.id === selectedDriverId) ??
+      driverProfiles[0],
     [driverProfiles, selectedDriverId],
   );
-  const activeOrder = useMemo(
-    () => adminOrders.find((order) => order.status === "Out for Delivery" && order.driver === activeDriver?.name),
-    [activeDriver?.name, adminOrders],
-  );
+  const activeOrder = useMemo(() => {
+    const matchingDriverOrder = adminOrders.find(
+      (order) =>
+        (order.status === "Ready for Driver" ||
+          order.status === "Out for Delivery") &&
+        order.driver === activeDriver?.name,
+    );
+
+    if (matchingDriverOrder) {
+      return matchingDriverOrder;
+    }
+
+    return adminOrders.find(
+      (order) =>
+        order.status === "Ready for Driver" ||
+        order.status === "Out for Delivery",
+    );
+  }, [activeDriver?.name, adminOrders]);
+
+  const pickupComplete = activeOrder?.status === "Out for Delivery";
+  const routeStageLabel = pickupComplete ? "EN ROUTE" : "AWAITING PICKUP";
+  const routeHeadline = pickupComplete
+    ? "Drive to customer"
+    : "Head to the restaurant";
+  const routeAddress = pickupComplete
+    ? profile.address
+    : `${activeOrder?.restaurant} pickup`;
+  const routeEtaLabel = pickupComplete ? "Customer ETA" : "Pickup ETA";
 
   if (!activeOrder) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyTitle}>No active route</Text>
-          <Text style={styles.emptyCopy}>Claim a ready order to preview the delivery route flow.</Text>
-          <Pressable style={styles.emptyButton} onPress={() => router.replace("/driver-assignments")}>
+          <Text style={styles.emptyCopy}>
+            Claim a ready order to preview the delivery route flow.
+          </Text>
+          <Pressable
+            style={styles.emptyButton}
+            onPress={() => router.replace("/driver-assignments")}
+          >
             <Text style={styles.emptyButtonText}>Open Assignments</Text>
           </Pressable>
         </View>
@@ -34,7 +79,10 @@ export default function DriverRouteScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
         <FadeInView delay={40} style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Feather name="arrow-left" size={18} color={colors.background} />
@@ -44,7 +92,7 @@ export default function DriverRouteScreen() {
         </FadeInView>
 
         <FadeInView delay={90} style={styles.mapCard}>
-          <Text style={styles.liveBadge}>LIVE ROUTE</Text>
+          <Text style={styles.liveBadge}>{routeStageLabel}</Text>
           <View style={styles.routeLoop} />
           <View style={styles.pinA}>
             <Feather name="shopping-bag" size={16} color={colors.background} />
@@ -56,22 +104,48 @@ export default function DriverRouteScreen() {
 
         <FadeInView delay={150} style={styles.infoCard}>
           <Text style={styles.restaurant}>{activeOrder.restaurant}</Text>
-          <Text style={styles.meta}>{`${activeOrder.customer} · ${activeOrder.total} · ETA ${activeOrder.eta}`}</Text>
+          <Text style={styles.stageTitle}>{routeHeadline}</Text>
+          <Text
+            style={styles.meta}
+          >{`${activeOrder.customer} · ${activeOrder.total} · ${routeEtaLabel} ${activeOrder.eta}`}</Text>
 
           <View style={styles.detailRow}>
             <Feather name="truck" size={16} color={colors.surfaceDeep} />
-            <Text style={styles.detailText}>{`${activeDriver?.name ?? "Driver"} · ${activeDriver?.vehicle ?? "Vehicle"}`}</Text>
+            <Text
+              style={styles.detailText}
+            >{`${activeDriver?.name ?? "Driver"} · ${activeDriver?.vehicle ?? "Vehicle"}`}</Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Feather name="package" size={16} color={colors.surfaceDeep} />
+            <Text
+              style={styles.detailText}
+            >{`Status: ${activeOrder.status}`}</Text>
           </View>
 
           <View style={styles.detailRow}>
             <Feather name="map-pin" size={16} color={colors.surfaceDeep} />
-            <Text style={styles.detailText}>{profile.address}</Text>
+            <Text style={styles.detailText}>{routeAddress}</Text>
           </View>
+
+          {!pickupComplete ? (
+            <Pressable
+              style={styles.primaryButton}
+              onPress={async () => {
+                await updateAdminOrderStatus(
+                  activeOrder.id,
+                  "Out for Delivery",
+                );
+              }}
+            >
+              <Text style={styles.primaryButtonText}>Mark Picked Up</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             style={styles.completeButton}
-            onPress={() => {
-              completeDriverDelivery(activeOrder.id);
+            onPress={async () => {
+              await completeDriverDelivery(activeOrder.id);
               router.replace("/driver-dashboard");
             }}
           >
@@ -98,7 +172,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 12,
   },
-  emptyTitle: { fontFamily: typography.display, fontSize: 28, color: colors.primary },
+  emptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 28,
+    color: colors.primary,
+  },
   emptyCopy: {
     fontFamily: typography.body,
     fontSize: 14,
@@ -115,8 +193,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
   },
-  emptyButtonText: { fontFamily: typography.display, fontSize: 15, color: colors.background },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  emptyButtonText: {
+    fontFamily: typography.display,
+    fontSize: 15,
+    color: colors.background,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   backButton: {
     width: 40,
     height: 40,
@@ -125,7 +211,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  headerTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
+  headerTitle: {
+    fontFamily: typography.display,
+    fontSize: 22,
+    color: colors.primary,
+  },
   headerSpacer: { width: 40 },
   mapCard: {
     height: 220,
@@ -188,10 +278,37 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  restaurant: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
+  restaurant: {
+    fontFamily: typography.display,
+    fontSize: 22,
+    color: colors.primary,
+  },
+  stageTitle: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.surfaceDeep,
+  },
   meta: { fontFamily: typography.body, fontSize: 13, color: colors.textMuted },
   detailRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  detailText: { flex: 1, fontFamily: typography.body, fontSize: 13, color: colors.text },
+  detailText: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.text,
+  },
+  primaryButton: {
+    minHeight: 46,
+    borderRadius: 16,
+    backgroundColor: colors.background,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  primaryButtonText: {
+    fontFamily: typography.display,
+    fontSize: 15,
+    color: colors.primary,
+  },
   completeButton: {
     minHeight: 46,
     borderRadius: 16,
@@ -200,5 +317,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
-  completeButtonText: { fontFamily: typography.display, fontSize: 15, color: colors.background },
+  completeButtonText: {
+    fontFamily: typography.display,
+    fontSize: 15,
+    color: colors.background,
+  },
 });
