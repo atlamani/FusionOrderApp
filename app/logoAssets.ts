@@ -1,14 +1,16 @@
-export const restaurantLogoAssets: Record<string, any> = {
-  PizzaPlace: require('../assets/images/PizzaPlace.png'),
-  Greek: require('../assets/images/Greek.png'),
-  Tacos: require('../assets/images/Tacos.png'),
-  Dessert: require('../assets/images/Dessert (1).png'),
-};
+export const logoAssets = {
+  social: {
+    facebook: require("../assets/images/brands/facebook.png"),
+    google: require("../assets/images/brands/google.png"),
+    apple: require("../assets/images/brands/apple.png"),
+  },
+  payment: {
+    visa: require("../assets/images/brands/visa.png"),
+    mastercard: require("../assets/images/brands/mastercard.png"),
+    amex: require("../assets/images/brands/amex.png"),
+    discover: require("../assets/images/brands/discover.png"),
+  },
+} as const;
 
-export function getRestaurantImageSource(image?: string) {
-  if (!image) {
-    return restaurantLogoAssets.PizzaPlace;
-  }
-
-  return restaurantLogoAssets[image] ?? restaurantLogoAssets.PizzaPlace;
-}
+export type SocialBrand = keyof typeof logoAssets.social;
+export type PaymentBrand = keyof typeof logoAssets.payment;
