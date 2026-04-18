@@ -20,7 +20,7 @@ type OrderStatus =
   | "confirmed"
   | "preparing"
   | "ready"
-  | "picked_up"
+  | "out_for_delivery"
   | "delivered"
   | "cancelled";
 
@@ -29,7 +29,7 @@ const statusSteps = [
   { key: "confirmed", label: "Order Confirmed", icon: "check-circle" },
   { key: "preparing", label: "Preparing Food", icon: "chef-hat" },
   { key: "ready", label: "Ready for Pickup", icon: "package" },
-  { key: "picked_up", label: "Out for Delivery", icon: "truck" },
+  { key: "out_for_delivery", label: "Out for Delivery", icon: "truck" },
   { key: "delivered", label: "Delivered", icon: "check-circle" },
 ] as const;
 
@@ -205,7 +205,7 @@ export default function OrderTrackingScreen() {
                         "Your food is being prepared"}
                       {order.status === "ready" &&
                         "Your order is ready for pickup"}
-                      {order.status === "picked_up" &&
+                      {order.status === "out_for_delivery" &&
                         "Your order is on the way"}
                       {order.status === "delivered" &&
                         "Your order has been delivered"}

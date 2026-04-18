@@ -39,6 +39,12 @@ export type OrderStatus =
   | "delivered"
   | "cancelled";
 
+export type OrderTimelineStatus = {
+  id: string;
+  title: string;
+  detail: string;
+};
+
 export interface Order {
   id: string;
   userId: string;
@@ -46,6 +52,7 @@ export interface Order {
   restaurantName: string;
   items: OrderItem[];
   status: OrderStatus;
+  timeline?: OrderTimelineStatus[];
   subtotal: number;
   taxes: number;
   deliveryFee: number;

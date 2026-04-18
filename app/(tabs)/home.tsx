@@ -1,9 +1,23 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { FlatList, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  FlatList,
+  Image,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import FadeInView from "../FadeInView";
-import { Restaurant, allRestaurants, cuisineTags, recommendationMoments } from "../mockData";
+import {
+  Restaurant,
+  allRestaurants,
+  cuisineTags,
+  recommendationMoments,
+} from "../mockData";
 import { usePrototypeState } from "../prototypeState";
 import { colors, spacing, typography } from "../theme";
 
@@ -14,7 +28,8 @@ function RestaurantCard({
   item: Restaurant;
   compact?: boolean;
 }) {
-  const { favoriteIds, setSelectedRestaurant, toggleFavorite } = usePrototypeState();
+  const { favoriteIds, setSelectedRestaurant, toggleFavorite } =
+    usePrototypeState();
   const isFavorite = favoriteIds.includes(item.id);
 
   return (
@@ -22,13 +37,22 @@ function RestaurantCard({
       style={[styles.restaurantCard, compact && styles.compactRestaurantCard]}
       onPress={() => {
         setSelectedRestaurant(item.id);
-        router.push("/menu");
+        router.push({
+          pathname: "/restaurant-menu",
+          params: { restaurantId: item.id },
+        });
       }}
     >
       <View>
-        <Image source={item.image} style={[styles.restaurantImage, compact && styles.compactImage]} />
+        <Image
+          source={item.image}
+          style={[styles.restaurantImage, compact && styles.compactImage]}
+        />
         <Pressable
-          style={[styles.favoriteButton, isFavorite && styles.favoriteButtonActive]}
+          style={[
+            styles.favoriteButton,
+            isFavorite && styles.favoriteButtonActive,
+          ]}
           onPress={() => toggleFavorite(item.id)}
         >
           <Feather
@@ -51,7 +75,9 @@ function RestaurantCard({
         <Text style={styles.restaurantCuisine}>
           {`${item.cuisine} · ${item.distance} · ${item.price}`}
         </Text>
-        {!compact ? <Text style={styles.restaurantDescription}>{item.description}</Text> : null}
+        {!compact ? (
+          <Text style={styles.restaurantDescription}>{item.description}</Text>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -68,13 +94,18 @@ export default function DiscoverScreen() {
   } = usePrototypeState();
 
   const selectedCuisineLabel =
-    cuisineTags.find((tag) => tag.id === discoveryFilters.cuisineId)?.label ?? "All";
+    cuisineTags.find((tag) => tag.id === discoveryFilters.cuisineId)?.label ??
+    "All";
 
   const recommendedRestaurants = useMemo(
     () =>
       recommendationMoments[0]?.restaurantIds
-        .map((restaurantId) => allRestaurants.find((restaurant) => restaurant.id === restaurantId))
-        .filter((restaurant): restaurant is Restaurant => Boolean(restaurant)) ?? [],
+        .map((restaurantId) =>
+          allRestaurants.find((restaurant) => restaurant.id === restaurantId),
+        )
+        .filter((restaurant): restaurant is Restaurant =>
+          Boolean(restaurant),
+        ) ?? [],
     [],
   );
 
@@ -84,29 +115,43 @@ export default function DiscoverScreen() {
     }
 
     return allRestaurants.filter((restaurant) =>
-      restaurant.cuisine.toLowerCase().includes(discoveryFilters.cuisineId.toLowerCase()),
+      restaurant.cuisine
+        .toLowerCase()
+        .includes(discoveryFilters.cuisineId.toLowerCase()),
     );
   }, [discoveryFilters.cuisineId]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
         <FadeInView delay={40} style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>FusionYum</Text>
             <Text style={styles.headerSubtitle}>
-              {favoriteIds.length} favorites saved | {cartQuantity} item{cartQuantity === 1 ? "" : "s"} in cart
+              {favoriteIds.length} favorites saved | {cartQuantity} item
+              {cartQuantity === 1 ? "" : "s"} in cart
             </Text>
           </View>
-          <Pressable style={styles.headerAction} onPress={() => router.push("/activity")}>
+          <Pressable
+            style={styles.headerAction}
+            onPress={() => router.push("/activity")}
+          >
             <Feather name="clock" size={18} color={colors.background} />
           </Pressable>
         </FadeInView>
 
         <FadeInView delay={100} style={styles.searchShell}>
-          <Pressable style={styles.searchBar} onPress={() => router.push("/search")}>
+          <Pressable
+            style={styles.searchBar}
+            onPress={() => router.push("/search")}
+          >
             <Feather name="search" size={18} color={colors.background} />
-            <Text style={styles.searchPrompt}>Search restaurants, dishes, or cuisines</Text>
+            <Text style={styles.searchPrompt}>
+              Search restaurants, dishes, or cuisines
+            </Text>
             <Feather name="sliders" size={16} color={colors.background} />
           </Pressable>
         </FadeInView>
@@ -115,7 +160,11 @@ export default function DiscoverScreen() {
           <Text style={styles.sectionTitle}>Recent search energy</Text>
           <View style={styles.recentSearchList}>
             {recentSearches.slice(0, 3).map((term) => (
-              <Pressable key={term} style={styles.recentSearchPill} onPress={() => router.push("/search")}>
+              <Pressable
+                key={term}
+                style={styles.recentSearchPill}
+                onPress={() => router.push("/search")}
+              >
                 <Text style={styles.recentSearchText}>{term}</Text>
               </Pressable>
             ))}
@@ -139,7 +188,11 @@ export default function DiscoverScreen() {
                   router.push("/search");
                 }}
               >
-                <Text style={[styles.tagText, isActive && styles.tagTextActive]}>{item.label}</Text>
+                <Text
+                  style={[styles.tagText, isActive && styles.tagTextActive]}
+                >
+                  {item.label}
+                </Text>
               </Pressable>
             );
           }}
@@ -161,7 +214,8 @@ export default function DiscoverScreen() {
           <Text style={styles.recommendationEyebrow}>Current browse mode</Text>
           <Text style={styles.recommendationTitle}>{selectedCuisineLabel}</Text>
           <Text style={styles.recommendationCopy}>
-            Use the new search flow to save searches, tune price and dietary filters, and open richer restaurant details.
+            Use the new search flow to save searches, tune price and dietary
+            filters, and open richer restaurant details.
           </Text>
           <Pressable
             style={styles.recommendationButton}
@@ -169,7 +223,10 @@ export default function DiscoverScreen() {
               const restaurant = browseRestaurants[0];
               if (restaurant) {
                 setSelectedRestaurant(restaurant.id);
-                router.push("/menu");
+                router.push({
+                  pathname: "/restaurant-menu",
+                  params: { restaurantId: restaurant.id },
+                });
               }
             }}
           >

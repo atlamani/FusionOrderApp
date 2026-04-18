@@ -14,6 +14,7 @@ import type {
   AdminSeedResult,
   DriverProfile,
   OrderStatus,
+  OrderTimelineStatus,
 } from "./types";
 
 type Unsubscribe = () => void;
@@ -83,6 +84,16 @@ function sanitizeBoolean(value: unknown, fallback = false): boolean {
 function normalizeOrderStatus(value: unknown): OrderStatus {
   const status = sanitizeString(value, "pending") as OrderStatus;
   return status in ORDER_STATUS_TO_ADMIN_STATUS ? status : "pending";
+}
+
+function isOrderTimelineStatus(value: unknown): value is OrderTimelineStatus {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    "title" in value &&
+    "detail" in value
+  );
 }
 
 function normalizeAdminOrderStatus(value: unknown): AdminOrderStatus {
