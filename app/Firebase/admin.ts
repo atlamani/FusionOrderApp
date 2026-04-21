@@ -332,13 +332,17 @@ async function seedCollectionIfEmpty<T extends { id: string }>(
 ) {
   const collectionRef = firestore().collection(collectionName);
   const snapshot = await collectionRef.get();
+  const existingIds = new Set(snapshot.docs.map((doc) => doc.id));
+  const missingDocuments = documents.filter(
+    (document) => !existingIds.has(document.id),
+  );
 
-  if (!snapshot.empty) {
+  if (missingDocuments.length === 0) {
     return false;
   }
 
   const batch = firestore().batch();
-  documents.forEach((document) => {
+  missingDocuments.forEach((document) => {
     batch.set(collectionRef.doc(document.id), document, { merge: true });
   });
   await batch.commit();

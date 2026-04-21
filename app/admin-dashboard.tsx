@@ -1,7 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
 import { usePrototypeState } from "./prototypeState";
@@ -18,7 +25,8 @@ const quickLinks = [
   {
     id: "restaurants",
     title: "Restaurants",
-    detail: "Approve locations, review prep times, and manage menu availability.",
+    detail:
+      "Approve locations, review prep times, and manage menu availability.",
     icon: "grid",
     route: "/admin-restaurants",
   },
@@ -32,19 +40,27 @@ const quickLinks = [
   {
     id: "analytics",
     title: "Analytics",
-    detail: "Track throughput, quality, partner readiness, and staffing signals.",
+    detail:
+      "Track throughput, quality, partner readiness, and staffing signals.",
     icon: "bar-chart-2",
     route: "/admin-analytics",
   },
 ] as const;
 
 export default function AdminDashboardScreen() {
-  const { adminFeedback, adminOrders, adminRestaurants, logout } = usePrototypeState();
+  const { adminFeedback, adminOrders, adminRestaurants, logout } =
+    usePrototypeState();
 
   const metrics = useMemo(() => {
-    const liveOrders = adminOrders.filter((order) => order.status !== "Completed").length;
-    const flaggedFeedback = adminFeedback.filter((entry) => entry.flagged).length;
-    const needsApproval = adminRestaurants.filter((restaurant) => restaurant.status === "Needs Approval").length;
+    const liveOrders = adminOrders.filter(
+      (order) => order.status !== "Completed",
+    ).length;
+    const flaggedFeedback = adminFeedback.filter(
+      (entry) => entry.flagged,
+    ).length;
+    const needsApproval = adminRestaurants.filter(
+      (restaurant) => restaurant.status === "Needs Approval",
+    ).length;
 
     return {
       liveOrders,
@@ -55,13 +71,17 @@ export default function AdminDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
         <FadeInView delay={40} style={styles.hero}>
           <View style={styles.heroCopy}>
             <Text style={styles.eyebrow}>Manager Console</Text>
             <Text style={styles.title}>FusionYum Ops at a glance</Text>
             <Text style={styles.subtitle}>
-              Review active orders, partner readiness, fulfillment health, and quality signals in one place.
+              Review active orders, partner readiness, fulfillment health, and
+              quality signals in one place.
             </Text>
           </View>
           <Pressable
@@ -93,12 +113,21 @@ export default function AdminDashboardScreen() {
         <FadeInView delay={220} style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Today&apos;s focus</Text>
           <Text style={styles.summaryCopy}>
-            Pizza operations are trending slower than target, one dessert partner needs approval,
-            and delivery feedback needs a quick review before the evening rush.
+            Pizza operations are trending slower than target, one dessert
+            partner needs approval, and delivery feedback needs a quick review
+            before the evening rush.
           </Text>
           <View style={styles.summaryActions}>
-            <CustomButton title="Open Live Orders" variant="secondary" onPress={() => router.push("/admin-orders")} />
-            <CustomButton title="View Analytics" variant="surface" onPress={() => router.push("/admin-analytics")} />
+            <CustomButton
+              title="Open Live Orders"
+              variant="secondary"
+              onPress={() => router.push("/admin-orders")}
+            />
+            <CustomButton
+              title="View Analytics"
+              variant="surface"
+              onPress={() => router.push("/admin-analytics")}
+            />
           </View>
         </FadeInView>
 
@@ -107,7 +136,11 @@ export default function AdminDashboardScreen() {
         </View>
 
         {quickLinks.map((link, index) => (
-          <FadeInView key={link.id} delay={270 + index * 50} style={styles.linkCard}>
+          <FadeInView
+            key={link.id}
+            delay={270 + index * 50}
+            style={styles.linkCard}
+          >
             <View style={styles.linkIcon}>
               <Feather name={link.icon} size={18} color={colors.background} />
             </View>
@@ -115,9 +148,53 @@ export default function AdminDashboardScreen() {
               <Text style={styles.linkTitle}>{link.title}</Text>
               <Text style={styles.linkDetail}>{link.detail}</Text>
             </View>
-            <Pressable style={styles.linkButton} onPress={() => router.push(link.route as never)}>
+            <Pressable
+              style={styles.linkButton}
+              onPress={() => router.push(link.route as never)}
+            >
               <Feather name="arrow-right" size={18} color={colors.primary} />
             </Pressable>
+          </FadeInView>
+        ))}
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Restaurant management</Text>
+        </View>
+
+        {adminRestaurants.map((restaurant, index) => (
+          <FadeInView
+            key={restaurant.id}
+            delay={470 + index * 40}
+            style={styles.restaurantCard}
+          >
+            <View style={styles.restaurantCardTop}>
+              <View style={styles.restaurantCopy}>
+                <Text style={styles.restaurantName}>{restaurant.name}</Text>
+                <Text style={styles.restaurantDetail}>
+                  {restaurant.cuisine} · Prep {restaurant.avgPrepTime} ·{" "}
+                  {restaurant.manager}
+                </Text>
+              </View>
+              <View style={styles.statusPill}>
+                <Text style={styles.statusText}>{restaurant.status}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.restaurantMenuCount}>
+              {restaurant.menuItems.length} menu items ready for availability
+              and price controls
+            </Text>
+
+            <View style={styles.restaurantActions}>
+              <Pressable
+                style={styles.linkButton}
+                onPress={() =>
+                  router.push(`/admin-restaurant?id=${restaurant.id}`)
+                }
+              >
+                <Feather name="menu" size={18} color={colors.primary} />
+              </Pressable>
+            </View>
           </FadeInView>
         ))}
       </ScrollView>
@@ -141,9 +218,18 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   heroCopy: { flex: 1, gap: 6 },
-  eyebrow: { fontFamily: typography.body, fontSize: 12, color: "rgba(255,255,255,0.78)" },
+  eyebrow: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.78)",
+  },
   title: { fontFamily: typography.display, fontSize: 30, color: colors.white },
-  subtitle: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.88)" },
+  subtitle: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.88)",
+  },
   logoutButton: {
     width: 44,
     height: 44,
@@ -162,8 +248,16 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
-  metricValue: { fontFamily: typography.display, fontSize: 30, color: colors.primary },
-  metricLabel: { fontFamily: typography.body, fontSize: 13, color: colors.textMuted },
+  metricValue: {
+    fontFamily: typography.display,
+    fontSize: 30,
+    color: colors.primary,
+  },
+  metricLabel: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
   summaryCard: {
     borderRadius: 22,
     backgroundColor: colors.white,
@@ -172,11 +266,24 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 14,
   },
-  summaryTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
-  summaryCopy: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: colors.text },
+  summaryTitle: {
+    fontFamily: typography.display,
+    fontSize: 22,
+    color: colors.primary,
+  },
+  summaryCopy: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
+  },
   summaryActions: { gap: 10 },
   sectionHeader: { paddingTop: 4 },
-  sectionTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
+  sectionTitle: {
+    fontFamily: typography.display,
+    fontSize: 22,
+    color: colors.primary,
+  },
   linkCard: {
     borderRadius: 22,
     backgroundColor: colors.white,
@@ -196,8 +303,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   linkCopy: { flex: 1, gap: 4 },
-  linkTitle: { fontFamily: typography.display, fontSize: 18, color: colors.primary },
-  linkDetail: { fontFamily: typography.body, fontSize: 13, lineHeight: 18, color: colors.textMuted },
+  linkTitle: {
+    fontFamily: typography.display,
+    fontSize: 18,
+    color: colors.primary,
+  },
+  linkDetail: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
   linkButton: {
     width: 38,
     height: 38,
@@ -205,5 +321,51 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
+  },
+  restaurantCard: {
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    gap: 12,
+  },
+  restaurantCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  restaurantCopy: { flex: 1, gap: 4 },
+  restaurantName: {
+    fontFamily: typography.display,
+    fontSize: 20,
+    color: colors.primary,
+  },
+  restaurantDetail: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
+  statusPill: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  statusText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.surfaceDeep,
+  },
+  restaurantMenuCount: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.text,
+  },
+  restaurantActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
   },
 });
