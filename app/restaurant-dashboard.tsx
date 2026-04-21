@@ -1,7 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import FadeInView from "./FadeInView";
 import { usePrototypeState } from "./prototypeState";
 import { colors, spacing, typography } from "./theme";
@@ -16,16 +23,25 @@ export default function RestaurantDashboardScreen() {
   } = usePrototypeState();
 
   const restaurant = useMemo(
-    () => adminRestaurants.find((entry) => entry.id === selectedPartnerRestaurantId) ?? adminRestaurants[0],
+    () =>
+      adminRestaurants.find(
+        (entry) => entry.id === selectedPartnerRestaurantId,
+      ) ?? adminRestaurants[0],
     [adminRestaurants, selectedPartnerRestaurantId],
   );
 
   const metrics = useMemo(() => {
-    const restaurantOrders = adminOrders.filter((order) => order.restaurantId === restaurant?.id);
+    const restaurantOrders = adminOrders.filter(
+      (order) => order.restaurantId === restaurant?.id,
+    );
     return {
-      active: restaurantOrders.filter((order) => order.status !== "Completed").length,
-      ready: restaurantOrders.filter((order) => order.status === "Ready for Driver").length,
-      pausedItems: restaurant?.menuItems.filter((item) => !item.available).length ?? 0,
+      active: restaurantOrders.filter((order) => order.status !== "Completed")
+        .length,
+      ready: restaurantOrders.filter(
+        (order) => order.status === "Ready for Driver",
+      ).length,
+      pausedItems:
+        restaurant?.menuItems.filter((item) => !item.available).length ?? 0,
     };
   }, [adminOrders, restaurant]);
 
@@ -35,13 +51,17 @@ export default function RestaurantDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
         <FadeInView delay={40} style={styles.hero}>
           <View style={styles.heroCopy}>
             <Text style={styles.eyebrow}>Restaurant Console</Text>
             <Text style={styles.title}>{restaurant.name}</Text>
             <Text style={styles.subtitle}>
-              Keep prep times current, move orders through the kitchen, and control menu availability.
+              Keep prep times current, move orders through the kitchen, and
+              control menu availability.
             </Text>
           </View>
           <Pressable
@@ -55,16 +75,30 @@ export default function RestaurantDashboardScreen() {
           </Pressable>
         </FadeInView>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.selectorRow}
+        >
           {adminRestaurants.map((entry) => {
             const active = entry.id === restaurant.id;
             return (
               <Pressable
                 key={entry.id}
-                style={[styles.selectorChip, active && styles.selectorChipActive]}
+                style={[
+                  styles.selectorChip,
+                  active && styles.selectorChipActive,
+                ]}
                 onPress={() => setSelectedPartnerRestaurant(entry.id)}
               >
-                <Text style={[styles.selectorText, active && styles.selectorTextActive]}>{entry.name}</Text>
+                <Text
+                  style={[
+                    styles.selectorText,
+                    active && styles.selectorTextActive,
+                  ]}
+                >
+                  {entry.name}
+                </Text>
               </Pressable>
             );
           })}
@@ -95,24 +129,43 @@ export default function RestaurantDashboardScreen() {
         </FadeInView>
 
         <View style={styles.linkStack}>
-          <Pressable style={styles.linkCard} onPress={() => router.push("/restaurant-orders")}>
+          <Pressable
+            style={styles.linkCard}
+            onPress={() => router.push("/restaurant-orders")}
+          >
             <View style={styles.linkIcon}>
-              <Feather name="shopping-bag" size={18} color={colors.background} />
+              <Feather
+                name="shopping-bag"
+                size={18}
+                color={colors.background}
+              />
             </View>
             <View style={styles.linkCopy}>
               <Text style={styles.linkTitle}>Kitchen Queue</Text>
-              <Text style={styles.linkDetail}>Advance order statuses and watch pickup readiness.</Text>
+              <Text style={styles.linkDetail}>
+                Advance order statuses and watch pickup readiness.
+              </Text>
             </View>
             <Feather name="arrow-right" size={18} color={colors.primary} />
           </Pressable>
 
-          <Pressable style={styles.linkCard} onPress={() => router.push("/restaurant-menu")}>
+          <Pressable
+            style={styles.linkCard}
+            onPress={() =>
+              router.push({
+                pathname: "/admin-restaurant",
+                params: { id: restaurant.id },
+              })
+            }
+          >
             <View style={styles.linkIcon}>
               <Feather name="menu" size={18} color={colors.background} />
             </View>
             <View style={styles.linkCopy}>
               <Text style={styles.linkTitle}>Menu Controls</Text>
-              <Text style={styles.linkDetail}>Pause items, keep prep time current, and prep for rushes.</Text>
+              <Text style={styles.linkDetail}>
+                Pause items, keep prep time current, and prep for rushes.
+              </Text>
             </View>
             <Feather name="arrow-right" size={18} color={colors.primary} />
           </Pressable>
@@ -138,9 +191,18 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   heroCopy: { flex: 1, gap: 6 },
-  eyebrow: { fontFamily: typography.body, fontSize: 12, color: "rgba(255,255,255,0.78)" },
+  eyebrow: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.78)",
+  },
   title: { fontFamily: typography.display, fontSize: 30, color: colors.white },
-  subtitle: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.88)" },
+  subtitle: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.88)",
+  },
   logoutButton: {
     width: 44,
     height: 44,
@@ -160,8 +222,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  selectorChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  selectorText: { fontFamily: typography.display, fontSize: 13, color: colors.primary },
+  selectorChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  selectorText: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    color: colors.primary,
+  },
   selectorTextActive: { color: colors.background },
   metricGrid: { flexDirection: "row", gap: 10 },
   metricCard: {
@@ -173,8 +242,16 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
-  metricValue: { fontFamily: typography.display, fontSize: 28, color: colors.primary },
-  metricLabel: { fontFamily: typography.body, fontSize: 13, color: colors.textMuted },
+  metricValue: {
+    fontFamily: typography.display,
+    fontSize: 28,
+    color: colors.primary,
+  },
+  metricLabel: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
   summaryCard: {
     borderRadius: 22,
     backgroundColor: colors.white,
@@ -183,8 +260,17 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 8,
   },
-  summaryTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
-  summaryCopy: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: colors.text },
+  summaryTitle: {
+    fontFamily: typography.display,
+    fontSize: 22,
+    color: colors.primary,
+  },
+  summaryCopy: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
+  },
   linkStack: { gap: 12 },
   linkCard: {
     borderRadius: 22,
@@ -205,6 +291,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   linkCopy: { flex: 1, gap: 4 },
-  linkTitle: { fontFamily: typography.display, fontSize: 18, color: colors.primary },
-  linkDetail: { fontFamily: typography.body, fontSize: 13, lineHeight: 18, color: colors.textMuted },
+  linkTitle: {
+    fontFamily: typography.display,
+    fontSize: 18,
+    color: colors.primary,
+  },
+  linkDetail: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
 });

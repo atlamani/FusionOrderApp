@@ -111,7 +111,7 @@ export default function DiscoverScreen() {
 
   const browseRestaurants = useMemo(() => {
     if (discoveryFilters.cuisineId === "all") {
-      return allRestaurants.slice(0, 4);
+      return allRestaurants.slice(0, 6);
     }
 
     return allRestaurants.filter((restaurant) =>
