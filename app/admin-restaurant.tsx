@@ -1,18 +1,96 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-import { menuByRestaurantId } from "./mockData";
 import { usePrototypeState } from "./prototypeState";
 import { colors, spacing, typography } from "./theme";
+
+function MenuItemRow({
+  restaurantId,
+  item,
+  index,
+  onToggleAvailability,
+  onSavePrice,
+}: {
+  restaurantId: string;
+  item: {
+    id: string;
+    name: string;
+    price: string;
+    available?: boolean;
+    popular?: boolean;
+  };
+  index: number;
+  onToggleAvailability: (restaurantId: string, itemId: string) => void;
+  onSavePrice: (restaurantId: string, itemId: string, price: string) => void;
+}) {
+  const [priceDraft, setPriceDraft] = useState(item.price);
+
+  useEffect(() => {
+    setPriceDraft(item.price);
+  }, [item.price]);
+
+  const isEnabled = item.available ?? true;
+
+  return (
+    <FadeInView delay={210 + index * 25} style={styles.menuCard}>
+      <View style={styles.menuCopy}>
+        <Text style={styles.itemName}>{item.name}</Text>
+        <Text style={styles.itemDetail}>
+          {item.popular ? "Popular pick · " : ""}
+          Current price: {item.price}
+        </Text>
+
+        <View style={styles.priceEditorRow}>
+          <TextInput
+            value={priceDraft}
+            onChangeText={setPriceDraft}
+            placeholder="$0.00"
+            placeholderTextColor="rgba(15,23,42,0.35)"
+            keyboardType="decimal-pad"
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.priceInput}
+          />
+          <Pressable
+            style={styles.savePriceButton}
+            onPress={() => onSavePrice(restaurantId, item.id, priceDraft)}
+          >
+            <Text style={styles.savePriceButtonText}>Save Price</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <Pressable
+        style={[
+          styles.toggle,
+          isEnabled ? styles.toggleDisableState : styles.toggleEnableState,
+        ]}
+        onPress={() => onToggleAvailability(restaurantId, item.id)}
+      >
+        <Text
+          style={[
+            styles.toggleText,
+            isEnabled
+              ? styles.toggleTextDisableState
+              : styles.toggleTextEnableState,
+          ]}
+        >
+          {isEnabled ? "Disable" : "Enable"}
+        </Text>
+      </Pressable>
+    </FadeInView>
+  );
+}
 
 export default function AdminRestaurantDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -21,6 +99,7 @@ export default function AdminRestaurantDetailScreen() {
     approveRestaurant,
     beginRestaurantSession,
     toggleAdminMenuItemAvailability,
+    updateAdminMenuItemPrice,
   } = usePrototypeState();
 
   const restaurant = useMemo(
@@ -30,13 +109,9 @@ export default function AdminRestaurantDetailScreen() {
     [adminRestaurants, params.id],
   );
 
-  const menuSections = useMemo(
-    () => menuByRestaurantId[restaurant.id] ?? [],
-    [restaurant.id],
-  );
   const menuItems = useMemo(
-    () => menuSections.flatMap((section) => section.items),
-    [menuSections],
+    () => restaurant.menuItems ?? [],
+    [restaurant.menuItems],
   );
 
   if (!restaurant) {
@@ -86,49 +161,23 @@ export default function AdminRestaurantDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Menu controls</Text>
             <Text style={styles.sectionHint}>
-              Toggle availability for the live menu shown to customers
+              Toggle availability or update pricing for the live menu shown to
+              customers
             </Text>
           </View>
         </FadeInView>
 
         <FadeInView delay={170} style={styles.section}>
           <Text style={styles.sectionTitle}>Menu items</Text>
-          {menuSections.map((section, sectionIndex) => (
-            <View key={section.id} style={styles.menuGroup}>
-              <Text style={styles.menuGroupTitle}>{section.title}</Text>
-              {section.items.map((item, index) => {
-                const isEnabled = item.available ?? true;
-                return (
-                  <FadeInView
-                    key={item.id}
-                    delay={210 + sectionIndex * 40 + index * 25}
-                    style={styles.menuCard}
-                  >
-                    <View style={styles.menuCopy}>
-                      <Text style={styles.itemName}>{item.name}</Text>
-                      <Text style={styles.itemDetail}>
-                        {item.price} {item.popular ? "· Popular pick" : ""}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={[styles.toggle, isEnabled && styles.toggleActive]}
-                      onPress={() =>
-                        toggleAdminMenuItemAvailability(restaurant.id, item.id)
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.toggleText,
-                          isEnabled && styles.toggleTextActive,
-                        ]}
-                      >
-                        {isEnabled ? "Enabled" : "Disabled"}
-                      </Text>
-                    </Pressable>
-                  </FadeInView>
-                );
-              })}
-            </View>
+          {menuItems.map((item, index) => (
+            <MenuItemRow
+              key={item.id}
+              restaurantId={restaurant.id}
+              item={item}
+              index={index}
+              onToggleAvailability={toggleAdminMenuItemAvailability}
+              onSavePrice={updateAdminMenuItemPrice}
+            />
           ))}
         </FadeInView>
       </ScrollView>
@@ -229,20 +278,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
   },
-  menuGroup: {
-    gap: 10,
-  },
-  menuSummary: {
-    fontFamily: typography.body,
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  menuGroupTitle: {
-    fontFamily: typography.display,
-    fontSize: 16,
-    color: colors.primary,
-    marginTop: 4,
-  },
   menuCard: {
     borderRadius: 22,
     backgroundColor: colors.white,
@@ -255,7 +290,7 @@ const styles = StyleSheet.create({
   },
   menuCopy: {
     flex: 1,
-    gap: 4,
+    gap: 8,
   },
   itemName: {
     fontFamily: typography.display,
@@ -267,55 +302,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
   },
-  controlStack: {
-    gap: 8,
+  priceEditorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  priceInput: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 12,
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.primary,
+  },
+  savePriceButton: {
+    minWidth: 96,
+    minHeight: 40,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 14,
+  },
+  savePriceButtonText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.background,
   },
   toggle: {
     minWidth: 110,
     minHeight: 40,
     borderRadius: 14,
-    backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 14,
+    borderWidth: 1,
   },
-  toggleActive: { backgroundColor: "#ECFDF3" },
+  toggleDisableState: {
+    backgroundColor: "#ECFDF3",
+    borderColor: "#BBF7D0",
+  },
+  toggleEnableState: {
+    backgroundColor: "#FFF1F2",
+    borderColor: "#FECACA",
+  },
   toggleText: {
     fontFamily: typography.display,
     fontSize: 13,
-    color: colors.primary,
   },
-  toggleTextActive: { color: colors.success },
-  secondaryAction: {
-    minWidth: 110,
-    minHeight: 36,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 14,
-  },
-  secondaryActionText: {
-    fontFamily: typography.display,
-    fontSize: 12,
-    color: colors.primary,
-  },
-  secondaryActionDanger: {
-    minWidth: 110,
-    minHeight: 36,
-    borderRadius: 14,
-    backgroundColor: "#FFF5F5",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 14,
-  },
-  secondaryActionDangerText: {
-    fontFamily: typography.display,
-    fontSize: 12,
-    color: colors.danger,
-  },
+  toggleTextDisableState: { color: colors.success },
+  toggleTextEnableState: { color: colors.danger },
 });

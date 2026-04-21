@@ -65,6 +65,11 @@ type AdminServiceModule = {
     restaurantId: string,
     itemId: string,
   ) => Promise<void>;
+  updateRestaurantMenuItemPrice?: (
+    restaurantId: string,
+    itemId: string,
+    price: string,
+  ) => Promise<void>;
   approveRestaurant?: (restaurantId: string) => Promise<void>;
   updateRestaurantPrepTime?: (
     restaurantId: string,
@@ -241,6 +246,11 @@ type PrototypeStateValue = {
     restaurantId: string,
     itemId: string,
   ) => Promise<void>;
+  updateAdminMenuItemPrice: (
+    restaurantId: string,
+    itemId: string,
+    price: string,
+  ) => Promise<void>;
   approveRestaurant: (restaurantId: string) => Promise<void>;
   updateRestaurantPrepTime: (
     restaurantId: string,
@@ -385,6 +395,7 @@ function createLocalAdminFallback(): AdminServiceModule {
     },
     updateAdminOrderStatus: async () => undefined,
     toggleRestaurantMenuItemAvailability: async () => undefined,
+    updateRestaurantMenuItemPrice: async () => undefined,
     approveRestaurant: async () => undefined,
     updateRestaurantPrepTime: async () => undefined,
     claimDriverAssignment: async () => undefined,
@@ -1038,6 +1049,44 @@ export function PrototypeStateProvider({
         } catch (error) {
           if (!isPermissionDenied(error)) {
             console.error("Failed to toggle menu item availability:", error);
+          }
+          setAdminRestaurants(previousRestaurants);
+        }
+      },
+      updateAdminMenuItemPrice: async (
+        restaurantId: string,
+        itemId: string,
+        price: string,
+      ) => {
+        const previousRestaurants = adminRestaurants;
+        const normalizedPrice = price.trim().startsWith("$")
+          ? price.trim()
+          : `$${price.trim()}`;
+
+        setAdminRestaurants((current) =>
+          current.map((restaurant) =>
+            restaurant.id === restaurantId
+              ? {
+                  ...restaurant,
+                  menuItems: restaurant.menuItems.map((item) =>
+                    item.id === itemId
+                      ? { ...item, price: normalizedPrice }
+                      : item,
+                  ),
+                }
+              : restaurant,
+          ),
+        );
+
+        try {
+          await adminServiceRef.current?.updateRestaurantMenuItemPrice?.(
+            restaurantId,
+            itemId,
+            normalizedPrice,
+          );
+        } catch (error) {
+          if (!isPermissionDenied(error)) {
+            console.error("Failed to update menu item price:", error);
           }
           setAdminRestaurants(previousRestaurants);
         }

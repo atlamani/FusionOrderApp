@@ -206,6 +206,39 @@ function sanitizeRestaurant(
     mockAdminRestaurants.find((restaurant) => restaurant.id === id) ??
     mockAdminRestaurants[0];
 
+  const fallbackMenuItems = baseFallback?.menuItems ?? [];
+  const storedMenuItems = Array.isArray(data?.menuItems) ? data.menuItems : [];
+  const mergedMenuItems = fallbackMenuItems.map((fallbackItem, index) => {
+    const storedItem = storedMenuItems.find(
+      (item) => item?.id === fallbackItem.id,
+    );
+    return sanitizeMenuItem(
+      storedItem,
+      fallbackItem ??
+        ({
+          id: `item-${index}`,
+          name: "Menu Item",
+          price: "$0.00",
+          available: true,
+        } as AdminRestaurantMenuItem),
+    );
+  });
+
+  const extraStoredItems = storedMenuItems
+    .filter(
+      (item) =>
+        item?.id &&
+        !fallbackMenuItems.some((fallbackItem) => fallbackItem.id === item.id),
+    )
+    .map((item, index) =>
+      sanitizeMenuItem(item, {
+        id: item?.id ?? `extra-item-${index}`,
+        name: "Menu Item",
+        price: "$0.00",
+        available: true,
+      }),
+    );
+
   return {
     id: sanitizeString(data?.id, id),
     name: sanitizeString(data?.name, baseFallback?.name ?? "Restaurant"),
@@ -221,19 +254,10 @@ function sanitizeRestaurant(
       baseFallback?.avgPrepTime ?? "20 min",
     ),
     manager: sanitizeString(data?.manager, baseFallback?.manager ?? "Manager"),
-    menuItems: Array.isArray(data?.menuItems)
-      ? data.menuItems.map((item, index) =>
-          sanitizeMenuItem(
-            item,
-            baseFallback?.menuItems[index] ?? {
-              id: `item-${index}`,
-              name: "Menu Item",
-              price: "$0.00",
-              available: true,
-            },
-          ),
-        )
-      : (baseFallback?.menuItems ?? []),
+    menuItems:
+      mergedMenuItems.length > 0
+        ? [...mergedMenuItems, ...extraStoredItems]
+        : [...fallbackMenuItems],
   };
 }
 
@@ -525,6 +549,36 @@ export async function toggleRestaurantMenuItemAvailability(
 
   const menuItems = restaurant.menuItems.map((item) =>
     item.id === menuItemId ? { ...item, available: !item.available } : item,
+  );
+
+  await restaurantRef.set(
+    {
+      menuItems,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function updateRestaurantMenuItemPrice(
+  restaurantId: string,
+  menuItemId: string,
+  price: string,
+): Promise<void> {
+  const restaurantRef = firestore()
+    .collection(RESTAURANTS_COLLECTION)
+    .doc(restaurantId);
+  const snapshot = await restaurantRef.get();
+  const restaurant = sanitizeRestaurant(
+    restaurantId,
+    snapshot.data() as Partial<AdminRestaurant> | undefined,
+    mockAdminRestaurants.find((entry) => entry.id === restaurantId),
+  );
+
+  const menuItems = restaurant.menuItems.map((item) =>
+    item.id === menuItemId
+      ? { ...item, price: parseCurrency(price, item.price) }
+      : item,
   );
 
   await restaurantRef.set(
