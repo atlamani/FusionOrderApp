@@ -17,6 +17,7 @@ import {
   currentOrder as initialCurrentOrder,
   driverProfiles as initialDriverProfiles,
   orderHistory as initialOrderHistory,
+  menuByRestaurantId,
   savedAddresses,
 } from "./mockData";
 
@@ -135,6 +136,32 @@ function isPermissionDenied(error: unknown) {
     (error as { code?: string } | undefined)?.code ===
     "firestore/permission-denied"
   );
+}
+
+export function getLiveMenuSections(
+  restaurantId: string,
+  liveRestaurants: typeof initialAdminRestaurants = initialAdminRestaurants,
+) {
+  const baseSections =
+    menuByRestaurantId[restaurantId] ?? menuByRestaurantId["featured-2"];
+  const restaurant = liveRestaurants.find((entry) => entry.id === restaurantId);
+  const menuItems = new Map(
+    restaurant?.menuItems.map((item) => [item.id, item]) ?? [],
+  );
+
+  return baseSections.map((section) => ({
+    ...section,
+    items: section.items.map((item) => {
+      const liveItem = menuItems.get(item.id);
+
+      return {
+        ...item,
+        price: liveItem?.price ?? item.price,
+        available: liveItem?.available ?? item.available,
+        popular: liveItem?.popular ?? item.popular,
+      };
+    }),
+  }));
 }
 
 function buildCustomerStatuses(status: AdminOrderStatus, driverName?: string) {
@@ -694,16 +721,6 @@ export function PrototypeStateProvider({
       cartQuantity,
       favoriteIds,
       savedCardsExpanded,
-      selectedCardId,
-      selectedTip,
-      customTip,
-      sessionMode,
-      profile,
-      currentUser,
-      settings,
-      joinedRewards,
-      rewardsEmail,
-      savedLocationOptions,
       selectedRestaurantId,
       selectedPartnerRestaurantId,
       selectedDriverId,
@@ -717,6 +734,16 @@ export function PrototypeStateProvider({
       adminRestaurants,
       adminFeedback,
       driverProfiles,
+      selectedCardId,
+      selectedTip,
+      customTip,
+      sessionMode,
+      profile,
+      currentUser,
+      settings,
+      joinedRewards,
+      rewardsEmail,
+      savedLocationOptions,
       addToCart: () => {
         const restaurant =
           allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??

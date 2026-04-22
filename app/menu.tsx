@@ -1,10 +1,24 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import FadeInView from "./FadeInView";
-import { allRestaurants, menuSections } from "./mockData";
-import { formatCurrency, getCartItemCount, getCartSubtotal, usePrototypeState } from "./prototypeState";
+import { allRestaurants } from "./mockData";
+import {
+  formatCurrency,
+  getCartItemCount,
+  getCartSubtotal,
+  getLiveMenuSections,
+  usePrototypeState,
+} from "./prototypeState";
 import { colors, spacing, typography } from "./theme";
 
 export default function MenuScreen() {
@@ -13,14 +27,21 @@ export default function MenuScreen() {
     cartItems,
     decreaseMenuItem,
     favoriteIds,
+    adminRestaurants,
     selectedRestaurantId,
     setSelectedRestaurant,
     toggleFavorite,
   } = usePrototypeState();
 
   const restaurant = useMemo(
-    () => allRestaurants.find((entry) => entry.id === selectedRestaurantId) ?? allRestaurants[0],
+    () =>
+      allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??
+      allRestaurants[0],
     [selectedRestaurantId],
+  );
+  const menuSections = useMemo(
+    () => getLiveMenuSections(restaurant.id, adminRestaurants),
+    [adminRestaurants, restaurant.id],
   );
   const restaurantCartItems = useMemo(
     () => cartItems.filter((item) => item.restaurantId === restaurant.id),
@@ -29,24 +50,35 @@ export default function MenuScreen() {
   const restaurantCartCount = getCartItemCount(restaurantCartItems);
   const cartTotal = cartItems.length > 0 ? getCartSubtotal(cartItems) + 5 : 5;
   const isFavorite = favoriteIds.includes(restaurant.id);
-  const recommendation = allRestaurants.find((entry) => entry.id !== restaurant.id) ?? restaurant;
+  const recommendation =
+    allRestaurants.find((entry) => entry.id !== restaurant.id) ?? restaurant;
 
   const getQuantity = (itemId: string) =>
     restaurantCartItems.find((item) => item.id === itemId)?.quantity ?? 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
         <FadeInView delay={40} style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>MENU</Text>
           <Pressable
-            style={[styles.favoriteButton, isFavorite && styles.favoriteButtonActive]}
+            style={[
+              styles.favoriteButton,
+              isFavorite && styles.favoriteButtonActive,
+            ]}
             onPress={() => toggleFavorite(restaurant.id)}
           >
-            <Feather name="heart" size={16} color={isFavorite ? colors.white : colors.background} />
+            <Feather
+              name="heart"
+              size={16}
+              color={isFavorite ? colors.white : colors.background}
+            />
           </Pressable>
         </FadeInView>
 
@@ -55,7 +87,8 @@ export default function MenuScreen() {
           <View style={styles.heroBody}>
             <Text style={styles.restaurantName}>{restaurant.name}</Text>
             <Text style={styles.restaurantMeta}>
-              {restaurant.rating}/5 ({restaurant.reviewCount} reviews) | {restaurant.distance} | {restaurant.eta}
+              {restaurant.rating}/5 ({restaurant.reviewCount} reviews) |{" "}
+              {restaurant.distance} | {restaurant.eta}
             </Text>
             <Text style={styles.restaurantCopy}>{restaurant.description}</Text>
             <View style={styles.tagWrap}>
@@ -97,27 +130,52 @@ export default function MenuScreen() {
                         </View>
                       ) : null}
                     </View>
-                    <Text style={styles.menuDescription}>{item.description}</Text>
+                    <Text style={styles.menuDescription}>
+                      {item.description}
+                    </Text>
                     <Text style={styles.menuPrice}>{item.price}</Text>
                   </View>
 
                   {itemQuantity > 0 ? (
                     <View style={styles.stepper}>
-                      <Pressable style={styles.stepperButton} onPress={() => decreaseMenuItem(item.id)}>
-                        <Feather name="minus" size={14} color={colors.background} />
+                      <Pressable
+                        style={styles.stepperButton}
+                        onPress={() => decreaseMenuItem(item.id)}
+                      >
+                        <Feather
+                          name="minus"
+                          size={14}
+                          color={colors.background}
+                        />
                       </Pressable>
                       <Text style={styles.stepperValue}>{itemQuantity}</Text>
                       <Pressable
                         style={styles.stepperButton}
-                        onPress={() => addMenuItem({ id: item.id, name: item.name, price: item.price })}
+                        onPress={() =>
+                          addMenuItem({
+                            id: item.id,
+                            name: item.name,
+                            price: item.price,
+                          })
+                        }
                       >
-                        <Feather name="plus" size={14} color={colors.background} />
+                        <Feather
+                          name="plus"
+                          size={14}
+                          color={colors.background}
+                        />
                       </Pressable>
                     </View>
                   ) : (
                     <Pressable
                       style={styles.addButton}
-                      onPress={() => addMenuItem({ id: item.id, name: item.name, price: item.price })}
+                      onPress={() =>
+                        addMenuItem({
+                          id: item.id,
+                          name: item.name,
+                          price: item.price,
+                        })
+                      }
                     >
                       <Text style={styles.addButtonText}>Add</Text>
                     </Pressable>
@@ -131,7 +189,10 @@ export default function MenuScreen() {
         <FadeInView delay={250} style={styles.card}>
           <View style={styles.sectionHeader}>
             <Text style={styles.cardTitle}>Recent reviews</Text>
-            <Pressable style={styles.inlineAction} onPress={() => router.push("/search")}>
+            <Pressable
+              style={styles.inlineAction}
+              onPress={() => router.push("/search")}
+            >
               <Text style={styles.inlineActionText}>Search more</Text>
             </Pressable>
           </View>
@@ -159,16 +220,22 @@ export default function MenuScreen() {
             }}
           >
             <View style={styles.recommendationCopy}>
-              <Text style={styles.recommendationName}>{recommendation.name}</Text>
+              <Text style={styles.recommendationName}>
+                {recommendation.name}
+              </Text>
               <Text style={styles.recommendationMeta}>
-                {recommendation.cuisine} | {recommendation.distance} | {recommendation.price}
+                {recommendation.cuisine} | {recommendation.distance} |{" "}
+                {recommendation.price}
               </Text>
             </View>
             <Feather name="arrow-right" size={18} color={colors.primary} />
           </Pressable>
         </FadeInView>
 
-        <Pressable style={styles.checkoutButton} onPress={() => router.push("/checkout")}>
+        <Pressable
+          style={styles.checkoutButton}
+          onPress={() => router.push("/checkout")}
+        >
           <Text style={styles.checkoutButtonText}>
             {cartItems.length > 0
               ? `View Cart | ${restaurantCartCount} item${restaurantCartCount === 1 ? "" : "s"} here | ${formatCurrency(cartTotal)}`

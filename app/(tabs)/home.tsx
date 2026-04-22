@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   restaurantCard: {
     borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: colors.white,
+    backgroundColor: colors.surfaceDeep,
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: colors.primary,
@@ -394,6 +394,7 @@ const styles = StyleSheet.create({
   },
   compactImage: {
     height: 112,
+    backgroundColor: colors.surfaceDeep,
   },
   favoriteButton: {
     position: "absolute",

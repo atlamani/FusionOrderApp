@@ -279,6 +279,40 @@ const ramenReviews: RestaurantReview[] = [
   },
 ];
 
+const bowlReviews: RestaurantReview[] = [
+  {
+    id: "review-bowl-1",
+    author: "Tessa M.",
+    rating: 5,
+    date: "Today",
+    text: "The grain bowl was fresh, filling, and packed perfectly for delivery.",
+  },
+  {
+    id: "review-bowl-2",
+    author: "Chris V.",
+    rating: 4,
+    date: "4 days ago",
+    text: "A strong healthy option with great portions and crisp veggies.",
+  },
+];
+
+const sushi2Reviews: RestaurantReview[] = [
+  {
+    id: "review-sushi-3",
+    author: "Harper D.",
+    rating: 5,
+    date: "Yesterday",
+    text: "The specialty rolls tasted super fresh and the wasabi had a nice bite.",
+  },
+  {
+    id: "review-sushi-4",
+    author: "Maya L.",
+    rating: 4,
+    date: "3 days ago",
+    text: "Great packaging, great flavor, and the salmon roll held up well on arrival.",
+  },
+];
+
 export const featuredRestaurants: Restaurant[] = [
   {
     id: "featured-1",
@@ -419,6 +453,44 @@ export const nearbyRestaurants: Restaurant[] = [
     popularDishes: ["Rainbow Roll", "Spicy Tuna Roll", "Miso Soup"],
     reviews: sushiReviews,
   },
+  {
+    id: "nearby-6",
+    name: "Harvest Bowl Co.",
+    cuisine: "Healthy bowls",
+    rating: "4.7",
+    reviewCount: 173,
+    eta: "17-27 min",
+    price: "$$",
+    badge: "Fresh fuel",
+    image: require("../assets/images/Greek.png"),
+    distance: "0.8 mi",
+    description:
+      "Protein-packed bowls, crisp vegetables, and bright dressings for lighter lunches and dinners.",
+    dietaryTags: ["Healthy", "High Protein"],
+    popularDishes: [
+      "Chicken Power Bowl",
+      "Falafel Crunch Bowl",
+      "Green Detox Juice",
+    ],
+    reviews: bowlReviews,
+  },
+  {
+    id: "nearby-7",
+    name: "Bamboo Sushi",
+    cuisine: "Sushi",
+    rating: "4.8",
+    reviewCount: 225,
+    eta: "21-31 min",
+    price: "$$$",
+    badge: "Fresh rolls",
+    image: require("../assets/images/PizzaPlace.png"),
+    distance: "1.3 mi",
+    description:
+      "Specialty rolls, nigiri, and warm bites with a polished campus-friendly delivery flow.",
+    dietaryTags: ["Fresh", "High Protein"],
+    popularDishes: ["Dragon Roll", "Salmon Nigiri", "Miso Soup"],
+    reviews: sushi2Reviews,
+  },
 ];
 
 export const allRestaurants: Restaurant[] = [
@@ -466,7 +538,14 @@ export const recommendationMoments = [
     id: "rec-1",
     title: "Great after class",
     copy: "Fast, reliable spots that fit a 30-minute window between lectures.",
-    restaurantIds: ["featured-2", "featured-1", "nearby-4", "nearby-5"],
+    restaurantIds: [
+      "featured-2",
+      "featured-1",
+      "nearby-4",
+      "nearby-5",
+      "nearby-6",
+      "nearby-7",
+    ],
   },
   {
     id: "rec-2",
@@ -1144,6 +1223,180 @@ export const menuByRestaurantId: Record<
       ],
     },
   ],
+  "nearby-6": [
+    {
+      id: "bowl-featured",
+      title: "Power bowls",
+      items: [
+        {
+          id: "bowl-1",
+          name: "Chicken Power Bowl",
+          description:
+            "Grilled chicken, quinoa, roasted vegetables, and lemon tahini dressing.",
+          price: "$15.95",
+          available: true,
+          popular: true,
+        },
+        {
+          id: "bowl-2",
+          name: "Falafel Crunch Bowl",
+          description:
+            "Falafel, brown rice, tomato, cucumber, and creamy herb sauce.",
+          price: "$14.50",
+          available: true,
+        },
+        {
+          id: "bowl-3",
+          name: "Salmon Grain Bowl",
+          description:
+            "Roasted salmon, farro, greens, and avocado with citrus vinaigrette.",
+          price: "$17.95",
+          available: true,
+        },
+        {
+          id: "bowl-4",
+          name: "Tofu Harvest Bowl",
+          description:
+            "Crispy tofu, sweet potato, kale, and sesame ginger dressing.",
+          price: "$13.95",
+          available: true,
+        },
+      ],
+    },
+    {
+      id: "bowl-sides",
+      title: "Sides & extras",
+      items: [
+        {
+          id: "bowl-5",
+          name: "Green Detox Juice",
+          description: "Fresh apple, cucumber, spinach, and lemon juice.",
+          price: "$5.25",
+          available: true,
+        },
+        {
+          id: "bowl-6",
+          name: "Avocado Toast",
+          description: "Sourdough toast with avocado, chili flakes, and lime.",
+          price: "$7.50",
+          available: true,
+        },
+        {
+          id: "bowl-7",
+          name: "Greek Yogurt Parfait",
+          description: "Yogurt, berries, and honey with toasted granola.",
+          price: "$6.25",
+          available: true,
+        },
+      ],
+    },
+    {
+      id: "bowl-drinks",
+      title: "Drinks",
+      items: [
+        {
+          id: "bowl-8",
+          name: "Iced Matcha",
+          description: "Smooth iced matcha with oat milk.",
+          price: "$4.95",
+          available: true,
+        },
+        {
+          id: "bowl-9",
+          name: "Sparkling Water",
+          description: "Chilled sparkling water with lime.",
+          price: "$2.75",
+          available: true,
+        },
+      ],
+    },
+  ],
+  "nearby-7": [
+    {
+      id: "sushi2-rolls",
+      title: "Signature rolls",
+      items: [
+        {
+          id: "sushi2-1",
+          name: "Dragon Roll",
+          description:
+            "Tempura shrimp, avocado, eel sauce, and crisp cucumber.",
+          price: "$18.25",
+          available: true,
+          popular: true,
+        },
+        {
+          id: "sushi2-2",
+          name: "Salmon Nigiri Set",
+          description: "Five pieces of fresh salmon nigiri with wasabi.",
+          price: "$16.95",
+          available: true,
+        },
+        {
+          id: "sushi2-3",
+          name: "Crispy Tuna Hand Roll",
+          description: "Hand roll filled with spicy tuna and cucumber.",
+          price: "$12.95",
+          available: true,
+        },
+        {
+          id: "sushi2-4",
+          name: "Veggie Avocado Roll",
+          description:
+            "Avocado, cucumber, and carrot wrapped in seasoned rice.",
+          price: "$11.75",
+          available: true,
+        },
+      ],
+    },
+    {
+      id: "sushi2-hot",
+      title: "Hot bites",
+      items: [
+        {
+          id: "sushi2-5",
+          name: "Miso Soup",
+          description: "Classic miso broth with tofu and scallions.",
+          price: "$3.95",
+          available: true,
+        },
+        {
+          id: "sushi2-6",
+          name: "Crispy Gyoza",
+          description: "Pan-seared dumplings with soy dipping sauce.",
+          price: "$7.25",
+          available: true,
+        },
+        {
+          id: "sushi2-7",
+          name: "Tempura Shrimp",
+          description: "Light, crispy shrimp with a citrus soy dip.",
+          price: "$8.50",
+          available: true,
+        },
+      ],
+    },
+    {
+      id: "sushi2-drinks",
+      title: "Drinks",
+      items: [
+        {
+          id: "sushi2-8",
+          name: "Yuzu Lemonade",
+          description: "Bright citrus lemonade with a sweet finish.",
+          price: "$4.25",
+          available: true,
+        },
+        {
+          id: "sushi2-9",
+          name: "Green Tea",
+          description: "Lightly brewed green tea served hot or iced.",
+          price: "$2.95",
+          available: true,
+        },
+      ],
+    },
+  ],
 } satisfies Record<string, { id: string; title: string; items: MenuItem[] }[]>;
 
 export const menuSections = menuByRestaurantId["featured-2"];
@@ -1799,6 +2052,136 @@ export const adminRestaurants: AdminRestaurant[] = [
       },
     ],
   },
+  {
+    id: "nearby-6",
+    name: "Harvest Bowl Co.",
+    cuisine: "Healthy bowls",
+    status: "Live",
+    avgPrepTime: "15 min",
+    manager: "Sienna Patel",
+    menuItems: [
+      {
+        id: "bowl-1",
+        name: "Chicken Power Bowl",
+        price: "$15.95",
+        available: true,
+        popular: true,
+      },
+      {
+        id: "bowl-2",
+        name: "Falafel Crunch Bowl",
+        price: "$14.50",
+        available: true,
+      },
+      {
+        id: "bowl-3",
+        name: "Salmon Grain Bowl",
+        price: "$17.95",
+        available: true,
+      },
+      {
+        id: "bowl-4",
+        name: "Tofu Harvest Bowl",
+        price: "$13.95",
+        available: true,
+      },
+      {
+        id: "bowl-5",
+        name: "Green Detox Juice",
+        price: "$5.25",
+        available: true,
+      },
+      {
+        id: "bowl-6",
+        name: "Avocado Toast",
+        price: "$7.50",
+        available: true,
+      },
+      {
+        id: "bowl-7",
+        name: "Greek Yogurt Parfait",
+        price: "$6.25",
+        available: true,
+      },
+      {
+        id: "bowl-8",
+        name: "Iced Matcha",
+        price: "$4.95",
+        available: true,
+      },
+      {
+        id: "bowl-9",
+        name: "Sparkling Water",
+        price: "$2.75",
+        available: true,
+      },
+    ],
+  },
+  {
+    id: "nearby-7",
+    name: "Bamboo Sushi",
+    cuisine: "Sushi",
+    status: "Busy",
+    avgPrepTime: "24 min",
+    manager: "Akira Tanaka",
+    menuItems: [
+      {
+        id: "sushi2-1",
+        name: "Dragon Roll",
+        price: "$18.25",
+        available: true,
+        popular: true,
+      },
+      {
+        id: "sushi2-2",
+        name: "Salmon Nigiri Set",
+        price: "$16.95",
+        available: true,
+      },
+      {
+        id: "sushi2-3",
+        name: "Crispy Tuna Hand Roll",
+        price: "$12.95",
+        available: true,
+      },
+      {
+        id: "sushi2-4",
+        name: "Veggie Avocado Roll",
+        price: "$11.75",
+        available: true,
+      },
+      {
+        id: "sushi2-5",
+        name: "Miso Soup",
+        price: "$3.95",
+        available: true,
+      },
+      {
+        id: "sushi2-6",
+        name: "Crispy Gyoza",
+        price: "$7.25",
+        available: true,
+      },
+      {
+        id: "sushi2-7",
+        name: "Tempura Shrimp",
+        price: "$8.50",
+        available: true,
+      },
+      {
+        id: "sushi2-8",
+        name: "Yuzu Lemonade",
+        price: "$4.25",
+        available: true,
+      },
+      {
+        id: "sushi2-9",
+        name: "Green Tea",
+        price: "$2.95",
+        available: true,
+      },
+    ],
+  },
 ];
 
 export const adminFeedback: AdminFeedback[] = [
@@ -1855,6 +2238,28 @@ export const adminFeedback: AdminFeedback[] = [
     author: "Andre M.",
     text: "Broth stayed hot and the noodles were still springy on arrival.",
     createdAt: "Today, 11:05 AM",
+    flagged: false,
+  },
+  {
+    id: "feedback-6",
+    restaurantId: "nearby-6",
+    restaurant: "Harvest Bowl Co.",
+    rating: 5,
+    category: "Food Quality",
+    author: "Jada R.",
+    text: "Fresh, filling, and exactly the kind of healthy lunch I was looking for.",
+    createdAt: "Today, 12:18 PM",
+    flagged: false,
+  },
+  {
+    id: "feedback-7",
+    restaurantId: "nearby-7",
+    restaurant: "Bamboo Sushi",
+    rating: 4,
+    category: "Packaging",
+    author: "Omar T.",
+    text: "The rolls were neatly packed and the hot sides stayed separate and crisp.",
+    createdAt: "Today, 12:52 PM",
     flagged: false,
   },
 ];

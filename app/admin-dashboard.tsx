@@ -333,19 +333,22 @@ const styles = StyleSheet.create({
   restaurantCardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: 12,
   },
-  restaurantCopy: { flex: 1, gap: 4 },
+  restaurantCopy: { flex: 1, minWidth: 0, gap: 4 },
   restaurantName: {
     fontFamily: typography.display,
     fontSize: 20,
     color: colors.primary,
+    flexShrink: 1,
   },
   restaurantDetail: {
     fontFamily: typography.body,
     fontSize: 13,
     lineHeight: 18,
     color: colors.textMuted,
+    flexShrink: 1,
   },
   statusPill: {
     alignSelf: "flex-start",
