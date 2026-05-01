@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   SafeAreaView,
@@ -10,72 +10,213 @@ import {
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-//import { getOrder, subscribeToOrderUpdates } from "./Firebase/orders";
-import { subscribeToOrderUpdates } from "./Firebase/orders";
-import { Order } from "./Firebase/types";
+import { getOrder, subscribeToOrderUpdates } from "./Firebase/orders";
+import { Order, OrderStatus } from "./Firebase/types";
+import { useAppState, type CustomerOrder } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, typography } from "./theme";
-
-type OrderStatus =
-  | "pending"
-  | "confirmed"
-  | "preparing"
-  | "ready"
-  | "out_for_delivery"
-  | "delivered"
-  | "cancelled";
 
 const statusSteps = [
   { key: "pending", label: "Order Placed", icon: "clock" },
   { key: "confirmed", label: "Order Confirmed", icon: "check-circle" },
-  { key: "preparing", label: "Preparing Food", icon: "chef-hat" },
+  { key: "preparing", label: "Preparing Food", icon: "coffee" },
   { key: "ready", label: "Ready for Pickup", icon: "package" },
   { key: "out_for_delivery", label: "Out for Delivery", icon: "truck" },
   { key: "delivered", label: "Delivered", icon: "check-circle" },
 ] as const;
 
+type TrackingItem = {
+  name: string;
+  quantity: number;
+  price?: number;
+};
+
+type TrackingOrder = {
+  id: string;
+  status: OrderStatus;
+  restaurantName: string;
+  orderedAt: string;
+  items: TrackingItem[];
+  subtotal?: number;
+  taxes?: number;
+  deliveryFee?: number;
+  tip?: number;
+  total: number | string;
+  deliveryAddress?: string;
+  deliveryNote?: string;
+};
+
+const adminStatusToTrackingStatus = (status?: string): OrderStatus => {
+  switch (status) {
+    case "Preparing":
+      return "preparing";
+    case "Ready for Driver":
+      return "ready";
+    case "Out for Delivery":
+      return "out_for_delivery";
+    case "Completed":
+      return "delivered";
+    case "Pending":
+    default:
+      return "pending";
+  }
+};
+
+const formatMoney = (value: number | string) =>
+  typeof value === "number" ? `$${value.toFixed(2)}` : value;
+
+const parseCustomerItem = (item: string): TrackingItem => {
+  const match = item.match(/\sx(\d+)$/i);
+  return {
+    name: item.replace(/\sx\d+$/i, "").trim(),
+    quantity: match ? Number.parseInt(match[1], 10) : 1,
+  };
+};
+
+const formatOrderTime = (value: Order["createdAt"]) => {
+  if (!value) {
+    return "Just now";
+  }
+
+  if (value instanceof Date) {
+    return value.toLocaleTimeString();
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    return new Date(value).toLocaleTimeString();
+  }
+
+  const timestamp = value as { toDate?: () => Date };
+  if (typeof timestamp.toDate === "function") {
+    return timestamp.toDate().toLocaleTimeString();
+  }
+
+  return "Just now";
+};
+
+const fromFirebaseOrder = (order: Order): TrackingOrder => ({
+  id: order.id,
+  status: order.status,
+  restaurantName: order.restaurantName,
+  orderedAt: formatOrderTime(order.createdAt),
+  items: order.items.map((item) => ({
+    name: item.name,
+    quantity: item.quantity,
+    price: item.price,
+  })),
+  subtotal: order.subtotal,
+  taxes: order.taxes,
+  deliveryFee: order.deliveryFee,
+  tip: order.tip,
+  total: order.total ?? order.totalAmount,
+  deliveryAddress: order.deliveryAddress,
+  deliveryNote: order.deliveryNote,
+});
+
+const fromCustomerOrder = (
+  order: CustomerOrder,
+  adminOrder: { status?: string } | undefined,
+  fallbackAddress: string,
+): TrackingOrder => ({
+  id: order.id,
+  status: adminStatusToTrackingStatus(adminOrder?.status),
+  restaurantName: order.restaurant,
+  orderedAt: order.placedAt,
+  items: order.items.map(parseCustomerItem),
+  total: order.total,
+  deliveryAddress: order.address || fallbackAddress,
+});
+
 export default function OrderTrackingScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
-  const [order, setOrder] = useState<Order | null>(null);
+  const resolvedOrderId = Array.isArray(orderId) ? orderId[0] : orderId;
+  const { adminOrders, currentOrder, profile } = useAppState();
+  const [order, setOrder] = useState<TrackingOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const localOrder = useMemo(() => {
+    if (!resolvedOrderId || !currentOrder || currentOrder.id !== resolvedOrderId) {
+      return null;
+    }
+    const matchingCurrentOrder = currentOrder;
+
+    return fromCustomerOrder(
+      matchingCurrentOrder,
+      adminOrders.find((entry) => entry.id === matchingCurrentOrder.id),
+      profile.address,
+    );
+  }, [adminOrders, currentOrder, profile.address, resolvedOrderId]);
+
   useEffect(() => {
-    if (!orderId) {
+    if (!resolvedOrderId) {
       setError("No order ID provided");
       setLoading(false);
       return;
     }
 
-    // Load initial order data
-    // const loadOrder = async () => {
-    //   try {
-    //     const orderData = await getOrder(orderId);
-    //     if (orderData) {
-    //       setOrder(orderData);
-    //     } else {
-    //       setError("Order not found");
-    //     }
-    //   } catch (err: any) {
-    //     console.error("Error loading order:", err);
-    //     setError("Failed to load order details");
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
+    if (resolvedOrderId.startsWith("GUEST-")) {
+      setLoading(false);
+      return;
+    }
 
-    // loadOrder();
+    let isMounted = true;
+    let unsubscribe: (() => void) | undefined;
 
-    // Subscribe to real-time updates
-    const unsubscribe = subscribeToOrderUpdates(
-      orderId,
-      (updatedOrder: Order) => {
-        console.log("Order update received:", updatedOrder);
-        setOrder(updatedOrder);
-      },
-    );
+    const loadLiveOrder = async () => {
+      setLoading(!localOrder);
+      setError(null);
 
-    return unsubscribe;
-  }, [orderId]);
+      try {
+        const initialOrder = await getOrder(resolvedOrderId);
+        if (!isMounted) {
+          return;
+        }
+
+        if (initialOrder) {
+          setOrder(fromFirebaseOrder(initialOrder));
+        }
+        setLoading(false);
+
+        unsubscribe = subscribeToOrderUpdates(
+          resolvedOrderId,
+          (updatedOrder: Order) => {
+            if (!isMounted) {
+              return;
+            }
+            setOrder(fromFirebaseOrder(updatedOrder));
+            setLoading(false);
+            setError(null);
+          },
+          () => {
+            if (!isMounted) {
+              return;
+            }
+            setLoading(false);
+            if (!localOrder) {
+              setError("Failed to load order details");
+            }
+          },
+        );
+      } catch (err: any) {
+        console.error("Error loading order:", err);
+        if (!isMounted) {
+          return;
+        }
+        setLoading(false);
+        if (!localOrder) {
+          setError("Failed to load order details");
+        }
+      }
+    };
+
+    void loadLiveOrder();
+
+    return () => {
+      isMounted = false;
+      unsubscribe?.();
+    };
+  }, [localOrder, resolvedOrderId]);
 
   const getCurrentStatusIndex = (status: OrderStatus): number => {
     return statusSteps.findIndex((step) => step.key === status);
@@ -90,7 +231,9 @@ export default function OrderTrackingScreen() {
     return colors.text;
   };
 
-  if (loading) {
+  const displayOrder = order ?? localOrder;
+
+  if (loading && !displayOrder) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
@@ -100,14 +243,14 @@ export default function OrderTrackingScreen() {
     );
   }
 
-  if (error || !order) {
+  if (error || !displayOrder) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.errorContainer}>
           <Feather name="alert-circle" size={48} color={colors.danger} />
           <Text style={styles.errorTitle}>Unable to Load Order</Text>
           <Text style={styles.errorMessage}>{error || "Order not found"}</Text>
-          <Pressable style={styles.retryButton} onPress={() => router.back()}>
+          <Pressable style={styles.retryButton} onPress={() => goBackOrReplace("/activity")}>
             <Text style={styles.retryButtonText}>Go Back</Text>
           </Pressable>
         </View>
@@ -115,7 +258,7 @@ export default function OrderTrackingScreen() {
     );
   }
 
-  const currentStatusIndex = getCurrentStatusIndex(order.status);
+  const currentStatusIndex = Math.max(0, getCurrentStatusIndex(displayOrder.status));
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -124,7 +267,7 @@ export default function OrderTrackingScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={0} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/activity")}>
             <Feather name="arrow-left" size={24} color={colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Order Tracking</Text>
@@ -133,16 +276,16 @@ export default function OrderTrackingScreen() {
 
         <FadeInView delay={40} style={styles.orderCard}>
           <View style={styles.orderHeader}>
-            <Text style={styles.orderId}>Order #{order.id.slice(-8)}</Text>
+            <Text style={styles.orderId}>Order #{displayOrder.id.slice(-8)}</Text>
             <Text style={styles.orderStatus}>
-              {statusSteps[currentStatusIndex]?.label || order.status}
+              {statusSteps[currentStatusIndex]?.label || displayOrder.status}
             </Text>
           </View>
 
           <View style={styles.restaurantInfo}>
-            <Text style={styles.restaurantName}>{order.restaurantName}</Text>
+            <Text style={styles.restaurantName}>{displayOrder.restaurantName}</Text>
             <Text style={styles.orderTime}>
-              Ordered at {new Date(order.createdAt as any).toLocaleTimeString()}
+              Ordered at {displayOrder.orderedAt}
             </Text>
           </View>
         </FadeInView>
@@ -153,7 +296,7 @@ export default function OrderTrackingScreen() {
           {statusSteps.map((step, index) => {
             const isCompleted = index <= currentStatusIndex;
             const isCurrent = index === currentStatusIndex;
-            const statusColor = getStatusColor(order.status, step.key);
+            const statusColor = getStatusColor(displayOrder.status, step.key);
 
             return (
               <View key={step.key} style={styles.stepContainer}>
@@ -201,14 +344,16 @@ export default function OrderTrackingScreen() {
                   </Text>
                   {isCurrent && (
                     <Text style={styles.stepDescription}>
-                      {order.status === "preparing" &&
+                      {displayOrder.status === "preparing" &&
                         "Your food is being prepared"}
-                      {order.status === "ready" &&
+                      {displayOrder.status === "ready" &&
                         "Your order is ready for pickup"}
-                      {order.status === "out_for_delivery" &&
+                      {displayOrder.status === "out_for_delivery" &&
                         "Your order is on the way"}
-                      {order.status === "delivered" &&
+                      {displayOrder.status === "delivered" &&
                         "Your order has been delivered"}
+                      {displayOrder.status === "pending" &&
+                        "Your order is waiting for restaurant confirmation"}
                     </Text>
                   )}
                 </View>
@@ -220,61 +365,69 @@ export default function OrderTrackingScreen() {
         <FadeInView delay={120} style={styles.detailsCard}>
           <Text style={styles.detailsTitle}>Order Details</Text>
 
-          {order.items.map((item: any, index: number) => (
+          {displayOrder.items.map((item, index) => (
             <View key={index} style={styles.itemRow}>
               <Text style={styles.itemName}>
                 {item.quantity}x {item.name}
               </Text>
-              <Text style={styles.itemPrice}>
-                ${(item.price * item.quantity).toFixed(2)}
-              </Text>
+              {typeof item.price === "number" ? (
+                <Text style={styles.itemPrice}>
+                  ${(item.price * item.quantity).toFixed(2)}
+                </Text>
+              ) : null}
             </View>
           ))}
 
           <View style={styles.divider} />
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>
-              ${order.subtotal.toFixed(2)}
-            </Text>
-          </View>
+          {typeof displayOrder.subtotal === "number" ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryValue}>
+                ${displayOrder.subtotal.toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Tax</Text>
-            <Text style={styles.summaryValue}>${order.taxes.toFixed(2)}</Text>
-          </View>
+          {typeof displayOrder.taxes === "number" ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tax</Text>
+              <Text style={styles.summaryValue}>${displayOrder.taxes.toFixed(2)}</Text>
+            </View>
+          ) : null}
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryValue}>
-              ${order.deliveryFee.toFixed(2)}
-            </Text>
-          </View>
+          {typeof displayOrder.deliveryFee === "number" ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Delivery Fee</Text>
+              <Text style={styles.summaryValue}>
+                ${displayOrder.deliveryFee.toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
 
-          {order.tip > 0 && (
+          {typeof displayOrder.tip === "number" && displayOrder.tip > 0 && (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Driver Tip</Text>
-              <Text style={styles.summaryValue}>${order.tip.toFixed(2)}</Text>
+              <Text style={styles.summaryValue}>${displayOrder.tip.toFixed(2)}</Text>
             </View>
           )}
 
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${order.total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{formatMoney(displayOrder.total)}</Text>
           </View>
         </FadeInView>
 
-        {order.deliveryAddress && (
+        {displayOrder.deliveryAddress && (
           <FadeInView delay={160} style={styles.addressCard}>
             <View style={styles.addressHeader}>
               <Feather name="map-pin" size={20} color={colors.primary} />
               <Text style={styles.addressTitle}>Delivery Address</Text>
             </View>
-            <Text style={styles.addressText}>{order.deliveryAddress}</Text>
-            {order.deliveryNote && (
+            <Text style={styles.addressText}>{displayOrder.deliveryAddress}</Text>
+            {displayOrder.deliveryNote && (
               <Text style={styles.deliveryNote}>
-                Note: {order.deliveryNote}
+                Note: {displayOrder.deliveryNote}
               </Text>
             )}
           </FadeInView>

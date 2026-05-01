@@ -14,10 +14,14 @@ export default function PassResetScreen() {
     "idle",
   );
   const [errorMessage, setErrorMessage] = useState("");
-  const canSubmit = identifier.trim().length > 0 && status !== "loading";
+  const trimmedIdentifier = identifier.trim();
+  const emailValid = /^\S+@\S+\.\S+$/.test(trimmedIdentifier);
+  const canSubmit = emailValid && status !== "loading";
 
   const handleReset = async () => {
     if (!canSubmit) {
+      setStatus("error");
+      setErrorMessage("Enter a valid email address to receive a reset link.");
       return;
     }
 
@@ -25,7 +29,7 @@ export default function PassResetScreen() {
     setErrorMessage("");
 
     try {
-      await sendPasswordResetEmail(identifier.trim());
+      await sendPasswordResetEmail(trimmedIdentifier);
       setStatus("sent");
       setTimeout(() => {
         router.push("/LoginScreen");
@@ -101,10 +105,15 @@ export default function PassResetScreen() {
         </View>
 
         <CustomInput
-          label="Recovery contact"
+          label="Recovery email"
           leadingIcon="mail"
+          errorText={
+            identifier.length > 0 && !emailValid
+              ? "Enter a valid email address."
+              : undefined
+          }
           inputProps={{
-            placeholder: "Enter your email or phone",
+            placeholder: "Enter your email",
             keyboardType: "email-address",
             autoCapitalize: "none",
             value: identifier,

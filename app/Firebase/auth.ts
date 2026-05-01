@@ -67,12 +67,22 @@ export const signInWithGoogle =
   };
 
 export const signOutUser = async (): Promise<void> => {
+  const googleResults = await Promise.allSettled([
+    GoogleSignin.revokeAccess(),
+    GoogleSignin.signOut(),
+  ]);
+
+  googleResults.forEach((result) => {
+    if (result.status === "rejected") {
+      console.warn("Google sign out cleanup skipped: ", result.reason);
+    }
+  });
+
   try {
-    await GoogleSignin.revokeAccess();
-    await GoogleSignin.signOut();
     await firebaseAuth.signOut();
   } catch (error) {
-    console.error("Sign out error: ", error);
+    console.error("Firebase sign out error: ", error);
+    throw error;
   }
 };
 

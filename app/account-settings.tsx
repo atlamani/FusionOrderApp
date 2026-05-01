@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 const settingLabels = [
@@ -15,7 +15,7 @@ const settingLabels = [
   {
     key: "promoAlerts",
     title: "Promo alerts",
-    detail: "Receive featured drops, rewards nudges, and mock promo codes.",
+    detail: "Receive featured drops, rewards nudges, and promo codes.",
   },
   {
     key: "biometricLock",
@@ -30,13 +30,13 @@ const settingLabels = [
 ] as const;
 
 export default function AccountSettingsScreen() {
-  const { settings, toggleSetting } = usePrototypeState();
+  const { settings, toggleSetting } = useAppState();
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>PREFERENCES</Text>
@@ -46,7 +46,7 @@ export default function AccountSettingsScreen() {
         <FadeInView delay={100} style={styles.heroCard}>
           <Text style={styles.heroTitle}>Tune your account experience</Text>
           <Text style={styles.heroCopy}>
-            These settings stay local to the prototype and make the account flow feel complete.
+            Control notifications, account shortcuts, and privacy preferences.
           </Text>
         </FadeInView>
 
@@ -66,8 +66,8 @@ export default function AccountSettingsScreen() {
         ))}
 
         <FadeInView delay={360} style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Prototype details</Text>
-          <Text style={styles.infoCopy}>Version 0.9.0 | Local mock data only | No live account sync</Text>
+          <Text style={styles.infoTitle}>App details</Text>
+          <Text style={styles.infoCopy}>Version 1.0.0 | Account preferences</Text>
         </FadeInView>
       </ScrollView>
     </SafeAreaView>

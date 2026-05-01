@@ -9,18 +9,20 @@ import {
   Text,
   TextInput,
   View,
+  Alert,
 } from "react-native";
 import BrandLogo from "./BrandLogo";
 import FadeInView from "./FadeInView";
-import { savedCards } from "./mockData";
+import { savedCards } from "./appData";
 import {
   formatCurrency,
   getCartItemCount,
   getCartSubtotal,
   getCartTaxes,
   getTipAmount,
-  usePrototypeState,
-} from "./prototypeState";
+  useAppState,
+} from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, typography } from "./theme";
 
 type SplitPaymentCard = {
@@ -39,7 +41,7 @@ export default function PaymentScreen() {
     selectedTip,
     toggleSavedCardsExpanded,
     selectCard,
-  } = usePrototypeState();
+  } = useAppState();
   const [splitPayEnabled, setSplitPayEnabled] = useState(false);
   const [splitCards, setSplitCards] = useState<SplitPaymentCard[]>([]);
   const [splitMode, setSplitMode] = useState<"equal" | "custom">("equal");
@@ -84,6 +86,8 @@ export default function PaymentScreen() {
       );
     }
   }, [splitCards, total, splitMode, splitPayEnabled]);
+  const splitTotal = splitAmounts.reduce((sum, card) => sum + card.amount, 0);
+  const splitMismatch = splitPayEnabled && Math.abs(splitTotal - total) > 0.01;
 
   const addSplitCard = (cardId: string) => {
     if (splitCards.length >= 5) return;
@@ -132,7 +136,7 @@ export default function PaymentScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/checkout")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>PAYMENT</Text>
@@ -227,17 +231,17 @@ export default function PaymentScreen() {
               />
             </View>
           </View>
-          <View style={styles.inputMock}>
+          <View style={styles.inputPreview}>
             <Text style={styles.inputText}>Card Number</Text>
           </View>
-          <View style={styles.inputMock}>
+          <View style={styles.inputPreview}>
             <Text style={styles.inputText}>Name on Card</Text>
           </View>
           <View style={styles.twoCol}>
-            <View style={[styles.inputMock, styles.halfInput]}>
+            <View style={[styles.inputPreview, styles.halfInput]}>
               <Text style={styles.inputText}>MM/YY</Text>
             </View>
-            <View style={[styles.inputMock, styles.halfInput]}>
+            <View style={[styles.inputPreview, styles.halfInput]}>
               <Text style={styles.inputText}>CVV</Text>
             </View>
           </View>
@@ -449,18 +453,12 @@ export default function PaymentScreen() {
                   <View style={styles.splitSummaryRow}>
                     <Text style={styles.splitSummaryLabel}>Total Split</Text>
                     <Text style={styles.splitSummaryValue}>
-                      {formatCurrency(
-                        splitAmounts.reduce(
-                          (sum, card) => sum + card.amount,
-                          0,
-                        ),
-                      )}
+                      {formatCurrency(splitTotal)}
                     </Text>
                   </View>
-                  {splitAmounts.reduce((sum, card) => sum + card.amount, 0) !==
-                    total && (
+                  {splitMismatch && (
                     <Text style={styles.splitWarning}>
-                      Split total doesn&apos;t match order total
+                      Split total does not match order total
                     </Text>
                   )}
                 </View>
@@ -507,12 +505,26 @@ export default function PaymentScreen() {
           ]}
           onPress={async () => {
             if (hasItems) {
+              if (splitPayEnabled && splitCards.length === 0) {
+                Alert.alert("Add a payment method", "Choose at least one saved card for split pay.");
+                return;
+              }
+
+              if (splitMismatch) {
+                Alert.alert("Check split pay", "Split amounts need to match the order total before confirming.");
+                return;
+              }
+
               try {
-                await placeOrder();
-                router.push("/order-placed");
+                const orderId = await placeOrder();
+                router.push(
+                  orderId
+                    ? `/order-placed?orderId=${encodeURIComponent(orderId)}`
+                    : "/order-placed",
+                );
               } catch (error: any) {
                 console.error("Checkout error:", error);
-                alert("Failed to process order. Please try again.");
+                Alert.alert("Checkout failed", "Failed to process order. Please try again.");
               }
             } else {
               router.replace("/checkout");
@@ -687,7 +699,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 16,
   },
-  inputMock: {
+  inputPreview: {
     minHeight: 48,
     borderRadius: 14,
     backgroundColor: colors.background,

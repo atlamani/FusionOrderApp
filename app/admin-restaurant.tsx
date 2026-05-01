@@ -11,25 +11,29 @@ import {
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
+type EditableMenuItem = {
+  id: string;
+  name: string;
+  price: string;
+  available?: boolean;
+  popular?: boolean;
+  isNew?: boolean;
+};
+
 function MenuItemRow({
-  restaurantId,
+  delay,
   item,
-  index,
+  restaurantId,
   onToggleAvailability,
   onSavePrice,
 }: {
+  delay: number;
+  item: EditableMenuItem;
   restaurantId: string;
-  item: {
-    id: string;
-    name: string;
-    price: string;
-    available?: boolean;
-    popular?: boolean;
-  };
-  index: number;
   onToggleAvailability: (restaurantId: string, itemId: string) => void;
   onSavePrice: (restaurantId: string, itemId: string, price: string) => void;
 }) {
@@ -42,12 +46,13 @@ function MenuItemRow({
   const isEnabled = item.available ?? true;
 
   return (
-    <FadeInView delay={210 + index * 25} style={styles.menuCard}>
+    <FadeInView delay={delay} style={styles.menuCard}>
       <View style={styles.menuCopy}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemDetail}>
-          {item.popular ? "Popular pick · " : ""}
+          {item.popular ? "Popular pick - " : ""}
           Current price: {item.price}
+          {item.isNew ? " - New" : ""}
         </Text>
 
         <View style={styles.priceEditorRow}>
@@ -62,7 +67,9 @@ function MenuItemRow({
             style={styles.priceInput}
           />
           <Pressable
-            style={styles.savePriceButton}
+            accessibilityRole="button"
+            accessibilityLabel={`Save ${item.name} price`}
+            style={({ pressed }) => [styles.savePriceButton, pressed && styles.buttonPressed]}
             onPress={() => onSavePrice(restaurantId, item.id, priceDraft)}
           >
             <Text style={styles.savePriceButtonText}>Save Price</Text>
@@ -71,6 +78,8 @@ function MenuItemRow({
       </View>
 
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${isEnabled ? "Disable" : "Enable"} ${item.name}`}
         style={[
           styles.toggle,
           isEnabled ? styles.toggleDisableState : styles.toggleEnableState,
@@ -80,9 +89,7 @@ function MenuItemRow({
         <Text
           style={[
             styles.toggleText,
-            isEnabled
-              ? styles.toggleTextDisableState
-              : styles.toggleTextEnableState,
+            isEnabled ? styles.toggleTextDisableState : styles.toggleTextEnableState,
           ]}
         >
           {isEnabled ? "Disable" : "Enable"}
@@ -98,20 +105,23 @@ export default function AdminRestaurantDetailScreen() {
     adminRestaurants,
     approveRestaurant,
     beginRestaurantSession,
+    getRestaurantMenuSections,
     toggleAdminMenuItemAvailability,
     updateAdminMenuItemPrice,
-  } = usePrototypeState();
+  } = useAppState();
 
   const restaurant = useMemo(
-    () =>
-      adminRestaurants.find((entry) => entry.id === params.id) ??
-      adminRestaurants[0],
+    () => adminRestaurants.find((entry) => entry.id === params.id) ?? adminRestaurants[0],
     [adminRestaurants, params.id],
   );
 
-  const menuItems = useMemo(
-    () => restaurant.menuItems ?? [],
-    [restaurant.menuItems],
+  const menuSections = useMemo(
+    () => (restaurant ? getRestaurantMenuSections(restaurant.id) : []),
+    [getRestaurantMenuSections, restaurant],
+  );
+  const menuItemCount = useMemo(
+    () => menuSections.reduce((total, section) => total + section.items.length, 0),
+    [menuSections],
   );
 
   if (!restaurant) {
@@ -120,12 +130,14 @@ export default function AdminRestaurantDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to restaurants"
+            style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
+            onPress={() => goBackOrReplace("/admin-restaurants")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>MENU CONTROLS</Text>
@@ -135,11 +147,11 @@ export default function AdminRestaurantDetailScreen() {
         <FadeInView delay={90} style={styles.hero}>
           <Text style={styles.name}>{restaurant.name}</Text>
           <Text style={styles.detail}>
-            {restaurant.cuisine} · {restaurant.manager} · Avg prep{" "}
-            {restaurant.avgPrepTime}
+            {restaurant.cuisine} - {restaurant.manager} - Avg prep {restaurant.avgPrepTime}
           </Text>
           <Pressable
-            style={styles.partnerButton}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.partnerButton, pressed && styles.buttonPressed]}
             onPress={() => {
               beginRestaurantSession(restaurant.id);
               router.push("/restaurant-dashboard");
@@ -149,7 +161,8 @@ export default function AdminRestaurantDetailScreen() {
           </Pressable>
           {restaurant.status === "Needs Approval" ? (
             <Pressable
-              style={styles.approveButton}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.approveButton, pressed && styles.buttonPressed]}
               onPress={() => approveRestaurant(restaurant.id)}
             >
               <Text style={styles.approveButtonText}>Approve Restaurant</Text>
@@ -161,23 +174,28 @@ export default function AdminRestaurantDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Menu controls</Text>
             <Text style={styles.sectionHint}>
-              Toggle availability or update pricing for the live menu shown to
-              customers
+              Toggle availability or update pricing for {menuItemCount} live menu item
+              {menuItemCount === 1 ? "" : "s"} shown to customers
             </Text>
           </View>
         </FadeInView>
 
         <FadeInView delay={170} style={styles.section}>
           <Text style={styles.sectionTitle}>Menu items</Text>
-          {menuItems.map((item, index) => (
-            <MenuItemRow
-              key={item.id}
-              restaurantId={restaurant.id}
-              item={item}
-              index={index}
-              onToggleAvailability={toggleAdminMenuItemAvailability}
-              onSavePrice={updateAdminMenuItemPrice}
-            />
+          {menuSections.map((section, sectionIndex) => (
+            <View key={section.id} style={styles.menuGroup}>
+              <Text style={styles.menuGroupTitle}>{section.title}</Text>
+              {section.items.map((item, index) => (
+                <MenuItemRow
+                  key={item.id}
+                  delay={210 + sectionIndex * 40 + index * 25}
+                  restaurantId={restaurant.id}
+                  item={item}
+                  onToggleAvailability={toggleAdminMenuItemAvailability}
+                  onSavePrice={updateAdminMenuItemPrice}
+                />
+              ))}
+            </View>
           ))}
         </FadeInView>
       </ScrollView>
@@ -208,6 +226,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
+  },
+  buttonPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.97 }],
   },
   headerTitle: {
     fontFamily: typography.display,
@@ -277,6 +299,15 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 13,
     color: colors.textMuted,
+  },
+  menuGroup: {
+    gap: 10,
+  },
+  menuGroupTitle: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.primary,
+    marginTop: 4,
   },
   menuCard: {
     borderRadius: 22,

@@ -3,20 +3,30 @@ import { router } from "expo-router";
 import React from "react";
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "../FadeInView";
-import { favoriteSpots, featuredRestaurants, nearbyRestaurants } from "../mockData";
-import { usePrototypeState } from "../prototypeState";
+import { allRestaurants, favoriteSpots } from "../appData";
+import { useAppState } from "../appState";
 import { colors, spacing, typography } from "../theme";
 
-const restaurantLookup = [...featuredRestaurants, ...nearbyRestaurants].reduce<
-  Record<string, (typeof featuredRestaurants)[number]>
+const restaurantLookup = allRestaurants.reduce<
+  Record<string, (typeof allRestaurants)[number]>
 >((accumulator, restaurant) => {
   accumulator[restaurant.id] = restaurant;
   return accumulator;
 }, {});
+const favoriteNotes = favoriteSpots.reduce<
+  Record<string, (typeof favoriteSpots)[number]>
+>((accumulator, favorite) => {
+  accumulator[favorite.restaurantId] = favorite;
+  return accumulator;
+}, {});
 
 export default function FavoritesScreen() {
-  const { favoriteIds, setSelectedRestaurant, toggleFavorite } = usePrototypeState();
-  const visibleFavorites = favoriteSpots.filter((favorite) => favoriteIds.includes(favorite.restaurantId));
+  const { favoriteIds, setSelectedRestaurant, toggleFavorite } = useAppState();
+  const visibleFavorites = favoriteIds
+    .map((restaurantId) => restaurantLookup[restaurantId])
+    .filter((restaurant): restaurant is (typeof allRestaurants)[number] =>
+      Boolean(restaurant),
+    );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -40,7 +50,7 @@ export default function FavoritesScreen() {
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No saved restaurants yet</Text>
             <Text style={styles.emptyCopy}>
-              Tap the heart icon on Home to save a spot and build out this prototype list.
+              Tap the heart icon on Home to save a spot and build your favorites list.
             </Text>
             <Pressable style={styles.emptyButton} onPress={() => router.push("/home")}>
               <Text style={styles.emptyButtonText}>Discover Restaurants</Text>
@@ -48,15 +58,11 @@ export default function FavoritesScreen() {
           </View>
         ) : null}
 
-        {visibleFavorites.map((favorite) => {
-          const restaurant = restaurantLookup[favorite.restaurantId];
-
-          if (!restaurant) {
-            return null;
-          }
+        {visibleFavorites.map((restaurant) => {
+          const favorite = favoriteNotes[restaurant.id];
 
           return (
-            <View key={favorite.id} style={styles.favoriteCard}>
+            <View key={restaurant.id} style={styles.favoriteCard}>
               <Image source={restaurant.image} style={styles.favoriteImage} />
               <Pressable style={styles.removeButton} onPress={() => toggleFavorite(restaurant.id)}>
                 <Feather name="heart" size={16} color={colors.white} />
@@ -72,16 +78,24 @@ export default function FavoritesScreen() {
                 <Text style={styles.favoriteMeta}>
                   {`${restaurant.cuisine} · ${restaurant.eta} · ${restaurant.price}`}
                 </Text>
-                <Text style={styles.favoriteCopy}>{favorite.note}</Text>
+                <Text style={styles.favoriteCopy}>
+                  {favorite?.note ??
+                    "Saved from discovery so you can jump back into this restaurant quickly."}
+                </Text>
                 <View style={styles.favoriteActions}>
                   <Pressable
                     style={styles.primaryAction}
                     onPress={() => {
                       setSelectedRestaurant(restaurant.id);
-                      router.push("/menu");
+                      router.push({
+                        pathname: "/restaurant-menu",
+                        params: { restaurantId: restaurant.id },
+                      });
                     }}
                   >
-                    <Text style={styles.primaryActionText}>{favorite.orderHint}</Text>
+                    <Text style={styles.primaryActionText}>
+                      {favorite?.orderHint ?? "Open menu"}
+                    </Text>
                   </Pressable>
                   <Pressable style={styles.secondaryAction} onPress={() => router.push("/checkout")}>
                     <Text style={styles.secondaryActionText}>Open Cart</Text>

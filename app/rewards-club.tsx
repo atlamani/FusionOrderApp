@@ -4,18 +4,19 @@ import React from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function RewardsClubScreen() {
-  const { joinedRewards, profile, rewardsEmail } = usePrototypeState();
+  const { joinedRewards, profile, rewardsEmail } = useAppState();
   const progress = Math.min(100, Math.round((profile.rewardsPoints / 450) * 100));
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>REWARDS CLUB</Text>
@@ -28,7 +29,7 @@ export default function RewardsClubScreen() {
           <Text style={styles.heroCopy}>
             {joinedRewards
               ? `Rewards are active for ${rewardsEmail}. Keep ordering to unlock your next dessert.`
-              : "Join rewards from the confirmation flow to start collecting points on each mock order."}
+              : "Join rewards from the confirmation flow to start collecting points on each order."}
           </Text>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${progress}%` }]} />
@@ -39,7 +40,7 @@ export default function RewardsClubScreen() {
           <Text style={styles.cardTitle}>Member perks</Text>
           {[
             "Free dessert after 450 points",
-            "Priority access to mock seasonal drops",
+            "Priority access to seasonal drops",
             "One-tap reorder recommendations on Home",
           ].map((perk) => (
             <View key={perk} style={styles.perkRow}>

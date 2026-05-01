@@ -1,13 +1,13 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useMemo } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function RestaurantOrdersScreen() {
-  const { adminOrders, selectedPartnerRestaurantId, updateAdminOrderStatus } = usePrototypeState();
+  const { adminOrders, selectedPartnerRestaurantId, updateAdminOrderStatus } = useAppState();
 
   const orders = useMemo(
     () => adminOrders.filter((order) => order.restaurantId === selectedPartnerRestaurantId),
@@ -18,7 +18,7 @@ export default function RestaurantOrdersScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/restaurant-dashboard")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>KITCHEN QUEUE</Text>

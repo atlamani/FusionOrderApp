@@ -3,17 +3,18 @@ import { router } from "expo-router";
 import React from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, typography } from "./theme";
 
 export default function ActivityHistoryScreen() {
-  const { orderHistory, reorderFromHistory } = usePrototypeState();
+  const { orderHistory, reorderFromHistory } = useAppState();
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>ACTIVITY</Text>
@@ -31,6 +32,7 @@ export default function ActivityHistoryScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {orderHistory.map((order, index) => {
           const delivered = order.status === "Delivered";
+          const cancelled = order.status === "Cancelled";
 
           return (
             <FadeInView key={order.id} delay={index * 70} style={styles.orderCard}>
@@ -42,10 +44,20 @@ export default function ActivityHistoryScreen() {
                 <View
                   style={[
                     styles.statusBadge,
-                    delivered ? styles.statusBadgeDelivered : styles.statusBadgeCancelled,
+                    delivered
+                      ? styles.statusBadgeDelivered
+                      : cancelled
+                        ? styles.statusBadgeCancelled
+                        : styles.statusBadgeInProgress,
                   ]}
                 >
-                  <Feather name={delivered ? "check-circle" : "slash"} size={16} color={order.accent} />
+                  <Feather
+                    name={
+                      delivered ? "check-circle" : cancelled ? "slash" : "clock"
+                    }
+                    size={16}
+                    color={order.accent}
+                  />
                   <Text style={[styles.statusBadgeText, { color: order.accent }]}>{order.status}</Text>
                 </View>
               </View>
@@ -203,6 +215,9 @@ const styles = StyleSheet.create({
   },
   statusBadgeCancelled: {
     backgroundColor: "#FFE2E2",
+  },
+  statusBadgeInProgress: {
+    backgroundColor: "#FEF3C7",
   },
   statusBadgeText: {
     fontFamily: typography.body,

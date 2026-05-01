@@ -10,32 +10,28 @@ import {
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-import { menuByRestaurantId } from "./mockData";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
-
-function getMenuSummary(restaurantId: string) {
-  return menuByRestaurantId[restaurantId] ?? [];
-}
 
 function formatItemCount(menuItems: { items: { id: string }[] }[]) {
   return menuItems.reduce((count, section) => count + section.items.length, 0);
 }
 
 export default function AdminRestaurantsScreen() {
-  const { adminRestaurants, approveRestaurant } = usePrototypeState();
+  const { adminRestaurants, approveRestaurant, getRestaurantMenuSections } = useAppState();
 
   const restaurantsWithMenu = useMemo(
     () =>
       adminRestaurants.map((restaurant) => {
-        const menuSections = getMenuSummary(restaurant.id);
+        const menuSections = getRestaurantMenuSections(restaurant.id);
         return {
           ...restaurant,
           menuSections,
           menuItemCount: formatItemCount(menuSections),
         };
       }),
-    [adminRestaurants],
+    [adminRestaurants, getRestaurantMenuSections],
   );
 
   return (
@@ -45,7 +41,7 @@ export default function AdminRestaurantsScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/admin-dashboard")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>RESTAURANTS</Text>
@@ -89,7 +85,9 @@ export default function AdminRestaurantsScreen() {
                           </Text>
                           <Text style={styles.menuPreviewItemMeta}>
                             {item.price}
-                            {item.popular ? " · Popular" : ""}
+                            {item.popular ? " - Popular" : ""}
+                            {item.isNew ? " - New" : ""}
+                            {!item.available ? " - Hidden" : ""}
                           </Text>
                         </View>
                       ))}

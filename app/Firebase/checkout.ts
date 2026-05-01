@@ -68,9 +68,7 @@ export async function processCheckout(orderData: {
     // Create the order in Firestore
     const orderId = await createOrder(order);
 
-    // Here you could add payment processing logic
-    // For example, integrating with Stripe, PayPal, etc.
-    // Since this is a prototype, we'll just simulate successful payment
+    // Payment provider hooks can be added here.
 
     console.log("Order created successfully:", orderId);
 
@@ -82,11 +80,11 @@ export async function processCheckout(orderData: {
 }
 
 /**
- * Process a checkout transaction in demo mode (no Firebase writes)
+ * Process a guest checkout transaction without Firebase writes.
  * @param orderData - The order data to process
- * @returns Promise resolving to a demo order ID
+ * @returns Promise resolving to a guest order ID
  */
-export async function processCheckoutDemo(orderData: {
+export async function processGuestCheckout(orderData: {
   userId: string;
   restaurantId: string;
   restaurantName: string;
@@ -110,10 +108,9 @@ export async function processCheckoutDemo(orderData: {
   // Simulate processing delay
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
-  // Generate a demo order ID
-  const orderId = `DEMO-${Date.now()}`;
+  const orderId = `GUEST-${Date.now()}`;
 
-  console.log("Demo checkout completed:", orderId);
+  console.log("Guest checkout completed:", orderId);
 
   return orderId;
 }

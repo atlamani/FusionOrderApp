@@ -7,18 +7,22 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
+  StatusBar,
   Text,
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-import { allRestaurants, menuByRestaurantId } from "./mockData";
+import { allRestaurants } from "./appData";
 import {
   formatCurrency,
   getCartItemCount,
   getCartSubtotal,
-  usePrototypeState,
-} from "./prototypeState";
+  useAppState,
+} from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
+
+const headerTopPadding = (StatusBar.currentHeight ?? 0) + 14;
 
 export default function RestaurantMenuScreen() {
   const { restaurantId } = useLocalSearchParams<{ restaurantId?: string }>();
@@ -28,10 +32,11 @@ export default function RestaurantMenuScreen() {
     cartItems,
     decreaseMenuItem,
     favoriteIds,
+    getRestaurantMenuSections,
     selectedRestaurantId,
     setSelectedRestaurant,
     toggleFavorite,
-  } = usePrototypeState();
+  } = useAppState();
 
   const restaurant = useMemo(
     () =>
@@ -49,14 +54,32 @@ export default function RestaurantMenuScreen() {
   const cartTotal = cartItems.length > 0 ? getCartSubtotal(cartItems) + 5 : 5;
   const isFavorite = favoriteIds.includes(restaurant.id);
   const restaurantMenuSections = useMemo(
-    () => menuByRestaurantId[restaurant.id] ?? menuByRestaurantId["featured-2"],
-    [restaurant.id],
+    () =>
+      getRestaurantMenuSections(restaurant.id)
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => item.available),
+        }))
+        .filter((section) => section.items.length > 0),
+    [getRestaurantMenuSections, restaurant.id],
+  );
+  const liveHighlights = useMemo(
+    () =>
+      restaurantMenuSections
+        .flatMap((section) => section.items)
+        .filter((item) => item.popular || item.isNew)
+        .slice(0, 4),
+    [restaurantMenuSections],
   );
   const recommendation =
     allRestaurants.find((entry) => entry.id !== restaurant.id) ?? restaurant;
 
   const getQuantity = (itemId: string) =>
     restaurantCartItems.find((item) => item.id === itemId)?.quantity ?? 0;
+
+  const handleBack = () => {
+    goBackOrReplace("/home");
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -65,11 +88,22 @@ export default function RestaurantMenuScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={12}
+            style={styles.backButton}
+            onPress={handleBack}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>MENU</Text>
           <Pressable
+            accessibilityLabel={
+              isFavorite ? "Remove restaurant from favorites" : "Save restaurant to favorites"
+            }
+            accessibilityRole="button"
+            hitSlop={12}
             style={[
               styles.favoriteButton,
               isFavorite && styles.favoriteButtonActive,
@@ -80,6 +114,7 @@ export default function RestaurantMenuScreen() {
               name="heart"
               size={16}
               color={isFavorite ? colors.white : colors.background}
+              fill={isFavorite ? colors.white : "transparent"}
             />
           </Pressable>
         </FadeInView>
@@ -106,7 +141,10 @@ export default function RestaurantMenuScreen() {
         <FadeInView delay={150} style={styles.card}>
           <Text style={styles.cardTitle}>Popular here</Text>
           <View style={styles.popularList}>
-            {restaurant.popularDishes.map((dish) => (
+            {(liveHighlights.length > 0
+              ? liveHighlights.map((item) => item.name)
+              : restaurant.popularDishes
+            ).map((dish) => (
               <View key={dish} style={styles.popularDish}>
                 <Feather name="star" size={14} color={colors.surface} />
                 <Text style={styles.popularDishText}>{dish}</Text>
@@ -129,6 +167,11 @@ export default function RestaurantMenuScreen() {
                       {item.popular ? (
                         <View style={styles.popularTag}>
                           <Text style={styles.popularText}>Popular</Text>
+                        </View>
+                      ) : null}
+                      {item.isNew ? (
+                        <View style={styles.newTag}>
+                          <Text style={styles.newText}>New</Text>
                         </View>
                       ) : null}
                     </View>
@@ -158,6 +201,8 @@ export default function RestaurantMenuScreen() {
                             id: item.id,
                             name: item.name,
                             price: item.price,
+                            restaurantId: restaurant.id,
+                            restaurantName: restaurant.name,
                           })
                         }
                       >
@@ -176,6 +221,8 @@ export default function RestaurantMenuScreen() {
                           id: item.id,
                           name: item.name,
                           price: item.price,
+                          restaurantId: restaurant.id,
+                          restaurantName: restaurant.name,
                         })
                       }
                     >
@@ -260,7 +307,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: headerTopPadding,
     paddingBottom: 40,
     gap: spacing.lg,
   },
@@ -270,9 +317,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
@@ -283,9 +330,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   favoriteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
@@ -409,6 +456,17 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 10,
     color: colors.primary,
+  },
+  newTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#ECFDF3",
+  },
+  newText: {
+    fontFamily: typography.body,
+    fontSize: 10,
+    color: colors.success,
   },
   menuDescription: {
     fontFamily: typography.body,

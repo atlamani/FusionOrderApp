@@ -1,10 +1,10 @@
 import firestore from "@react-native-firebase/firestore";
 import {
-  adminFeedback as mockAdminFeedback,
-  adminOrders as mockAdminOrders,
-  adminRestaurants as mockAdminRestaurants,
-  driverProfiles as mockDriverProfiles,
-} from "../mockData";
+  adminFeedback as seedAdminFeedback,
+  adminOrders as seedAdminOrders,
+  adminRestaurants as seedAdminRestaurants,
+  driverProfiles as seedDriverProfiles,
+} from "../appData";
 import type {
   AdminFeedback,
   AdminOrder,
@@ -14,7 +14,6 @@ import type {
   AdminSeedResult,
   DriverProfile,
   OrderStatus,
-  OrderTimelineStatus,
 } from "./types";
 
 type Unsubscribe = () => void;
@@ -86,16 +85,6 @@ function normalizeOrderStatus(value: unknown): OrderStatus {
   return status in ORDER_STATUS_TO_ADMIN_STATUS ? status : "pending";
 }
 
-function isOrderTimelineStatus(value: unknown): value is OrderTimelineStatus {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "id" in value &&
-    "title" in value &&
-    "detail" in value
-  );
-}
-
 function normalizeAdminOrderStatus(value: unknown): AdminOrderStatus {
   const status = sanitizeString(value, "Pending") as AdminOrderStatus;
   return status in ADMIN_ORDER_STATUS_TO_ORDER_STATUS ? status : "Pending";
@@ -135,6 +124,9 @@ function sanitizeMenuItem(
     name: sanitizeString(item?.name, fallback.name),
     price: parseCurrency(item?.price, fallback.price),
     available: sanitizeBoolean(item?.available, fallback.available),
+    description: sanitizeString(item?.description, fallback.description ?? ""),
+    category: sanitizeString(item?.category, fallback.category ?? ""),
+    isNew: sanitizeBoolean(item?.isNew, fallback.isNew ?? false),
     ...(popularValue === undefined
       ? {}
       : { popular: sanitizeBoolean(popularValue, false) }),
@@ -148,8 +140,8 @@ function sanitizeAdminOrder(
 ): AdminOrder {
   const baseFallback =
     fallback ??
-    mockAdminOrders.find((order) => order.id === id) ??
-    mockAdminOrders[0];
+    seedAdminOrders.find((order) => order.id === id) ??
+    seedAdminOrders[0];
   const orderData = (data ?? {}) as Record<string, unknown>;
   const resolvedIssue =
     orderData.issue === null
@@ -203,8 +195,8 @@ function sanitizeRestaurant(
 ): AdminRestaurant {
   const baseFallback =
     fallback ??
-    mockAdminRestaurants.find((restaurant) => restaurant.id === id) ??
-    mockAdminRestaurants[0];
+    seedAdminRestaurants.find((restaurant) => restaurant.id === id) ??
+    seedAdminRestaurants[0];
 
   const fallbackMenuItems = baseFallback?.menuItems ?? [];
   const storedMenuItems = Array.isArray(data?.menuItems) ? data.menuItems : [];
@@ -268,8 +260,8 @@ function sanitizeFeedback(
 ): AdminFeedback {
   const baseFallback =
     fallback ??
-    mockAdminFeedback.find((entry) => entry.id === id) ??
-    mockAdminFeedback[0];
+    seedAdminFeedback.find((entry) => entry.id === id) ??
+    seedAdminFeedback[0];
 
   return {
     id: sanitizeString(data?.id, id),
@@ -309,8 +301,8 @@ function sanitizeDriver(
 ): DriverProfile {
   const baseFallback =
     fallback ??
-    mockDriverProfiles.find((driver) => driver.id === id) ??
-    mockDriverProfiles[0];
+    seedDriverProfiles.find((driver) => driver.id === id) ??
+    seedDriverProfiles[0];
 
   return {
     id: sanitizeString(data?.id, id),
@@ -354,10 +346,10 @@ export async function ensureAdminSeedData(): Promise<AdminSeedResult> {
   try {
     const [ordersSeeded, restaurantsSeeded, feedbackSeeded, driversSeeded] =
       await Promise.all([
-        seedCollectionIfEmpty(ORDERS_COLLECTION, mockAdminOrders),
-        seedCollectionIfEmpty(RESTAURANTS_COLLECTION, mockAdminRestaurants),
-        seedCollectionIfEmpty(FEEDBACK_COLLECTION, mockAdminFeedback),
-        seedCollectionIfEmpty(DRIVERS_COLLECTION, mockDriverProfiles),
+        seedCollectionIfEmpty(ORDERS_COLLECTION, seedAdminOrders),
+        seedCollectionIfEmpty(RESTAURANTS_COLLECTION, seedAdminRestaurants),
+        seedCollectionIfEmpty(FEEDBACK_COLLECTION, seedAdminFeedback),
+        seedCollectionIfEmpty(DRIVERS_COLLECTION, seedDriverProfiles),
       ]);
 
     return {
@@ -384,7 +376,7 @@ export function subscribeToAdminOrders(
   onData: (orders: AdminOrder[]) => void,
   onError?: (error: unknown) => void,
 ): Unsubscribe {
-  const fallbackMap = new Map(mockAdminOrders.map((item) => [item.id, item]));
+  const fallbackMap = new Map(seedAdminOrders.map((item) => [item.id, item]));
 
   return firestore()
     .collection(ORDERS_COLLECTION)
@@ -398,10 +390,10 @@ export function subscribeToAdminOrders(
           ),
         );
 
-        onData(orders.length > 0 ? orders : mockAdminOrders);
+        onData(orders.length > 0 ? orders : seedAdminOrders);
       },
       (error) => {
-        onData(mockAdminOrders);
+        onData(seedAdminOrders);
         if (!isPermissionDenied(error)) {
           onError?.(error);
         }
@@ -414,7 +406,7 @@ export function subscribeToAdminRestaurants(
   onError?: (error: unknown) => void,
 ): Unsubscribe {
   const fallbackMap = new Map(
-    mockAdminRestaurants.map((item) => [item.id, item]),
+    seedAdminRestaurants.map((item) => [item.id, item]),
   );
 
   return firestore()
@@ -429,10 +421,10 @@ export function subscribeToAdminRestaurants(
           ),
         );
 
-        onData(restaurants.length > 0 ? restaurants : mockAdminRestaurants);
+        onData(restaurants.length > 0 ? restaurants : seedAdminRestaurants);
       },
       (error) => {
-        onData(mockAdminRestaurants);
+        onData(seedAdminRestaurants);
         if (!isPermissionDenied(error)) {
           onError?.(error);
         }
@@ -444,7 +436,7 @@ export function subscribeToAdminFeedback(
   onData: (feedback: AdminFeedback[]) => void,
   onError?: (error: unknown) => void,
 ): Unsubscribe {
-  const fallbackMap = new Map(mockAdminFeedback.map((item) => [item.id, item]));
+  const fallbackMap = new Map(seedAdminFeedback.map((item) => [item.id, item]));
 
   return firestore()
     .collection(FEEDBACK_COLLECTION)
@@ -458,10 +450,10 @@ export function subscribeToAdminFeedback(
           ),
         );
 
-        onData(feedback.length > 0 ? feedback : mockAdminFeedback);
+        onData(feedback.length > 0 ? feedback : seedAdminFeedback);
       },
       (error) => {
-        onData(mockAdminFeedback);
+        onData(seedAdminFeedback);
         if (!isPermissionDenied(error)) {
           onError?.(error);
         }
@@ -474,7 +466,7 @@ export function subscribeToDriverProfiles(
   onError?: (error: unknown) => void,
 ): Unsubscribe {
   const fallbackMap = new Map(
-    mockDriverProfiles.map((item) => [item.id, item]),
+    seedDriverProfiles.map((item) => [item.id, item]),
   );
 
   return firestore()
@@ -489,10 +481,10 @@ export function subscribeToDriverProfiles(
           ),
         );
 
-        onData(drivers.length > 0 ? drivers : mockDriverProfiles);
+        onData(drivers.length > 0 ? drivers : seedDriverProfiles);
       },
       (error) => {
-        onData(mockDriverProfiles);
+        onData(seedDriverProfiles);
         if (!isPermissionDenied(error)) {
           onError?.(error);
         }
@@ -548,7 +540,7 @@ export async function toggleRestaurantMenuItemAvailability(
   const restaurant = sanitizeRestaurant(
     restaurantId,
     snapshot.data() as Partial<AdminRestaurant> | undefined,
-    mockAdminRestaurants.find((entry) => entry.id === restaurantId),
+    seedAdminRestaurants.find((entry) => entry.id === restaurantId),
   );
 
   const menuItems = restaurant.menuItems.map((item) =>
@@ -556,6 +548,19 @@ export async function toggleRestaurantMenuItemAvailability(
   );
 
   await restaurantRef.set(
+    {
+      menuItems,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function saveRestaurantMenuItems(
+  restaurantId: string,
+  menuItems: AdminRestaurantMenuItem[],
+): Promise<void> {
+  await firestore().collection(RESTAURANTS_COLLECTION).doc(restaurantId).set(
     {
       menuItems,
       updatedAt: firestore.FieldValue.serverTimestamp(),
@@ -576,7 +581,7 @@ export async function updateRestaurantMenuItemPrice(
   const restaurant = sanitizeRestaurant(
     restaurantId,
     snapshot.data() as Partial<AdminRestaurant> | undefined,
-    mockAdminRestaurants.find((entry) => entry.id === restaurantId),
+    seedAdminRestaurants.find((entry) => entry.id === restaurantId),
   );
 
   const menuItems = restaurant.menuItems.map((item) =>
@@ -616,7 +621,7 @@ export async function claimDriverAssignment(
     (
       await firestore().collection(DRIVERS_COLLECTION).doc(driverId).get()
     ).data() as Partial<DriverProfile> | undefined,
-    mockDriverProfiles.find((entry) => entry.id === driverId),
+    seedDriverProfiles.find((entry) => entry.id === driverId),
   );
 
   const batch = firestore().batch();

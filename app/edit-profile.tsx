@@ -1,15 +1,15 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useState } from "react";
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
-import { getInitials, usePrototypeState } from "./prototypeState";
+import { getInitials, useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function EditProfileScreen() {
-  const { profile, updateProfile } = usePrototypeState();
+  const { profile, updateProfile } = useAppState();
   const [fullName, setFullName] = useState(profile.fullName);
   const [email, setEmail] = useState(profile.email);
   const [phone, setPhone] = useState(profile.phone);
@@ -26,14 +26,14 @@ export default function EditProfileScreen() {
       email: email.trim(),
       phone: phone.trim(),
     });
-    router.back();
+    goBackOrReplace("/profile");
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>EDIT PROFILE</Text>
@@ -85,7 +85,7 @@ export default function EditProfileScreen() {
 
         <FadeInView delay={220} style={styles.actions}>
           <CustomButton title="Save Changes" onPress={handleSave} />
-          <CustomButton title="Cancel" variant="surface" onPress={() => router.back()} />
+          <CustomButton title="Cancel" variant="surface" onPress={() => goBackOrReplace("/profile")} />
         </FadeInView>
       </ScrollView>
     </SafeAreaView>

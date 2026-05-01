@@ -19,6 +19,7 @@ type CustomButtonProps = {
   title: string;
   onPress?: () => void;
   href?: Href | string;
+  accessibilityLabel?: string;
   disabled?: boolean;
   loading?: boolean;
   leftSlot?: React.ReactNode;
@@ -31,6 +32,7 @@ export const CustomButton = ({
   title,
   onPress,
   href,
+  accessibilityLabel,
   disabled = false,
   loading = false,
   leftSlot,
@@ -61,6 +63,10 @@ export const CustomButton = ({
 
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
+      hitSlop={4}
       style={({ pressed }) => [
         styles.button,
         variantStyles[variant],
@@ -111,6 +117,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
+    flexShrink: 1,
   },
   disabled: {
     opacity: 0.6,
@@ -124,6 +131,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 15,
     textAlign: "center",
+    flexShrink: 1,
   },
   textDisabled: {
     opacity: 0.9,
