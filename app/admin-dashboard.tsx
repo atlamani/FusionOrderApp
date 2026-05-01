@@ -1,7 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import FadeInView from "./FadeInView";
 import { useAppState } from "./appState";
 import { colors, spacing, typography } from "./theme";
@@ -47,8 +55,19 @@ const adminActions = [
   },
 ] as const;
 
+function countMenuItems(menuSections: { items: { id: string }[] }[]) {
+  return menuSections.reduce((total, section) => total + section.items.length, 0);
+}
+
 export default function AdminDashboardScreen() {
-  const { adminFeedback, adminOrders, adminRestaurants, driverProfiles, logout } = useAppState();
+  const {
+    adminFeedback,
+    adminOrders,
+    adminRestaurants,
+    driverProfiles,
+    getRestaurantMenuSections,
+    logout,
+  } = useAppState();
 
   const handleLogout = () => {
     logout();
@@ -73,6 +92,15 @@ export default function AdminDashboardScreen() {
       averageRating: averageRating.toFixed(1),
     };
   }, [adminFeedback, adminOrders, adminRestaurants, driverProfiles]);
+
+  const restaurantsWithMenu = useMemo(
+    () =>
+      adminRestaurants.map((restaurant) => ({
+        ...restaurant,
+        menuItemCount: countMenuItems(getRestaurantMenuSections(restaurant.id)),
+      })),
+    [adminRestaurants, getRestaurantMenuSections],
+  );
 
   const chartBars = useMemo(
     () => [
@@ -178,7 +206,42 @@ export default function AdminDashboardScreen() {
           </View>
         </FadeInView>
 
-        <FadeInView delay={500} style={styles.logoutRow}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Restaurant Management</Text>
+        </View>
+
+        {restaurantsWithMenu.map((restaurant, index) => (
+          <FadeInView key={restaurant.id} delay={500 + index * 40} style={styles.restaurantCard}>
+            <View style={styles.restaurantCardTop}>
+              <View style={styles.restaurantCopy}>
+                <Text style={styles.restaurantName}>{restaurant.name}</Text>
+                <Text style={styles.restaurantDetail}>
+                  {restaurant.cuisine} - Prep {restaurant.avgPrepTime} - {restaurant.manager}
+                </Text>
+              </View>
+              <View style={styles.statusPill}>
+                <Text style={styles.statusText}>{restaurant.status}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.restaurantMenuCount}>
+              {restaurant.menuItemCount} menu items ready for availability and price controls
+            </Text>
+
+            <View style={styles.restaurantActions}>
+              <Pressable
+                accessibilityLabel={`Manage ${restaurant.name} menu`}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.linkButton, pressed && styles.pressedButton]}
+                onPress={() => router.push(`/admin-restaurant?id=${restaurant.id}`)}
+              >
+                <Feather name="menu" size={18} color={colors.primary} />
+              </Pressable>
+            </View>
+          </FadeInView>
+        ))}
+
+        <FadeInView delay={620} style={styles.logoutRow}>
           <Pressable
             accessibilityLabel="Log out"
             accessibilityRole="button"
@@ -374,6 +437,69 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 11,
     color: "rgba(255,255,255,0.78)",
+  },
+  sectionHeader: { paddingTop: 4 },
+  sectionTitle: {
+    fontFamily: typography.display,
+    fontSize: 22,
+    color: colors.primary,
+  },
+  restaurantCard: {
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    gap: 12,
+  },
+  restaurantCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  restaurantCopy: { flex: 1, minWidth: 0, gap: 4 },
+  restaurantName: {
+    fontFamily: typography.display,
+    fontSize: 20,
+    color: colors.primary,
+    flexShrink: 1,
+  },
+  restaurantDetail: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+    flexShrink: 1,
+  },
+  statusPill: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  statusText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.surfaceDeep,
+  },
+  restaurantMenuCount: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.text,
+  },
+  restaurantActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  linkButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    justifyContent: "center",
+    alignItems: "center",
   },
   logoutRow: {
     alignItems: "center",

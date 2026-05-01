@@ -88,6 +88,11 @@ type AdminServiceModule = {
     restaurantId: string,
     menuItems: AdminRestaurantMenuItem[],
   ) => Promise<void>;
+  updateRestaurantMenuItemPrice?: (
+    restaurantId: string,
+    itemId: string,
+    price: string,
+  ) => Promise<void>;
   approveRestaurant?: (restaurantId: string) => Promise<void>;
   updateRestaurantPrepTime?: (
     restaurantId: string,
@@ -153,6 +158,32 @@ function isPermissionDenied(error: unknown) {
     (error as { code?: string } | undefined)?.code ===
     "firestore/permission-denied"
   );
+}
+
+export function getLiveMenuSections(
+  restaurantId: string,
+  liveRestaurants: typeof initialAdminRestaurants = initialAdminRestaurants,
+) {
+  const baseSections =
+    menuByRestaurantId[restaurantId] ?? menuByRestaurantId["featured-2"];
+  const restaurant = liveRestaurants.find((entry) => entry.id === restaurantId);
+  const menuItems = new Map(
+    restaurant?.menuItems.map((item) => [item.id, item]) ?? [],
+  );
+
+  return baseSections.map((section) => ({
+    ...section,
+    items: section.items.map((item) => {
+      const liveItem = menuItems.get(item.id);
+
+      return {
+        ...item,
+        price: liveItem?.price ?? item.price,
+        available: liveItem?.available ?? item.available,
+        popular: liveItem?.popular ?? item.popular,
+      };
+    }),
+  }));
 }
 
 function buildCustomerStatuses(status: AdminOrderStatus, driverName?: string) {
@@ -282,6 +313,11 @@ type AppStateValue = {
   toggleRestaurantMenuItemFeatured: (
     restaurantId: string,
     itemId: string,
+  ) => Promise<void>;
+  updateAdminMenuItemPrice: (
+    restaurantId: string,
+    itemId: string,
+    price: string,
   ) => Promise<void>;
   approveRestaurant: (restaurantId: string) => Promise<void>;
   updateRestaurantPrepTime: (
@@ -545,6 +581,8 @@ function createLocalAdminFallback(): AdminServiceModule {
     },
     updateAdminOrderStatus: async () => undefined,
     toggleRestaurantMenuItemAvailability: async () => undefined,
+    saveRestaurantMenuItems: async () => undefined,
+    updateRestaurantMenuItemPrice: async () => undefined,
     approveRestaurant: async () => undefined,
     updateRestaurantPrepTime: async () => undefined,
     claimDriverAssignment: async () => undefined,
@@ -884,16 +922,6 @@ export function AppStateProvider({
       cartQuantity,
       favoriteIds,
       savedCardsExpanded,
-      selectedCardId,
-      selectedTip,
-      customTip,
-      sessionMode,
-      profile,
-      currentUser,
-      settings,
-      joinedRewards,
-      rewardsEmail,
-      savedLocationOptions,
       selectedRestaurantId,
       selectedPartnerRestaurantId,
       selectedDriverId,
@@ -907,6 +935,16 @@ export function AppStateProvider({
       adminRestaurants,
       adminFeedback,
       driverProfiles,
+      selectedCardId,
+      selectedTip,
+      customTip,
+      sessionMode,
+      profile,
+      currentUser,
+      settings,
+      joinedRewards,
+      rewardsEmail,
+      savedLocationOptions,
       addToCart: () => {
         const restaurant =
           allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??
@@ -1363,6 +1401,53 @@ export function AppStateProvider({
           nextMenuItems,
           previousRestaurants,
         );
+      },
+      updateAdminMenuItemPrice: async (
+        restaurantId: string,
+        itemId: string,
+        price: string,
+      ) => {
+        const previousRestaurants = adminRestaurants;
+        const normalizedPrice = normalizeMenuPrice(price);
+        const nextMenuItems = updateLocalRestaurantMenuItems(
+          restaurantId,
+          (items) => {
+            const existing = items.find((item) => item.id === itemId);
+
+            if (existing) {
+              return items.map((item) =>
+                item.id === itemId
+                  ? { ...item, price: normalizedPrice }
+                  : item,
+              );
+            }
+
+            const staticEntry = getStaticMenuItem(restaurantId, itemId);
+            if (!staticEntry) {
+              return items;
+            }
+
+            return [
+              toAdminMenuItem(restaurantId, itemId, {
+                price: normalizedPrice,
+              }),
+              ...items,
+            ];
+          },
+        );
+
+        try {
+          await adminServiceRef.current?.saveRestaurantMenuItems?.(
+            restaurantId,
+            nextMenuItems,
+          );
+        } catch (error) {
+          setAdminRestaurants(previousRestaurants);
+
+          if (!isPermissionDenied(error)) {
+            console.error("Failed to update menu item price:", error);
+          }
+        }
       },
       approveRestaurant: async (restaurantId: string) => {
         const previousRestaurants = adminRestaurants;

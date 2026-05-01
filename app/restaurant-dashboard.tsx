@@ -1,7 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import FadeInView from "./FadeInView";
 import { useAppState } from "./appState";
 import { colors, spacing, typography } from "./theme";
@@ -12,6 +20,7 @@ export default function RestaurantDashboardScreen() {
   const {
     adminOrders,
     adminRestaurants,
+    getRestaurantMenuSections,
     logout,
     selectedPartnerRestaurantId,
     setSelectedPartnerRestaurant,
@@ -22,14 +31,19 @@ export default function RestaurantDashboardScreen() {
     [adminRestaurants, selectedPartnerRestaurantId],
   );
 
+  const liveMenuItems = useMemo(
+    () => (restaurant ? getRestaurantMenuSections(restaurant.id).flatMap((section) => section.items) : []),
+    [getRestaurantMenuSections, restaurant],
+  );
+
   const metrics = useMemo(() => {
     const restaurantOrders = adminOrders.filter((order) => order.restaurantId === restaurant?.id);
     return {
       active: restaurantOrders.filter((order) => order.status !== "Completed").length,
       ready: restaurantOrders.filter((order) => order.status === "Ready for Driver").length,
-      pausedItems: restaurant?.menuItems.filter((item) => !item.available).length ?? 0,
+      pausedItems: liveMenuItems.filter((item) => !item.available).length,
     };
-  }, [adminOrders, restaurant]);
+  }, [adminOrders, liveMenuItems, restaurant]);
 
   if (!restaurant) {
     return null;
@@ -177,9 +191,18 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   heroCopy: { flex: 1, gap: 6 },
-  eyebrow: { fontFamily: typography.body, fontSize: 12, color: "rgba(255,255,255,0.78)" },
+  eyebrow: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.78)",
+  },
   title: { fontFamily: typography.display, fontSize: 30, color: colors.white },
-  subtitle: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.88)" },
+  subtitle: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.88)",
+  },
   selectorRow: { gap: 10, paddingRight: 20 },
   selectorChip: {
     minHeight: 40,
@@ -191,8 +214,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  selectorChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  selectorText: { fontFamily: typography.display, fontSize: 13, color: colors.primary },
+  selectorChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  selectorText: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    color: colors.primary,
+  },
   selectorTextActive: { color: colors.background },
   metricGrid: { flexDirection: "row", gap: 10 },
   metricCard: {
@@ -204,8 +234,16 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
-  metricValue: { fontFamily: typography.display, fontSize: 28, color: colors.primary },
-  metricLabel: { fontFamily: typography.body, fontSize: 13, color: colors.textMuted },
+  metricValue: {
+    fontFamily: typography.display,
+    fontSize: 28,
+    color: colors.primary,
+  },
+  metricLabel: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
   summaryCard: {
     borderRadius: 22,
     backgroundColor: colors.white,
@@ -214,8 +252,17 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 8,
   },
-  summaryTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
-  summaryCopy: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: colors.text },
+  summaryTitle: {
+    fontFamily: typography.display,
+    fontSize: 22,
+    color: colors.primary,
+  },
+  summaryCopy: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
+  },
   linkStack: { gap: 12 },
   linkCard: {
     borderRadius: 22,
@@ -236,6 +283,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   linkCopy: { flex: 1, gap: 4 },
-  linkTitle: { fontFamily: typography.display, fontSize: 18, color: colors.primary },
-  linkDetail: { fontFamily: typography.body, fontSize: 13, lineHeight: 18, color: colors.textMuted },
+  linkTitle: {
+    fontFamily: typography.display,
+    fontSize: 18,
+    color: colors.primary,
+  },
+  linkDetail: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
 });

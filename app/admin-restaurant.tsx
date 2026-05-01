@@ -1,18 +1,103 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
+
+type EditableMenuItem = {
+  id: string;
+  name: string;
+  price: string;
+  available?: boolean;
+  popular?: boolean;
+  isNew?: boolean;
+};
+
+function MenuItemRow({
+  delay,
+  item,
+  restaurantId,
+  onToggleAvailability,
+  onSavePrice,
+}: {
+  delay: number;
+  item: EditableMenuItem;
+  restaurantId: string;
+  onToggleAvailability: (restaurantId: string, itemId: string) => void;
+  onSavePrice: (restaurantId: string, itemId: string, price: string) => void;
+}) {
+  const [priceDraft, setPriceDraft] = useState(item.price);
+
+  useEffect(() => {
+    setPriceDraft(item.price);
+  }, [item.price]);
+
+  const isEnabled = item.available ?? true;
+
+  return (
+    <FadeInView delay={delay} style={styles.menuCard}>
+      <View style={styles.menuCopy}>
+        <Text style={styles.itemName}>{item.name}</Text>
+        <Text style={styles.itemDetail}>
+          {item.popular ? "Popular pick - " : ""}
+          Current price: {item.price}
+          {item.isNew ? " - New" : ""}
+        </Text>
+
+        <View style={styles.priceEditorRow}>
+          <TextInput
+            value={priceDraft}
+            onChangeText={setPriceDraft}
+            placeholder="$0.00"
+            placeholderTextColor="rgba(15,23,42,0.35)"
+            keyboardType="decimal-pad"
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.priceInput}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Save ${item.name} price`}
+            style={({ pressed }) => [styles.savePriceButton, pressed && styles.buttonPressed]}
+            onPress={() => onSavePrice(restaurantId, item.id, priceDraft)}
+          >
+            <Text style={styles.savePriceButtonText}>Save Price</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${isEnabled ? "Disable" : "Enable"} ${item.name}`}
+        style={[
+          styles.toggle,
+          isEnabled ? styles.toggleDisableState : styles.toggleEnableState,
+        ]}
+        onPress={() => onToggleAvailability(restaurantId, item.id)}
+      >
+        <Text
+          style={[
+            styles.toggleText,
+            isEnabled ? styles.toggleTextDisableState : styles.toggleTextEnableState,
+          ]}
+        >
+          {isEnabled ? "Disable" : "Enable"}
+        </Text>
+      </Pressable>
+    </FadeInView>
+  );
+}
 
 export default function AdminRestaurantDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -22,12 +107,11 @@ export default function AdminRestaurantDetailScreen() {
     beginRestaurantSession,
     getRestaurantMenuSections,
     toggleAdminMenuItemAvailability,
+    updateAdminMenuItemPrice,
   } = useAppState();
 
   const restaurant = useMemo(
-    () =>
-      adminRestaurants.find((entry) => entry.id === params.id) ??
-      adminRestaurants[0],
+    () => adminRestaurants.find((entry) => entry.id === params.id) ?? adminRestaurants[0],
     [adminRestaurants, params.id],
   );
 
@@ -35,7 +119,10 @@ export default function AdminRestaurantDetailScreen() {
     () => (restaurant ? getRestaurantMenuSections(restaurant.id) : []),
     [getRestaurantMenuSections, restaurant],
   );
-  const menuItems = useMemo(() => menuSections.flatMap((section) => section.items), [menuSections]);
+  const menuItemCount = useMemo(
+    () => menuSections.reduce((total, section) => total + section.items.length, 0),
+    [menuSections],
+  );
 
   if (!restaurant) {
     return null;
@@ -43,12 +130,14 @@ export default function AdminRestaurantDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/admin-restaurants")}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to restaurants"
+            style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
+            onPress={() => goBackOrReplace("/admin-restaurants")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>MENU CONTROLS</Text>
@@ -58,11 +147,11 @@ export default function AdminRestaurantDetailScreen() {
         <FadeInView delay={90} style={styles.hero}>
           <Text style={styles.name}>{restaurant.name}</Text>
           <Text style={styles.detail}>
-            {restaurant.cuisine} - {restaurant.manager} - Avg prep{" "}
-            {restaurant.avgPrepTime}
+            {restaurant.cuisine} - {restaurant.manager} - Avg prep {restaurant.avgPrepTime}
           </Text>
           <Pressable
-            style={styles.partnerButton}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.partnerButton, pressed && styles.buttonPressed]}
             onPress={() => {
               beginRestaurantSession(restaurant.id);
               router.push("/restaurant-dashboard");
@@ -72,7 +161,8 @@ export default function AdminRestaurantDetailScreen() {
           </Pressable>
           {restaurant.status === "Needs Approval" ? (
             <Pressable
-              style={styles.approveButton}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.approveButton, pressed && styles.buttonPressed]}
               onPress={() => approveRestaurant(restaurant.id)}
             >
               <Text style={styles.approveButtonText}>Approve Restaurant</Text>
@@ -84,8 +174,8 @@ export default function AdminRestaurantDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Menu controls</Text>
             <Text style={styles.sectionHint}>
-              Toggle availability for {menuItems.length} live menu item
-              {menuItems.length === 1 ? "" : "s"} shown to customers
+              Toggle availability or update pricing for {menuItemCount} live menu item
+              {menuItemCount === 1 ? "" : "s"} shown to customers
             </Text>
           </View>
         </FadeInView>
@@ -95,39 +185,16 @@ export default function AdminRestaurantDetailScreen() {
           {menuSections.map((section, sectionIndex) => (
             <View key={section.id} style={styles.menuGroup}>
               <Text style={styles.menuGroupTitle}>{section.title}</Text>
-              {section.items.map((item, index) => {
-                const isEnabled = item.available ?? true;
-                return (
-                  <FadeInView
-                    key={item.id}
-                    delay={210 + sectionIndex * 40 + index * 25}
-                    style={styles.menuCard}
-                  >
-                    <View style={styles.menuCopy}>
-                      <Text style={styles.itemName}>{item.name}</Text>
-                      <Text style={styles.itemDetail}>
-                        {item.price} {item.popular ? "- Popular pick" : ""}
-                        {item.isNew ? " - New" : ""}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={[styles.toggle, isEnabled && styles.toggleActive]}
-                      onPress={() =>
-                        toggleAdminMenuItemAvailability(restaurant.id, item.id)
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.toggleText,
-                          isEnabled && styles.toggleTextActive,
-                        ]}
-                      >
-                        {isEnabled ? "Enabled" : "Disabled"}
-                      </Text>
-                    </Pressable>
-                  </FadeInView>
-                );
-              })}
+              {section.items.map((item, index) => (
+                <MenuItemRow
+                  key={item.id}
+                  delay={210 + sectionIndex * 40 + index * 25}
+                  restaurantId={restaurant.id}
+                  item={item}
+                  onToggleAvailability={toggleAdminMenuItemAvailability}
+                  onSavePrice={updateAdminMenuItemPrice}
+                />
+              ))}
             </View>
           ))}
         </FadeInView>
@@ -159,6 +226,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
+  },
+  buttonPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.97 }],
   },
   headerTitle: {
     fontFamily: typography.display,
@@ -232,11 +303,6 @@ const styles = StyleSheet.create({
   menuGroup: {
     gap: 10,
   },
-  menuSummary: {
-    fontFamily: typography.body,
-    fontSize: 12,
-    color: colors.textMuted,
-  },
   menuGroupTitle: {
     fontFamily: typography.display,
     fontSize: 16,
@@ -255,7 +321,7 @@ const styles = StyleSheet.create({
   },
   menuCopy: {
     flex: 1,
-    gap: 4,
+    gap: 8,
   },
   itemName: {
     fontFamily: typography.display,
@@ -267,55 +333,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
   },
-  controlStack: {
-    gap: 8,
+  priceEditorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  priceInput: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 12,
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.primary,
+  },
+  savePriceButton: {
+    minWidth: 96,
+    minHeight: 40,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 14,
+  },
+  savePriceButtonText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.background,
   },
   toggle: {
     minWidth: 110,
     minHeight: 40,
     borderRadius: 14,
-    backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 14,
+    borderWidth: 1,
   },
-  toggleActive: { backgroundColor: "#ECFDF3" },
+  toggleDisableState: {
+    backgroundColor: "#ECFDF3",
+    borderColor: "#BBF7D0",
+  },
+  toggleEnableState: {
+    backgroundColor: "#FFF1F2",
+    borderColor: "#FECACA",
+  },
   toggleText: {
     fontFamily: typography.display,
     fontSize: 13,
-    color: colors.primary,
   },
-  toggleTextActive: { color: colors.success },
-  secondaryAction: {
-    minWidth: 110,
-    minHeight: 36,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 14,
-  },
-  secondaryActionText: {
-    fontFamily: typography.display,
-    fontSize: 12,
-    color: colors.primary,
-  },
-  secondaryActionDanger: {
-    minWidth: 110,
-    minHeight: 36,
-    borderRadius: 14,
-    backgroundColor: "#FFF5F5",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 14,
-  },
-  secondaryActionDangerText: {
-    fontFamily: typography.display,
-    fontSize: 12,
-    color: colors.danger,
-  },
+  toggleTextDisableState: { color: colors.success },
+  toggleTextEnableState: { color: colors.danger },
 });
