@@ -9,8 +9,9 @@ import {
   getCartSubtotal,
   getCartTaxes,
   getTipAmount,
-  usePrototypeState,
-} from "./prototypeState";
+  useAppState,
+} from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, typography } from "./theme";
 
 type CartGroup = {
@@ -30,7 +31,8 @@ export default function CheckoutScreen() {
     customTip,
     setCustomTip,
     profile,
-  } = usePrototypeState();
+    selectedRestaurantId,
+  } = useAppState();
 
   const subtotal = getCartSubtotal(cartItems);
   const taxes = getCartTaxes(cartItems);
@@ -46,6 +48,14 @@ export default function CheckoutScreen() {
 
     return [...groups.entries()].map(([restaurantName, items]) => ({ restaurantName, items }));
   }, [cartItems]);
+  const addItemsRestaurantId = cartItems[0]?.restaurantId ?? selectedRestaurantId;
+
+  const openAddItems = () => {
+    router.push({
+      pathname: "/restaurant-menu",
+      params: { restaurantId: addItemsRestaurantId },
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -75,7 +85,7 @@ export default function CheckoutScreen() {
         </FadeInView>
 
         <FadeInView delay={80} style={styles.sectionHeader}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/home")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.sectionHeaderText}>CHECKOUT</Text>
@@ -84,7 +94,7 @@ export default function CheckoutScreen() {
         <FadeInView delay={140} style={styles.card}>
           <View style={styles.cardTopRow}>
             <Text style={styles.cardTitle}>Your Order</Text>
-            <Pressable style={styles.pillButton} onPress={() => router.push("/menu")}>
+            <Pressable style={styles.pillButton} onPress={openAddItems}>
               <Text style={styles.pillButtonText}>+ Add Items</Text>
             </Pressable>
           </View>
@@ -95,7 +105,7 @@ export default function CheckoutScreen() {
               <Text style={styles.emptyStateCopy}>
                 Add a few menu items to preview delivery details, payment, and confirmation.
               </Text>
-              <Pressable style={styles.emptyStateButton} onPress={() => router.push("/menu")}>
+              <Pressable style={styles.emptyStateButton} onPress={openAddItems}>
                 <Text style={styles.emptyStateButtonText}>Start Shopping</Text>
               </Pressable>
             </View>
@@ -120,7 +130,15 @@ export default function CheckoutScreen() {
                           <Text style={styles.quantityValue}>{item.quantity}</Text>
                           <Pressable
                             style={styles.quantityButton}
-                            onPress={() => addMenuItem({ id: item.id, name: item.name, price: formatCurrency(item.price) })}
+                            onPress={() =>
+                              addMenuItem({
+                                id: item.id,
+                                name: item.name,
+                                price: formatCurrency(item.price),
+                                restaurantId: item.restaurantId,
+                                restaurantName: item.restaurantName,
+                              })
+                            }
                           >
                             <Feather name="plus" size={14} color={colors.text} />
                           </Pressable>

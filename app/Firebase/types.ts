@@ -111,6 +111,9 @@ export interface AdminRestaurantMenuItem {
   name: string;
   price: string;
   available: boolean;
+  description?: string;
+  category?: string;
+  isNew?: boolean;
   popular?: boolean;
 }
 

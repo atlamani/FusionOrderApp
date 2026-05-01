@@ -1,4 +1,4 @@
-rules_version = '3';
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() {
@@ -9,38 +9,52 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Customer orders remain accessible to their owner, while authenticated
-    // staff/admin prototype sessions can also read and update order workflow data.
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    function isRestaurantStaff() {
+      return isSignedIn() && request.auth.token.restaurantId is string;
+    }
+
+    function isDriverStaff() {
+      return isSignedIn() && request.auth.token.driverId is string;
+    }
+
+    function isStaff() {
+      return isAdmin() || isRestaurantStaff() || isDriverStaff();
+    }
+
+    // Customer orders remain accessible to their owner, while staff workflow
+    // access is controlled by Firebase custom claims.
     match /orders/{orderId} {
-      allow create: if isSignedIn();
+      allow create: if isStaff() ||
+        (
+          isSignedIn() &&
+          request.resource.data.userId == request.auth.uid
+        );
       allow read: if isSignedIn() &&
         (
-          resource == null ||
-          resource.data.userId == request.auth.uid ||
-          resource.data.userId == null
+          isStaff() ||
+          resource.data.userId == request.auth.uid
         );
-      allow update: if isSignedIn() &&
-        (
-          resource.data.userId == request.auth.uid ||
-          resource.data.userId == null
-        );
+      allow update: if isStaff();
       allow delete: if false;
     }
 
     // Backward compatibility for older docs written with capitalized collection name.
     match /Orders/{orderId} {
-      allow create: if isSignedIn();
+      allow create: if isStaff() ||
+        (
+          isSignedIn() &&
+          request.resource.data.userId == request.auth.uid
+        );
       allow read: if isSignedIn() &&
         (
-          resource == null ||
-          resource.data.userId == request.auth.uid ||
-          resource.data.userId == null
+          isStaff() ||
+          resource.data.userId == request.auth.uid
         );
-      allow update: if isSignedIn() &&
-        (
-          resource.data.userId == request.auth.uid ||
-          resource.data.userId == null
-        );
+      allow update: if isStaff();
       allow delete: if false;
     }
 
@@ -55,15 +69,26 @@ service cloud.firestore {
 
     // Admin prototype collections
     match /adminRestaurants/{restaurantId} {
-      allow read, write: if isSignedIn();
+      allow read: if isStaff();
+      allow write: if isAdmin() ||
+        (
+          isRestaurantStaff() &&
+          request.auth.token.restaurantId == restaurantId
+        );
     }
 
     match /adminFeedback/{feedbackId} {
-      allow read, write: if isSignedIn();
+      allow read: if isStaff();
+      allow write: if isAdmin();
     }
 
     match /drivers/{driverId} {
-      allow read, write: if isSignedIn();
+      allow read: if isStaff();
+      allow write: if isAdmin() ||
+        (
+          isDriverStaff() &&
+          request.auth.token.driverId == driverId
+        );
     }
 
     // Allow reading restaurants (public data)

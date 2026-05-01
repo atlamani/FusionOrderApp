@@ -17,8 +17,8 @@ import {
   allRestaurants,
   cuisineTags,
   recommendationMoments,
-} from "../mockData";
-import { usePrototypeState } from "../prototypeState";
+} from "../appData";
+import { useAppState } from "../appState";
 import { colors, spacing, typography } from "../theme";
 
 function RestaurantCard({
@@ -29,7 +29,7 @@ function RestaurantCard({
   compact?: boolean;
 }) {
   const { favoriteIds, setSelectedRestaurant, toggleFavorite } =
-    usePrototypeState();
+    useAppState();
   const isFavorite = favoriteIds.includes(item.id);
 
   return (
@@ -91,7 +91,8 @@ export default function DiscoverScreen() {
     favoriteIds,
     recentSearches,
     setSelectedRestaurant,
-  } = usePrototypeState();
+    submitSearch,
+  } = useAppState();
 
   const selectedCuisineLabel =
     cuisineTags.find((tag) => tag.id === discoveryFilters.cuisineId)?.label ??
@@ -114,10 +115,17 @@ export default function DiscoverScreen() {
       return allRestaurants.slice(0, 4);
     }
 
-    return allRestaurants.filter((restaurant) =>
-      restaurant.cuisine
-        .toLowerCase()
-        .includes(discoveryFilters.cuisineId.toLowerCase()),
+    const selectedCuisine = discoveryFilters.cuisineId.toLowerCase();
+
+    return allRestaurants.filter(
+      (restaurant) =>
+        restaurant.cuisine.toLowerCase().includes(selectedCuisine) ||
+        restaurant.dietaryTags.some((tag) =>
+          tag.toLowerCase().includes(selectedCuisine),
+        ) ||
+        restaurant.popularDishes.some((dish) =>
+          dish.toLowerCase().includes(selectedCuisine),
+        ),
     );
   }, [discoveryFilters.cuisineId]);
 
@@ -163,7 +171,10 @@ export default function DiscoverScreen() {
               <Pressable
                 key={term}
                 style={styles.recentSearchPill}
-                onPress={() => router.push("/search")}
+                onPress={() => {
+                  submitSearch(term);
+                  router.push("/search");
+                }}
               >
                 <Text style={styles.recentSearchText}>{term}</Text>
               </Pressable>

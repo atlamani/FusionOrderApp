@@ -10,6 +10,7 @@ import { Order } from "./types";
 export function subscribeToOrderUpdates(
   orderId: string,
   callback: (order: Order) => void,
+  onError?: (error: unknown) => void,
 ): () => void {
   const unsubscribe = firestore()
     .collection("orders")
@@ -18,11 +19,12 @@ export function subscribeToOrderUpdates(
       (snapshot) => {
         if (snapshot.exists()) {
           const orderData = snapshot.data() as Order;
-          callback(orderData);
+          callback({ ...orderData, id: snapshot.id });
         }
       },
       (error) => {
         console.error("Error subscribing to order updates:", error);
+        onError?.(error);
       },
     );
 
@@ -38,7 +40,8 @@ export async function getOrder(orderId: string): Promise<Order | null> {
   try {
     const snapshot = await firestore().collection("orders").doc(orderId).get();
     if (snapshot.exists()) {
-      return snapshot.data() as Order;
+      const orderData = snapshot.data() as Order;
+      return { ...orderData, id: snapshot.id };
     }
     return null;
   } catch (error) {

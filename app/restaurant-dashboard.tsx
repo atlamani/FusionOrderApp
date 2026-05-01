@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
 import { colors, spacing, typography } from "./theme";
+
+const headerTopPadding = (StatusBar.currentHeight ?? 0) + 18;
 
 export default function RestaurantDashboardScreen() {
   const {
@@ -13,7 +15,7 @@ export default function RestaurantDashboardScreen() {
     logout,
     selectedPartnerRestaurantId,
     setSelectedPartnerRestaurant,
-  } = usePrototypeState();
+  } = useAppState();
 
   const restaurant = useMemo(
     () => adminRestaurants.find((entry) => entry.id === selectedPartnerRestaurantId) ?? adminRestaurants[0],
@@ -33,10 +35,28 @@ export default function RestaurantDashboardScreen() {
     return null;
   }
 
+  const handleLogout = () => {
+    logout();
+    router.dismissTo("/");
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
+      <Pressable
+        accessibilityLabel="Exit restaurant console"
+        accessibilityRole="button"
+        hitSlop={18}
+        style={({ pressed }) => [styles.floatingExitButton, pressed && styles.pressedButton]}
+        onPress={handleLogout}
+      >
+        <Feather name="arrow-left" size={20} color={colors.background} />
+      </Pressable>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <FadeInView delay={40} style={styles.hero}>
+        <FadeInView delay={40} style={styles.navRow}>
+          <View style={styles.headerSpacer} />
+        </FadeInView>
+
+        <FadeInView delay={80} style={styles.hero}>
           <View style={styles.heroCopy}>
             <Text style={styles.eyebrow}>Restaurant Console</Text>
             <Text style={styles.title}>{restaurant.name}</Text>
@@ -44,15 +64,6 @@ export default function RestaurantDashboardScreen() {
               Keep prep times current, move orders through the kitchen, and control menu availability.
             </Text>
           </View>
-          <Pressable
-            style={styles.logoutButton}
-            onPress={() => {
-              logout();
-              router.replace("/");
-            }}
-          >
-            <Feather name="log-out" size={18} color={colors.background} />
-          </Pressable>
         </FadeInView>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
@@ -106,7 +117,7 @@ export default function RestaurantDashboardScreen() {
             <Feather name="arrow-right" size={18} color={colors.primary} />
           </Pressable>
 
-          <Pressable style={styles.linkCard} onPress={() => router.push("/restaurant-menu")}>
+          <Pressable style={styles.linkCard} onPress={() => router.push("/restaurant-menu-controls" as never)}>
             <View style={styles.linkIcon}>
               <Feather name="menu" size={18} color={colors.background} />
             </View>
@@ -126,29 +137,49 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: headerTopPadding,
     paddingBottom: 36,
     gap: spacing.lg,
+  },
+  navRow: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    zIndex: 10,
+    elevation: 10,
+  },
+  floatingExitButton: {
+    position: "absolute",
+    top: headerTopPadding,
+    left: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+    elevation: 1000,
+  },
+  headerSpacer: {
+    width: 44,
+    height: 44,
+  },
+  pressedButton: {
+    opacity: 0.78,
+    transform: [{ scale: 0.97 }],
   },
   hero: {
     borderRadius: 28,
     backgroundColor: colors.surface,
     padding: 20,
-    flexDirection: "row",
     gap: 16,
   },
   heroCopy: { flex: 1, gap: 6 },
   eyebrow: { fontFamily: typography.body, fontSize: 12, color: "rgba(255,255,255,0.78)" },
   title: { fontFamily: typography.display, fontSize: 30, color: colors.white },
   subtitle: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.88)" },
-  logoutButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.surfaceDeep,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   selectorRow: { gap: 10, paddingRight: 20 },
   selectorChip: {
     minHeight: 40,

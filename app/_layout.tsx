@@ -3,7 +3,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { PrototypeStateProvider } from "./prototypeState";
+import { AppStateProvider } from "./appState";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Ignore repeated calls during fast refresh.
@@ -27,7 +27,7 @@ export default function RootLayout() {
   }
 
   return (
-    <PrototypeStateProvider>
+    <AppStateProvider>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -35,6 +35,6 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: "#ECE3CE" },
         }}
       />
-    </PrototypeStateProvider>
+    </AppStateProvider>
   );
 }

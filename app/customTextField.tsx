@@ -70,7 +70,13 @@ export const CustomInput = ({
           secureTextEntry={isSecure && !showSecureText}
         />
         {isSecure && secureToggle ? (
-          <Pressable style={styles.trailingAction} onPress={() => setShowSecureText((current) => !current)}>
+          <Pressable
+            accessibilityLabel={showSecureText ? "Hide password" : "Show password"}
+            accessibilityRole="button"
+            hitSlop={8}
+            style={styles.trailingAction}
+            onPress={() => setShowSecureText((current) => !current)}
+          >
             <Feather
               name={showSecureText ? "eye-off" : "eye"}
               size={18}

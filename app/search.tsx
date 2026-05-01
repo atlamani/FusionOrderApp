@@ -1,7 +1,17 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useMemo, useRef, useState } from "react";
+import {
+  Keyboard,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  StatusBar,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import FadeInView from "./FadeInView";
 import {
   allRestaurants,
@@ -9,11 +19,97 @@ import {
   dietaryFilters,
   priceFilters,
   searchSuggestions,
-} from "./mockData";
-import { usePrototypeState } from "./prototypeState";
+} from "./appData";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
+const headerTopPadding = (StatusBar.currentHeight ?? 0) + 14;
+
+const SEARCH_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "around",
+  "delivery",
+  "dinner",
+  "for",
+  "near",
+  "nearby",
+  "the",
+  "with",
+]);
+
+function normalizeSearchValue(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s$]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getSearchTokens(value: string) {
+  const tokens = normalizeSearchValue(value)
+    .split(" ")
+    .filter((token) => token.length > 1 && !SEARCH_STOP_WORDS.has(token));
+
+  return tokens.length > 0 ? tokens : normalizeSearchValue(value).split(" ").filter(Boolean);
+}
+
+function getRestaurantSearchText(restaurant: (typeof allRestaurants)[number]) {
+  return normalizeSearchValue(
+    [
+      restaurant.name,
+      restaurant.cuisine,
+      restaurant.badge,
+      restaurant.description,
+      restaurant.distance,
+      restaurant.eta,
+      restaurant.price,
+      ...restaurant.dietaryTags,
+      ...restaurant.popularDishes,
+    ].join(" "),
+  );
+}
+
+function getRestaurantSearchScore(
+  restaurant: (typeof allRestaurants)[number],
+  query: string,
+) {
+  const normalizedQuery = normalizeSearchValue(query);
+  const tokens = getSearchTokens(query);
+
+  if (!normalizedQuery) {
+    return 1;
+  }
+
+  const searchableText = getRestaurantSearchText(restaurant);
+  const matchedTokens = tokens.filter((token) => searchableText.includes(token));
+
+  if (matchedTokens.length === 0) {
+    return -1;
+  }
+
+  let score = matchedTokens.length;
+
+  if (searchableText.includes(normalizedQuery)) {
+    score += 4;
+  }
+
+  if (normalizeSearchValue(restaurant.name).includes(normalizedQuery)) {
+    score += 8;
+  }
+
+  if (normalizeSearchValue(restaurant.cuisine).includes(normalizedQuery)) {
+    score += 5;
+  }
+
+  return score;
+}
+
 export default function SearchScreen() {
+  const scrollRef = useRef<ScrollView>(null);
+  const [resultsOffset, setResultsOffset] = useState(0);
   const {
     applyDiscoveryFilters,
     clearSearch,
@@ -25,17 +121,19 @@ export default function SearchScreen() {
     setSelectedRestaurant,
     submitSearch,
     toggleSavedSearch,
-  } = usePrototypeState();
+    resetDiscoveryFilters,
+  } = useAppState();
 
   const filteredResults = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = searchQuery.trim();
 
-    return allRestaurants.filter((restaurant) => {
-      const matchesQuery =
-        query.length === 0 ||
-        restaurant.name.toLowerCase().includes(query) ||
-        restaurant.cuisine.toLowerCase().includes(query) ||
-        restaurant.popularDishes.some((dish) => dish.toLowerCase().includes(query));
+    return allRestaurants
+      .map((restaurant, index) => ({
+        restaurant,
+        index,
+        score: getRestaurantSearchScore(restaurant, query),
+      }))
+      .filter(({ restaurant, score }) => {
       const matchesCuisine =
         discoveryFilters.cuisineId === "all" ||
         restaurant.cuisine.toLowerCase().includes(discoveryFilters.cuisineId.toLowerCase()) ||
@@ -44,19 +142,62 @@ export default function SearchScreen() {
         !discoveryFilters.dietaryTag || restaurant.dietaryTags.includes(discoveryFilters.dietaryTag);
       const matchesPrice = !discoveryFilters.price || restaurant.price === discoveryFilters.price;
 
-      return matchesQuery && matchesCuisine && matchesDietary && matchesPrice;
-    });
+      return score >= 0 && matchesCuisine && matchesDietary && matchesPrice;
+    })
+      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .map(({ restaurant }) => restaurant);
   }, [discoveryFilters, searchQuery]);
+
+  const handleSubmitSearch = (value?: string) => {
+    submitSearch(value);
+    Keyboard.dismiss();
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(resultsOffset - 12, 0),
+        animated: true,
+      });
+    });
+  };
+
+  const handleClear = () => {
+    clearSearch();
+    resetDiscoveryFilters();
+    Keyboard.dismiss();
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+  };
+
+  const handleBack = () => {
+    goBackOrReplace("/home");
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollRef}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={12}
+            style={styles.backButton}
+            onPress={handleBack}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>SEARCH</Text>
-          <Pressable style={styles.clearButton} onPress={clearSearch}>
+          <Pressable
+            accessibilityLabel="Clear search and filters"
+            accessibilityRole="button"
+            hitSlop={12}
+            style={styles.clearButton}
+            onPress={handleClear}
+          >
             <Text style={styles.clearButtonText}>Clear</Text>
           </Pressable>
         </FadeInView>
@@ -70,15 +211,79 @@ export default function SearchScreen() {
               placeholderTextColor="rgba(236, 227, 206, 0.76)"
               value={searchQuery}
               onChangeText={setSearchQuery}
-              onSubmitEditing={() => submitSearch()}
+              onSubmitEditing={() => handleSubmitSearch()}
               returnKeyType="search"
             />
-            <Pressable style={styles.submitButton} onPress={() => submitSearch()}>
+            <Pressable
+              accessibilityLabel="Search restaurants"
+              accessibilityRole="button"
+              hitSlop={10}
+              style={styles.submitButton}
+              onPress={() => handleSubmitSearch(searchQuery)}
+            >
               <Feather name="arrow-right" size={16} color={colors.background} />
             </Pressable>
           </View>
-          <Text style={styles.helperText}>Autocomplete, filters, and saved searches are mocked locally for MVP planning.</Text>
+          <Text style={styles.helperText}>Use autocomplete, filters, and saved searches to narrow your options.</Text>
         </FadeInView>
+
+        <View onLayout={(event) => setResultsOffset(event.nativeEvent.layout.y)}>
+        <FadeInView delay={120} style={styles.card}>
+          <View style={styles.resultsHeader}>
+            <View>
+              <Text style={styles.cardTitle}>Top matches</Text>
+              <Text style={styles.cardLabel}>
+                {filteredResults.length} restaurant{filteredResults.length === 1 ? "" : "s"} found
+              </Text>
+            </View>
+            {searchQuery.trim().length > 0 ? (
+              <Pressable style={styles.saveQueryButton} onPress={() => toggleSavedSearch(searchQuery.trim())}>
+                <Feather
+                  name={savedSearches.includes(searchQuery.trim()) ? "bookmark" : "bookmark"}
+                  size={14}
+                  color={colors.background}
+                />
+                <Text style={styles.saveQueryText}>
+                  {savedSearches.includes(searchQuery.trim()) ? "Saved" : "Save Search"}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.resultsList}>
+            {filteredResults.map((restaurant) => (
+              <Pressable
+                key={restaurant.id}
+                style={styles.resultCard}
+                onPress={() => {
+                  setSelectedRestaurant(restaurant.id);
+                  router.push({
+                    pathname: "/restaurant-menu",
+                    params: { restaurantId: restaurant.id },
+                  });
+                }}
+              >
+                <View style={styles.resultCopy}>
+                  <Text style={styles.resultName}>{restaurant.name}</Text>
+                  <Text style={styles.resultMeta}>
+                    {restaurant.cuisine} | {restaurant.distance} | {restaurant.price}
+                  </Text>
+                  <Text style={styles.resultDescription}>{restaurant.description}</Text>
+                </View>
+                <View style={styles.resultAside}>
+                  <Text style={styles.resultRating}>{restaurant.rating}</Text>
+                  <Text style={styles.resultEta}>{restaurant.eta}</Text>
+                </View>
+              </Pressable>
+            ))}
+            {filteredResults.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateTitle}>No matches yet</Text>
+                <Text style={styles.emptyStateCopy}>Try a different cuisine, price point, or dietary filter.</Text>
+              </View>
+            ) : null}
+          </View>
+        </FadeInView>
+        </View>
 
         <FadeInView delay={140} style={styles.card}>
           <Text style={styles.cardTitle}>Quick suggestions</Text>
@@ -87,7 +292,7 @@ export default function SearchScreen() {
               <Pressable
                 key={suggestion.id}
                 style={styles.filterChip}
-                onPress={() => submitSearch(suggestion.label)}
+                onPress={() => handleSubmitSearch(suggestion.label)}
               >
                 <Text style={styles.filterChipText}>{suggestion.label}</Text>
               </Pressable>
@@ -152,7 +357,7 @@ export default function SearchScreen() {
           <Text style={styles.cardLabel}>Saved searches</Text>
           <View style={styles.chipWrap}>
             {savedSearches.map((term) => (
-              <Pressable key={term} style={styles.savedSearchChip} onPress={() => submitSearch(term)}>
+              <Pressable key={term} style={styles.savedSearchChip} onPress={() => handleSubmitSearch(term)}>
                 <Text style={styles.savedSearchText}>{term}</Text>
               </Pressable>
             ))}
@@ -160,60 +365,13 @@ export default function SearchScreen() {
           <Text style={styles.cardLabel}>Recent searches</Text>
           <View style={styles.chipWrap}>
             {recentSearches.map((term) => (
-              <Pressable key={term} style={styles.filterChip} onPress={() => submitSearch(term)}>
+              <Pressable key={term} style={styles.filterChip} onPress={() => handleSubmitSearch(term)}>
                 <Text style={styles.filterChipText}>{term}</Text>
               </Pressable>
             ))}
           </View>
         </FadeInView>
 
-        <FadeInView delay={340} style={styles.card}>
-          <View style={styles.resultsHeader}>
-            <Text style={styles.cardTitle}>Results</Text>
-            {searchQuery.trim().length > 0 ? (
-              <Pressable style={styles.saveQueryButton} onPress={() => toggleSavedSearch(searchQuery.trim())}>
-                <Feather
-                  name={savedSearches.includes(searchQuery.trim()) ? "bookmark" : "bookmark"}
-                  size={14}
-                  color={colors.background}
-                />
-                <Text style={styles.saveQueryText}>
-                  {savedSearches.includes(searchQuery.trim()) ? "Saved" : "Save Search"}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-          <View style={styles.resultsList}>
-            {filteredResults.map((restaurant) => (
-              <Pressable
-                key={restaurant.id}
-                style={styles.resultCard}
-                onPress={() => {
-                  setSelectedRestaurant(restaurant.id);
-                  router.push("/menu");
-                }}
-              >
-                <View style={styles.resultCopy}>
-                  <Text style={styles.resultName}>{restaurant.name}</Text>
-                  <Text style={styles.resultMeta}>
-                    {restaurant.cuisine} | {restaurant.distance} | {restaurant.price}
-                  </Text>
-                  <Text style={styles.resultDescription}>{restaurant.description}</Text>
-                </View>
-                <View style={styles.resultAside}>
-                  <Text style={styles.resultRating}>{restaurant.rating}</Text>
-                  <Text style={styles.resultEta}>{restaurant.eta}</Text>
-                </View>
-              </Pressable>
-            ))}
-            {filteredResults.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateTitle}>No matches yet</Text>
-                <Text style={styles.emptyStateCopy}>Try a different cuisine, price point, or dietary filter.</Text>
-              </View>
-            ) : null}
-          </View>
-        </FadeInView>
       </ScrollView>
     </SafeAreaView>
   );
@@ -226,7 +384,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: headerTopPadding,
     paddingBottom: 36,
     gap: spacing.lg,
   },
@@ -236,9 +394,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
@@ -249,9 +407,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   clearButton: {
-    minWidth: 52,
-    minHeight: 40,
-    borderRadius: 12,
+    minWidth: 62,
+    minHeight: 46,
+    borderRadius: 15,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
@@ -285,9 +443,9 @@ const styles = StyleSheet.create({
     color: colors.background,
   },
   submitButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.surfaceDeep,
     justifyContent: "center",
     alignItems: "center",

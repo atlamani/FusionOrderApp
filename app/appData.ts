@@ -61,7 +61,7 @@ export type OrderStatus =
 export type OrderHistoryEntry = {
   id: string;
   restaurant: string;
-  status: "Delivered" | "Cancelled";
+  status: "Delivered" | "Cancelled" | "In Progress";
   date: string;
   total: string;
   items: string[];
@@ -119,6 +119,9 @@ export type AdminRestaurant = {
     name: string;
     price: string;
     available: boolean;
+    description?: string;
+    category?: string;
+    isNew?: boolean;
     popular?: boolean;
   }[];
 };
@@ -323,7 +326,10 @@ export const allRestaurants: Restaurant[] = [
   ...featuredRestaurants,
   ...nearbyRestaurants.filter(
     (restaurant) =>
-      !featuredRestaurants.some((featured) => featured.id === restaurant.id),
+      !featuredRestaurants.some(
+        (featured) =>
+          featured.id === restaurant.id || featured.name === restaurant.name,
+      ),
   ),
 ];
 
@@ -783,7 +789,7 @@ export const savedCards = [
   },
 ] as const;
 
-export const orderHistory = [
+export const orderHistory: OrderHistoryEntry[] = [
   {
     id: "ORD-2026-002",
     restaurant: "Tokyo Sushi Bar",
@@ -820,7 +826,7 @@ export const orderHistory = [
     items: ["Pad Thai x1", "Spring Rolls x1"],
     accent: "#9f0712",
   },
-] satisfies OrderHistoryEntry[];
+];
 
 export const favoriteSpots = [
   {
@@ -908,19 +914,19 @@ export const faqEntries = [
     id: "faq-1",
     question: "Can I change my order after checkout?",
     answer:
-      "In this prototype, support can mark the request and walk you through your next steps.",
+      "Support can mark the request and walk you through your next steps.",
   },
   {
     id: "faq-2",
     question: "How do saved cards work here?",
     answer:
-      "Saved cards are mock-only and exist to preview the payment flow and selection states.",
+      "Saved cards help speed up checkout and payment selection.",
   },
   {
     id: "faq-3",
     question: "Will rewards points persist?",
     answer:
-      "Points persist locally while the prototype is open so the account flow feels realistic.",
+      "Points update as orders are placed so rewards progress stays visible.",
   },
 ];
 

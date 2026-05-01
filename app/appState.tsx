@@ -16,9 +16,11 @@ import {
   adminRestaurants as initialAdminRestaurants,
   currentOrder as initialCurrentOrder,
   driverProfiles as initialDriverProfiles,
+  menuByRestaurantId,
   orderHistory as initialOrderHistory,
   savedAddresses,
-} from "./mockData";
+  type MenuItem,
+} from "./appData";
 
 type PaymentCardId = "visa" | "mastercard" | "amex";
 type SessionMode =
@@ -37,8 +39,25 @@ type AdminOrderStatus =
 
 type AdminOrder = (typeof initialAdminOrders)[number];
 type AdminRestaurant = (typeof initialAdminRestaurants)[number];
+type AdminRestaurantMenuItem = AdminRestaurant["menuItems"][number];
 type AdminFeedback = (typeof initialAdminFeedback)[number];
 type DriverProfile = (typeof initialDriverProfiles)[number];
+type LiveMenuItem = MenuItem & {
+  available: boolean;
+  category?: string;
+  isNew?: boolean;
+};
+type LiveMenuSection = {
+  id: string;
+  title: string;
+  items: LiveMenuItem[];
+};
+type RestaurantMenuItemDraft = {
+  name: string;
+  price: string;
+  description?: string;
+  category?: string;
+};
 
 type AdminServiceModule = {
   subscribeToAdminOrders?: (
@@ -64,6 +83,10 @@ type AdminServiceModule = {
   toggleRestaurantMenuItemAvailability?: (
     restaurantId: string,
     itemId: string,
+  ) => Promise<void>;
+  saveRestaurantMenuItems?: (
+    restaurantId: string,
+    menuItems: AdminRestaurantMenuItem[],
   ) => Promise<void>;
   approveRestaurant?: (restaurantId: string) => Promise<void>;
   updateRestaurantPrepTime?: (
@@ -173,7 +196,7 @@ function buildCustomerStatuses(status: AdminOrderStatus, driverName?: string) {
   ];
 }
 
-type PrototypeStateValue = {
+type AppStateValue = {
   cartItems: CartItem[];
   cartQuantity: number;
   favoriteIds: string[];
@@ -201,9 +224,16 @@ type PrototypeStateValue = {
   adminRestaurants: typeof initialAdminRestaurants;
   adminFeedback: typeof initialAdminFeedback;
   driverProfiles: typeof initialDriverProfiles;
+  getRestaurantMenuSections: (restaurantId: string) => LiveMenuSection[];
   addToCart: () => void;
   decreaseCart: () => void;
-  addMenuItem: (item: { id: string; name: string; price: string }) => void;
+  addMenuItem: (item: {
+    id: string;
+    name: string;
+    price: string;
+    restaurantId?: string;
+    restaurantName?: string;
+  }) => void;
   decreaseMenuItem: (itemId: string) => void;
   removeCartItem: (itemId: string) => void;
   clearCart: () => void;
@@ -241,6 +271,18 @@ type PrototypeStateValue = {
     restaurantId: string,
     itemId: string,
   ) => Promise<void>;
+  addRestaurantMenuItem: (
+    restaurantId: string,
+    item: RestaurantMenuItemDraft,
+  ) => Promise<void>;
+  removeRestaurantMenuItem: (
+    restaurantId: string,
+    itemId: string,
+  ) => Promise<void>;
+  toggleRestaurantMenuItemFeatured: (
+    restaurantId: string,
+    itemId: string,
+  ) => Promise<void>;
   approveRestaurant: (restaurantId: string) => Promise<void>;
   updateRestaurantPrepTime: (
     restaurantId: string,
@@ -250,7 +292,7 @@ type PrototypeStateValue = {
   completeDriverDelivery: (orderId: string) => Promise<void>;
 };
 
-const PrototypeStateContext = createContext<PrototypeStateValue | null>(null);
+const AppStateContext = createContext<AppStateValue | null>(null);
 
 const defaultProfile: UserProfile = {
   fullName: "John Doe",
@@ -277,6 +319,124 @@ const defaultFilters: DiscoveryFilters = {
 
 function parsePrice(value: string) {
   return Number.parseFloat(value.replace("$", ""));
+}
+
+function normalizeMenuPrice(value: string) {
+  const amount = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+  if (Number.isNaN(amount)) {
+    return "$0.00";
+  }
+
+  return `$${amount.toFixed(2)}`;
+}
+
+function slugifyMenuId(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 34);
+}
+
+function getStaticMenuSections(restaurantId: string) {
+  return menuByRestaurantId[restaurantId] ?? [];
+}
+
+function getStaticMenuItem(restaurantId: string, itemId: string) {
+  for (const section of getStaticMenuSections(restaurantId)) {
+    const item = section.items.find((entry) => entry.id === itemId);
+    if (item) {
+      return { item, sectionTitle: section.title };
+    }
+  }
+
+  return null;
+}
+
+function toAdminMenuItem(
+  restaurantId: string,
+  itemId: string,
+  patch: Partial<AdminRestaurantMenuItem> = {},
+): AdminRestaurantMenuItem {
+  const staticEntry = getStaticMenuItem(restaurantId, itemId);
+  const fallbackName = patch.name ?? staticEntry?.item.name ?? "Menu item";
+
+  return {
+    id: patch.id ?? itemId,
+    name: fallbackName,
+    price: normalizeMenuPrice(patch.price ?? staticEntry?.item.price ?? "$0.00"),
+    available: patch.available ?? staticEntry?.item.available ?? true,
+    description: patch.description ?? staticEntry?.item.description ?? "",
+    category: patch.category ?? staticEntry?.sectionTitle ?? "Menu",
+    isNew: patch.isNew ?? false,
+    popular: patch.popular ?? staticEntry?.item.popular,
+  };
+}
+
+function buildLiveMenuSections(
+  restaurantId: string,
+  adminRestaurants: AdminRestaurant[],
+): LiveMenuSection[] {
+  const restaurant = adminRestaurants.find((entry) => entry.id === restaurantId);
+  const editableItems = restaurant?.menuItems ?? [];
+  const editableById = new Map(editableItems.map((item) => [item.id, item]));
+  const includedIds = new Set<string>();
+  const staticSections = getStaticMenuSections(restaurantId);
+  const sections: LiveMenuSection[] = staticSections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    items: section.items.map((item) => {
+      includedIds.add(item.id);
+      const editableItem = editableById.get(item.id);
+
+      return {
+        ...item,
+        name: editableItem?.name ?? item.name,
+        price: editableItem?.price ?? item.price,
+        description: editableItem?.description?.trim()
+          ? editableItem.description
+          : item.description,
+        available: editableItem?.available ?? item.available ?? true,
+        category: editableItem?.category ?? section.title,
+        isNew: editableItem?.isNew ?? false,
+        popular: editableItem?.popular ?? item.popular,
+      };
+    }),
+  }));
+
+  const customItems = editableItems
+    .filter((item) => !includedIds.has(item.id))
+    .map<LiveMenuItem>((item) => ({
+      id: item.id,
+      name: item.name,
+      description:
+        item.description?.trim() ||
+        `Freshly added by ${restaurant?.name ?? "this restaurant"}.`,
+      price: item.price,
+      available: item.available,
+      category: item.category?.trim() || "New & featured",
+      isNew: item.isNew ?? true,
+      popular: item.popular,
+    }));
+
+  const customByCategory = customItems.reduce<Record<string, LiveMenuItem[]>>(
+    (groups, item) => {
+      const category = item.category?.trim() || "New & featured";
+      groups[category] = [...(groups[category] ?? []), item];
+      return groups;
+    },
+    {},
+  );
+
+  Object.entries(customByCategory).forEach(([category, items]) => {
+    sections.unshift({
+      id: `${restaurantId}-${slugifyMenuId(category) || "new"}`,
+      title: category,
+      items,
+    });
+  });
+
+  return sections.filter((section) => section.items.length > 0);
 }
 
 function formatPlacedAt() {
@@ -393,7 +553,7 @@ function createLocalAdminFallback(): AdminServiceModule {
   };
 }
 
-export function PrototypeStateProvider({
+export function AppStateProvider({
   children,
 }: {
   children: React.ReactNode;
@@ -471,7 +631,7 @@ export function PrototypeStateProvider({
         }
       } catch (error) {
         console.error(
-          "Admin Firebase service unavailable, using mock fallback:",
+          "Admin Firebase service unavailable, using local fallback:",
           error,
         );
         if (isMounted) {
@@ -593,6 +753,47 @@ export function PrototypeStateProvider({
     }
   }, [adminOrders, currentOrder?.id]);
 
+  const persistRestaurantMenuItems = async (
+    restaurantId: string,
+    menuItems: AdminRestaurantMenuItem[],
+    previousRestaurants: AdminRestaurant[],
+  ) => {
+    try {
+      await adminServiceRef.current?.saveRestaurantMenuItems?.(
+        restaurantId,
+        menuItems,
+      );
+    } catch (error) {
+      setAdminRestaurants(previousRestaurants);
+
+      if (isPermissionDenied(error)) {
+        return;
+      }
+
+      console.error("Failed to save restaurant menu items:", error);
+    }
+  };
+
+  const updateLocalRestaurantMenuItems = (
+    restaurantId: string,
+    updater: (items: AdminRestaurantMenuItem[]) => AdminRestaurantMenuItem[],
+  ) => {
+    let nextMenuItems: AdminRestaurantMenuItem[] = [];
+
+    setAdminRestaurants((current) =>
+      current.map((restaurant) => {
+        if (restaurant.id !== restaurantId) {
+          return restaurant;
+        }
+
+        nextMenuItems = updater(restaurant.menuItems);
+        return { ...restaurant, menuItems: nextMenuItems };
+      }),
+    );
+
+    return nextMenuItems;
+  };
+
   // Listen to Firebase authentication state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(async (user) => {
@@ -677,7 +878,7 @@ export function PrototypeStateProvider({
 
   const cartQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  const value = useMemo<PrototypeStateValue>(
+  const value = useMemo<AppStateValue>(
     () => ({
       cartItems,
       cartQuantity,
@@ -745,14 +946,18 @@ export function PrototypeStateProvider({
         ),
       addMenuItem: (item) => {
         const restaurant =
+          allRestaurants.find((entry) => entry.id === item.restaurantId) ??
           allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??
           defaultRestaurant;
+        const restaurantId =
+          item.restaurantId ?? restaurant?.id ?? selectedRestaurantId;
+        const restaurantName =
+          item.restaurantName ?? restaurant?.name ?? "FusionYum";
         setCartItems((current) => {
           const existing = current.find(
             (cartItem) =>
               cartItem.id === item.id &&
-              cartItem.restaurantId ===
-                (restaurant?.id ?? selectedRestaurantId),
+              cartItem.restaurantId === restaurantId,
           );
 
           if (existing) {
@@ -771,8 +976,8 @@ export function PrototypeStateProvider({
               name: item.name,
               price: parsePrice(item.price),
               quantity: 1,
-              restaurantId: restaurant?.id ?? selectedRestaurantId,
-              restaurantName: restaurant?.name ?? "FusionYum",
+              restaurantId,
+              restaurantName,
             },
           ];
         });
@@ -830,7 +1035,11 @@ export function PrototypeStateProvider({
         }
       },
       logout: () => {
-        signOutUser();
+        if (currentUser) {
+          void signOutUser().catch((error) => {
+            console.error("Unable to complete Firebase sign out:", error);
+          });
+        }
         setSessionMode("signed-out");
         setCartItems([]);
         setSelectedTip("15%");
@@ -957,6 +1166,113 @@ export function PrototypeStateProvider({
           ...patch,
         })),
       resetDiscoveryFilters: () => setDiscoveryFilters(defaultFilters),
+      getRestaurantMenuSections: (restaurantId: string) =>
+        buildLiveMenuSections(restaurantId, adminRestaurants),
+      addRestaurantMenuItem: async (
+        restaurantId: string,
+        item: RestaurantMenuItemDraft,
+      ) => {
+        const trimmedName = item.name.trim();
+        if (!trimmedName) {
+          return;
+        }
+
+        const previousRestaurants = adminRestaurants;
+        const itemId = `${restaurantId}-custom-${slugifyMenuId(trimmedName) || "item"}-${Date.now()}`;
+        const nextMenuItems = updateLocalRestaurantMenuItems(
+          restaurantId,
+          (items) => [
+            {
+              id: itemId,
+              name: trimmedName,
+              price: normalizeMenuPrice(item.price),
+              available: true,
+              description: item.description?.trim() ?? "",
+              category: item.category?.trim() || "New & featured",
+              isNew: true,
+              popular: false,
+            },
+            ...items,
+          ],
+        );
+
+        await persistRestaurantMenuItems(
+          restaurantId,
+          nextMenuItems,
+          previousRestaurants,
+        );
+      },
+      removeRestaurantMenuItem: async (
+        restaurantId: string,
+        itemId: string,
+      ) => {
+        const previousRestaurants = adminRestaurants;
+        const staticEntry = getStaticMenuItem(restaurantId, itemId);
+        const nextMenuItems = updateLocalRestaurantMenuItems(
+          restaurantId,
+          (items) => {
+            const existing = items.find((item) => item.id === itemId);
+
+            if (existing?.isNew || itemId.includes("-custom-")) {
+              return items.filter((item) => item.id !== itemId);
+            }
+
+            if (existing) {
+              return items.map((item) =>
+                item.id === itemId ? { ...item, available: false } : item,
+              );
+            }
+
+            if (staticEntry) {
+              return [
+                toAdminMenuItem(restaurantId, itemId, { available: false }),
+                ...items,
+              ];
+            }
+
+            return items;
+          },
+        );
+
+        await persistRestaurantMenuItems(
+          restaurantId,
+          nextMenuItems,
+          previousRestaurants,
+        );
+      },
+      toggleRestaurantMenuItemFeatured: async (
+        restaurantId: string,
+        itemId: string,
+      ) => {
+        const previousRestaurants = adminRestaurants;
+        const nextMenuItems = updateLocalRestaurantMenuItems(
+          restaurantId,
+          (items) => {
+            const existing = items.find((item) => item.id === itemId);
+
+            if (existing) {
+              return items.map((item) =>
+                item.id === itemId
+                  ? { ...item, popular: !item.popular }
+                  : item,
+              );
+            }
+
+            return [
+              toAdminMenuItem(restaurantId, itemId, {
+                popular: !getStaticMenuItem(restaurantId, itemId)?.item.popular,
+              }),
+              ...items,
+            ];
+          },
+        );
+
+        await persistRestaurantMenuItems(
+          restaurantId,
+          nextMenuItems,
+          previousRestaurants,
+        );
+      },
       updateAdminOrderStatus: async (
         orderId: string,
         status: AdminOrderStatus,
@@ -996,17 +1312,18 @@ export function PrototypeStateProvider({
             status,
           );
         } catch (error) {
-          if (isPermissionDenied(error)) {
-            return;
-          }
-
-          console.error("Failed to update admin order status:", error);
           setAdminOrders(previousOrders);
           if (matchingOrder) {
             setCurrentOrder((current) =>
               syncCurrentOrderFromAdminOrder(current, matchingOrder),
             );
           }
+
+          if (isPermissionDenied(error)) {
+            return;
+          }
+
+          console.error("Failed to update admin order status:", error);
         }
       },
       toggleAdminMenuItemAvailability: async (
@@ -1014,33 +1331,38 @@ export function PrototypeStateProvider({
         itemId: string,
       ) => {
         const previousRestaurants = adminRestaurants;
+        const nextMenuItems = updateLocalRestaurantMenuItems(
+          restaurantId,
+          (items) => {
+            const existing = items.find((item) => item.id === itemId);
 
-        setAdminRestaurants((current) =>
-          current.map((restaurant) =>
-            restaurant.id === restaurantId
-              ? {
-                  ...restaurant,
-                  menuItems: restaurant.menuItems.map((item) =>
-                    item.id === itemId
-                      ? { ...item, available: !item.available }
-                      : item,
-                  ),
-                }
-              : restaurant,
-          ),
+            if (existing) {
+              return items.map((item) =>
+                item.id === itemId
+                  ? { ...item, available: !item.available }
+                  : item,
+              );
+            }
+
+            const staticEntry = getStaticMenuItem(restaurantId, itemId);
+            if (!staticEntry) {
+              return items;
+            }
+
+            return [
+              toAdminMenuItem(restaurantId, itemId, {
+                available: !(staticEntry.item.available ?? true),
+              }),
+              ...items,
+            ];
+          },
         );
 
-        try {
-          await adminServiceRef.current?.toggleRestaurantMenuItemAvailability?.(
-            restaurantId,
-            itemId,
-          );
-        } catch (error) {
-          if (!isPermissionDenied(error)) {
-            console.error("Failed to toggle menu item availability:", error);
-          }
-          setAdminRestaurants(previousRestaurants);
-        }
+        await persistRestaurantMenuItems(
+          restaurantId,
+          nextMenuItems,
+          previousRestaurants,
+        );
       },
       approveRestaurant: async (restaurantId: string) => {
         const previousRestaurants = adminRestaurants;
@@ -1234,14 +1556,11 @@ export function PrototypeStateProvider({
             ...new Set(cartItems.map((item) => item.restaurantName)),
           ];
 
-          const { processCheckout, processCheckoutDemo } =
-            await import("./Firebase/checkout");
-          const { firebaseAuth } = await import("./Firebase/auth");
-          const currentUser = firebaseAuth.currentUser;
-
           let orderId: string;
 
           if (currentUser) {
+            const { processCheckout } = await import("./Firebase/checkout");
+
             orderId = await processCheckout({
               userId: currentUser.uid,
               restaurantId: cartItems[0]?.restaurantId ?? selectedRestaurantId,
@@ -1267,31 +1586,9 @@ export function PrototypeStateProvider({
               paymentMethodId: selectedCardId,
             });
           } else {
-            console.log("Using demo checkout mode - user not authenticated");
-            orderId = await processCheckoutDemo({
-              userId: `demo_${Date.now()}`,
-              restaurantId: cartItems[0]?.restaurantId ?? selectedRestaurantId,
-              restaurantName:
-                restaurantNames.length === 1
-                  ? restaurantNames[0]
-                  : "FusionYum Mixed Order",
-              items: cartItems.map((item) => ({
-                id: item.id,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                specialInstructions: "",
-              })),
-              subtotal,
-              taxes,
-              deliveryFee: 5,
-              tip,
-              totalAmount: total,
-              deliveryAddress: profile.address,
-              deliveryNote: profile.deliveryNote,
-              specialInstructions: "",
-              paymentMethodId: selectedCardId,
-            });
+            console.log("Using guest checkout mode - user not authenticated");
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            orderId = `GUEST-${Date.now()}`;
           }
 
           const items = cartItems.map(
@@ -1319,11 +1616,11 @@ export function PrototypeStateProvider({
             {
               id: nextOrder.id,
               restaurant: nextOrder.restaurant,
-              status: "Delivered",
-              date: "Just now | Added from current prototype session",
+              status: "In Progress",
+              date: "Just now | Order in progress",
               total: nextOrder.total,
               items: nextOrder.items,
-              accent: "#016630",
+              accent: "#b45309",
             },
             ...current,
           ]);
@@ -1383,18 +1680,18 @@ export function PrototypeStateProvider({
   );
 
   return (
-    <PrototypeStateContext.Provider value={value}>
+    <AppStateContext.Provider value={value}>
       {children}
-    </PrototypeStateContext.Provider>
+    </AppStateContext.Provider>
   );
 }
 
-export function usePrototypeState() {
-  const context = useContext(PrototypeStateContext);
+export function useAppState() {
+  const context = useContext(AppStateContext);
 
   if (!context) {
     throw new Error(
-      "usePrototypeState must be used within PrototypeStateProvider",
+      "useAppState must be used within AppStateProvider",
     );
   }
 

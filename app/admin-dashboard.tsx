@@ -1,125 +1,195 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
-import { CustomButton } from "./customButton";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
 import { colors, spacing, typography } from "./theme";
 
-const quickLinks = [
+const headerTopPadding = (StatusBar.currentHeight ?? 0) + 18;
+
+const adminActions = [
   {
     id: "orders",
     title: "Live Orders",
-    detail: "Monitor kitchen progress, delivery readiness, and issues.",
     icon: "shopping-bag",
     route: "/admin-orders",
   },
   {
     id: "restaurants",
     title: "Restaurants",
-    detail: "Approve locations, review prep times, and manage menu availability.",
     icon: "grid",
     route: "/admin-restaurants",
   },
   {
     id: "feedback",
-    title: "Feedback",
-    detail: "Review ratings, flagged comments, and service quality trends.",
-    icon: "message-circle",
+    title: "Flagged Feedback",
+    icon: "flag",
     route: "/admin-feedback",
   },
   {
     id: "analytics",
     title: "Analytics",
-    detail: "Track throughput, quality, partner readiness, and staffing signals.",
     icon: "bar-chart-2",
     route: "/admin-analytics",
+  },
+  {
+    id: "approvals",
+    title: "Approvals",
+    icon: "check-square",
+    route: "/admin-restaurants",
+  },
+  {
+    id: "drivers",
+    title: "Driver Status",
+    icon: "navigation",
+    route: "/driver-dashboard",
   },
 ] as const;
 
 export default function AdminDashboardScreen() {
-  const { adminFeedback, adminOrders, adminRestaurants, logout } = usePrototypeState();
+  const { adminFeedback, adminOrders, adminRestaurants, driverProfiles, logout } = useAppState();
+
+  const handleLogout = () => {
+    logout();
+    router.dismissTo("/");
+  };
 
   const metrics = useMemo(() => {
     const liveOrders = adminOrders.filter((order) => order.status !== "Completed").length;
+    const completedOrders = adminOrders.filter((order) => order.status === "Completed").length;
     const flaggedFeedback = adminFeedback.filter((entry) => entry.flagged).length;
     const needsApproval = adminRestaurants.filter((restaurant) => restaurant.status === "Needs Approval").length;
+    const availableDrivers = driverProfiles.filter((driver) => driver.status === "Available").length;
+    const averageRating =
+      adminFeedback.reduce((sum, entry) => sum + entry.rating, 0) / Math.max(adminFeedback.length, 1);
 
     return {
-      liveOrders,
+      availableDrivers,
+      completedOrders,
       flaggedFeedback,
+      liveOrders,
       needsApproval,
+      averageRating: averageRating.toFixed(1),
     };
-  }, [adminFeedback, adminOrders, adminRestaurants]);
+  }, [adminFeedback, adminOrders, adminRestaurants, driverProfiles]);
+
+  const chartBars = useMemo(
+    () => [
+      { label: "Live", value: metrics.liveOrders, color: "#FF6565" },
+      { label: "Done", value: metrics.completedOrders, color: "#F5B451" },
+      { label: "Drivers", value: metrics.availableDrivers, color: "#7ED7A7" },
+      { label: "Flags", value: metrics.flaggedFeedback, color: "#FF7A7A" },
+      { label: "Queue", value: metrics.needsApproval, color: "#C09BFF" },
+    ],
+    [metrics],
+  );
+
+  const maxBarValue = Math.max(...chartBars.map((bar) => bar.value), 1);
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <Pressable
+        accessibilityLabel="Exit admin dashboard"
+        accessibilityRole="button"
+        hitSlop={18}
+        style={({ pressed }) => [styles.floatingExitButton, pressed && styles.pressedButton]}
+        onPress={handleLogout}
+      >
+        <Feather name="arrow-left" size={20} color={colors.background} />
+      </Pressable>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <FadeInView delay={40} style={styles.hero}>
-          <View style={styles.heroCopy}>
-            <Text style={styles.eyebrow}>Manager Console</Text>
-            <Text style={styles.title}>FusionYum Ops at a glance</Text>
-            <Text style={styles.subtitle}>
-              Review active orders, partner readiness, fulfillment health, and quality signals in one place.
-            </Text>
+        <FadeInView delay={40} style={styles.navRow}>
+          <View style={styles.headerSpacer} />
+        </FadeInView>
+
+        <FadeInView delay={80} style={styles.titleBlock}>
+          <Text style={styles.title}>Admin Dashboard</Text>
+          <Text style={styles.subtitle}>Manage operations, partners, reports, and service health.</Text>
+        </FadeInView>
+
+        <View style={styles.actionGrid}>
+          {adminActions.map((action, index) => (
+            <FadeInView key={action.id} delay={130 + index * 45} style={styles.actionCell}>
+              <Pressable
+                accessibilityLabel={`Open ${action.title}`}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.actionTile, pressed && styles.pressedTile]}
+                onPress={() => router.push(action.route as never)}
+              >
+                <View style={styles.actionIcon}>
+                  <Feather name={action.icon} size={34} color={colors.background} />
+                </View>
+                <Text style={styles.actionTitle}>{action.title}</Text>
+              </Pressable>
+            </FadeInView>
+          ))}
+        </View>
+
+        <FadeInView delay={440} style={styles.analyticsCard}>
+          <View style={styles.analyticsHeader}>
+            <View>
+              <Text style={styles.sectionLabel}>ANALYTICS</Text>
+              <Text style={styles.analyticsTitle}>Today&apos;s Pulse</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Open analytics"
+              accessibilityRole="button"
+              hitSlop={8}
+              style={({ pressed }) => [styles.analyticsButton, pressed && styles.pressedButton]}
+              onPress={() => router.push("/admin-analytics")}
+            >
+              <Feather name="arrow-up-right" size={18} color={colors.background} />
+            </Pressable>
           </View>
+
+          <View style={styles.statRow}>
+            <View style={styles.statPill}>
+              <Text style={styles.statValue}>{metrics.liveOrders}</Text>
+              <Text style={styles.statLabel}>Live</Text>
+            </View>
+            <View style={styles.statPill}>
+              <Text style={styles.statValue}>{metrics.averageRating}</Text>
+              <Text style={styles.statLabel}>Rating</Text>
+            </View>
+            <View style={styles.statPill}>
+              <Text style={styles.statValue}>{metrics.flaggedFeedback}</Text>
+              <Text style={styles.statLabel}>Flags</Text>
+            </View>
+          </View>
+
+          <View style={styles.chart}>
+            {chartBars.map((bar) => (
+              <View key={bar.label} style={styles.chartColumn}>
+                <View style={styles.barTrack}>
+                  <View
+                    style={[
+                      styles.barFill,
+                      {
+                        height: `${Math.max((bar.value / maxBarValue) * 100, 14)}%`,
+                        backgroundColor: bar.color,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.chartLabel}>{bar.label}</Text>
+              </View>
+            ))}
+          </View>
+        </FadeInView>
+
+        <FadeInView delay={500} style={styles.logoutRow}>
           <Pressable
-            style={styles.logoutButton}
-            onPress={() => {
-              logout();
-              router.replace("/");
-            }}
+            accessibilityLabel="Log out"
+            accessibilityRole="button"
+            hitSlop={10}
+            style={({ pressed }) => [styles.logoutButton, pressed && styles.pressedLink]}
+            onPress={handleLogout}
           >
-            <Feather name="log-out" size={18} color={colors.background} />
+            <Feather name="log-out" size={18} color={colors.danger} />
+            <Text style={styles.logoutText}>Log Out</Text>
           </Pressable>
         </FadeInView>
-
-        <View style={styles.metricGrid}>
-          <FadeInView delay={90} style={styles.metricCard}>
-            <Text style={styles.metricValue}>{metrics.liveOrders}</Text>
-            <Text style={styles.metricLabel}>Live orders</Text>
-          </FadeInView>
-          <FadeInView delay={130} style={styles.metricCard}>
-            <Text style={styles.metricValue}>{metrics.needsApproval}</Text>
-            <Text style={styles.metricLabel}>Awaiting approval</Text>
-          </FadeInView>
-          <FadeInView delay={170} style={styles.metricCard}>
-            <Text style={styles.metricValue}>{metrics.flaggedFeedback}</Text>
-            <Text style={styles.metricLabel}>Flagged reviews</Text>
-          </FadeInView>
-        </View>
-
-        <FadeInView delay={220} style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Today&apos;s focus</Text>
-          <Text style={styles.summaryCopy}>
-            Pizza operations are trending slower than target, one dessert partner needs approval,
-            and delivery feedback needs a quick review before the evening rush.
-          </Text>
-          <View style={styles.summaryActions}>
-            <CustomButton title="Open Live Orders" variant="secondary" onPress={() => router.push("/admin-orders")} />
-            <CustomButton title="View Analytics" variant="surface" onPress={() => router.push("/admin-analytics")} />
-          </View>
-        </FadeInView>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Management Areas</Text>
-        </View>
-
-        {quickLinks.map((link, index) => (
-          <FadeInView key={link.id} delay={270 + index * 50} style={styles.linkCard}>
-            <View style={styles.linkIcon}>
-              <Feather name={link.icon} size={18} color={colors.background} />
-            </View>
-            <View style={styles.linkCopy}>
-              <Text style={styles.linkTitle}>{link.title}</Text>
-              <Text style={styles.linkDetail}>{link.detail}</Text>
-            </View>
-            <Pressable style={styles.linkButton} onPress={() => router.push(link.route as never)}>
-              <Feather name="arrow-right" size={18} color={colors.primary} />
-            </Pressable>
-          </FadeInView>
-        ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -129,81 +199,207 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 36,
+    paddingTop: headerTopPadding,
+    paddingBottom: 40,
     gap: spacing.lg,
   },
-  hero: {
-    borderRadius: 28,
-    backgroundColor: colors.surface,
-    padding: 20,
+  navRow: {
+    minHeight: 54,
     flexDirection: "row",
-    gap: 16,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    zIndex: 10,
+    elevation: 10,
   },
-  heroCopy: { flex: 1, gap: 6 },
-  eyebrow: { fontFamily: typography.body, fontSize: 12, color: "rgba(255,255,255,0.78)" },
-  title: { fontFamily: typography.display, fontSize: 30, color: colors.white },
-  subtitle: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.88)" },
-  logoutButton: {
+  floatingExitButton: {
+    position: "absolute",
+    top: headerTopPadding,
+    left: 20,
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: colors.surfaceDeep,
-    justifyContent: "center",
+    backgroundColor: colors.surface,
     alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+    elevation: 1000,
   },
-  metricGrid: { flexDirection: "row", gap: 10 },
-  metricCard: {
+  headerSpacer: {
+    width: 44,
+    height: 44,
+  },
+  titleBlock: {
+    alignItems: "center",
+    paddingTop: 18,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  title: {
+    fontFamily: typography.display,
+    fontSize: 38,
+    lineHeight: 44,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontFamily: typography.body,
+    fontSize: 16,
+    lineHeight: 22,
+    color: colors.textMuted,
+    textAlign: "center",
+    maxWidth: 320,
+  },
+  actionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 18,
+  },
+  actionCell: {
+    width: "47%",
+    aspectRatio: 1,
+  },
+  actionTile: {
     flex: 1,
-    borderRadius: 22,
+    borderRadius: 24,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 16,
-    gap: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 18,
+    padding: 14,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
   },
-  metricValue: { fontFamily: typography.display, fontSize: 30, color: colors.primary },
-  metricLabel: { fontFamily: typography.body, fontSize: 13, color: colors.textMuted },
-  summaryCard: {
+  actionIcon: {
+    width: 66,
+    height: 66,
     borderRadius: 22,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionTitle: {
+    fontFamily: typography.display,
+    fontSize: 21,
+    lineHeight: 25,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  analyticsCard: {
+    borderRadius: 24,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 18,
-    gap: 14,
+    gap: 18,
   },
-  summaryTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
-  summaryCopy: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: colors.text },
-  summaryActions: { gap: 10 },
-  sectionHeader: { paddingTop: 4 },
-  sectionTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
-  linkCard: {
-    borderRadius: 22,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
+  analyticsHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    justifyContent: "space-between",
+    gap: 16,
   },
-  linkIcon: {
-    width: 44,
-    height: 44,
+  sectionLabel: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.72)",
+  },
+  analyticsTitle: {
+    fontFamily: typography.display,
+    fontSize: 26,
+    color: colors.white,
+  },
+  analyticsButton: {
+    width: 42,
+    height: 42,
     borderRadius: 14,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
+    backgroundColor: colors.surfaceDeep,
     alignItems: "center",
+    justifyContent: "center",
   },
-  linkCopy: { flex: 1, gap: 4 },
-  linkTitle: { fontFamily: typography.display, fontSize: 18, color: colors.primary },
-  linkDetail: { fontFamily: typography.body, fontSize: 13, lineHeight: 18, color: colors.textMuted },
-  linkButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.background,
-    justifyContent: "center",
+  statRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  statPill: {
+    flex: 1,
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    paddingVertical: 12,
     alignItems: "center",
+    gap: 2,
+  },
+  statValue: {
+    fontFamily: typography.display,
+    fontSize: 25,
+    color: colors.primary,
+  },
+  statLabel: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  chart: {
+    height: 144,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  chartColumn: {
+    flex: 1,
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  barTrack: {
+    width: "100%",
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.34)",
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  barFill: {
+    width: "100%",
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  chartLabel: {
+    fontFamily: typography.body,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.78)",
+  },
+  logoutRow: {
+    alignItems: "center",
+    paddingTop: 4,
+  },
+  logoutButton: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 18,
+  },
+  logoutText: {
+    fontFamily: typography.body,
+    fontSize: 25,
+    color: colors.danger,
+  },
+  pressedButton: {
+    opacity: 0.78,
+    transform: [{ scale: 0.97 }],
+  },
+  pressedLink: {
+    opacity: 0.72,
+  },
+  pressedTile: {
+    opacity: 0.82,
+    transform: [{ scale: 0.975 }],
   },
 });

@@ -2,18 +2,18 @@ import { Feather } from "@expo/vector-icons";
 import firestore from "@react-native-firebase/firestore";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import AuthScreenLayout from "./AuthScreenLayout";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
 import { signUpUser } from "./Firebase/auth";
 import { saveUserProfile } from "./Firebase/firestore";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
 import SocialButton from "./socialButton";
 import { colors, spacing, typography } from "./theme";
 
 export default function RegisterScreen() {
-  const { updateProfile } = usePrototypeState();
+  const { updateProfile } = useAppState();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -134,9 +134,15 @@ export default function RegisterScreen() {
 
           <View style={styles.socialBlock}>
             <View style={styles.socialRow}>
-              <SocialButton brand="Facebook" onPress={() => {}} />
+              <SocialButton
+                brand="Facebook"
+                onPress={() => Alert.alert("Facebook sign-up is not connected yet.")}
+              />
               <SocialButton brand="Google" onPress={handleGoogleSignIn} />
-              <SocialButton brand="Apple" onPress={() => {}} />
+              <SocialButton
+                brand="Apple"
+                onPress={() => Alert.alert("Apple sign-up is not connected yet.")}
+              />
             </View>
             <Text style={styles.socialHint}>
               Google sign-in is available on the login screen for existing

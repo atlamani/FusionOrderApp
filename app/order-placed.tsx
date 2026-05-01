@@ -1,17 +1,19 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
 import { colors, typography } from "./theme";
 
 export default function OrderPlacedScreen() {
-  const { currentOrder, joinRewards, joinedRewards, rewardsEmail } = usePrototypeState();
+  const params = useLocalSearchParams<{ orderId?: string }>();
+  const { currentOrder, joinRewards, joinedRewards, rewardsEmail } = useAppState();
   const [email, setEmail] = useState(rewardsEmail);
   const [showError, setShowError] = useState(false);
+  const orderId = params.orderId ?? currentOrder?.id;
 
   const handleJoinRewards = () => {
     if (!email.trim()) {
@@ -41,7 +43,7 @@ export default function OrderPlacedScreen() {
           <Text style={styles.rewardTitle}>Start Earning Rewards</Text>
           <Text style={styles.rewardCopy}>
             Get points every time you order from FusionYum. Add your email to start earning on
-            this mock order too.
+            this order too.
           </Text>
           <CustomInput
             label="Rewards email"
@@ -74,7 +76,7 @@ export default function OrderPlacedScreen() {
           {joinedRewards ? (
             <View style={styles.successBanner}>
               <Feather name="star" size={16} color={colors.success} />
-              <Text style={styles.successBannerText}>Rewards activated locally for this prototype account.</Text>
+              <Text style={styles.successBannerText}>Rewards activated for this account.</Text>
             </View>
           ) : null}
         </FadeInView>
@@ -88,7 +90,13 @@ export default function OrderPlacedScreen() {
           <CustomButton
             title="Track Order"
             variant="secondary"
-            onPress={() => router.replace("/activity")}
+            onPress={() =>
+              router.replace(
+                orderId
+                  ? `/order-tracking?orderId=${encodeURIComponent(orderId)}`
+                  : "/activity",
+              )
+            }
           />
           <CustomButton title="View Receipt" variant="surface" onPress={() => router.push("/order-receipt")} />
           <CustomButton title="Back to Home" variant="surface" onPress={() => router.replace("/home")} />

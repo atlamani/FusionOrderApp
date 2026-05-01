@@ -1,132 +1,154 @@
+import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
-import { Alert, SafeAreaView, StyleSheet, Text, View } from "react-native";
-import { CustomButton } from "./customButton";
+import React, { useEffect, useRef } from "react";
+import {
+  Animated,
+  Easing,
+  Image,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import FadeInView from "./FadeInView";
-import { firebaseAuth, signInWithGoogle } from "./Firebase/auth";
-import { usePrototypeState } from "./prototypeState";
-import SocialButton from "./socialButton";
-import { colors, radii, spacing, typography } from "./theme";
+import { colors, spacing, typography } from "./theme";
 
-export default function HomeScreen() {
-  const {
-    beginAdminSession,
-    beginDriverSession,
-    beginGuestSession,
-    beginRestaurantSession,
-    loginAsMember,
-  } = usePrototypeState();
+const appIcon = require("../assets/images/icon.png");
 
-  const handleGoogleSignIn = async () => {
-    try {
-      await signInWithGoogle();
-      // Check if user is actually signed in
-      const currentUser = firebaseAuth.currentUser;
-      if (currentUser) {
-        router.push("/home");
-      } else {
-        throw new Error("Authentication failed");
-      }
-    } catch (error: any) {
-      Alert.alert(
-        "Sign In Failed",
-        error.message || "Failed to sign in with Google. Please try again.",
-      );
+const roleCards = [
+  {
+    id: "customer",
+    title: "Customer",
+    detail: "Order food, track delivery, rewards, and favorites.",
+    icon: "shopping-bag",
+  },
+  {
+    id: "manager",
+    title: "Manager",
+    detail: "Review orders, partners, reports, and service health.",
+    icon: "bar-chart-2",
+  },
+  {
+    id: "restaurant",
+    title: "Restaurant",
+    detail: "Run the kitchen queue and manage the live menu.",
+    icon: "coffee",
+  },
+  {
+    id: "driver",
+    title: "Driver",
+    detail: "Claim assignments and complete delivery routes.",
+    icon: "navigation",
+  },
+] as const;
+
+export default function RoleGatewayScreen() {
+  const logoScale = useRef(new Animated.Value(1)).current;
+  const ringSpin = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(logoScale, {
+          toValue: 1.06,
+          duration: 1300,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoScale, {
+          toValue: 1,
+          duration: 1300,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const spin = Animated.loop(
+      Animated.timing(ringSpin, {
+        toValue: 1,
+        duration: 9000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+
+    pulse.start();
+    spin.start();
+
+    return () => {
+      pulse.stop();
+      spin.stop();
+    };
+  }, [logoScale, ringSpin]);
+
+  const handleRolePress = (roleId: (typeof roleCards)[number]["id"]) => {
+    if (roleId === "customer") {
+      router.push("/LoginScreen");
+      return;
     }
+
+    if (roleId === "manager") {
+      router.push("/manager-login");
+      return;
+    }
+
+    if (roleId === "restaurant") {
+      router.push("/restaurant-login");
+      return;
+    }
+
+    router.push("/driver-login");
   };
+
+  const ringRotation = ringSpin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.backgroundShapeTop} />
-      <View style={styles.backgroundShapeBottom} />
-
       <View style={styles.container}>
-        <FadeInView delay={60} style={styles.brandBlock}>
+        <FadeInView delay={60} style={styles.brandStage}>
+          <Animated.View style={[styles.logoOrbit, { transform: [{ rotate: ringRotation }] }]}>
+            <View style={styles.orbitDashTop} />
+            <View style={styles.orbitDashBottom} />
+          </Animated.View>
+          <Animated.View style={[styles.logoShell, { transform: [{ scale: logoScale }] }]}>
+            <Image source={appIcon} style={styles.logoImage} />
+          </Animated.View>
           <Text style={styles.brand}>FusionYum</Text>
-          <Text style={styles.subtitle}>
-            A multi-role food ordering prototype with discovery, operations, and
-            delivery flows.
+          <Text style={styles.tagline}>Choose your workspace</Text>
+        </FadeInView>
+
+        <FadeInView delay={150} style={styles.promptBlock}>
+          <Text style={styles.question}>How are you using FusionYum today?</Text>
+          <Text style={styles.promptCopy}>
+            Pick a role and we&apos;ll take you straight to the right experience.
           </Text>
         </FadeInView>
 
-        <FadeInView delay={140} style={styles.card}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              Customer flow plus manager, restaurant, and driver workspaces
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Customer</Text>
-            <View style={styles.actions}>
-              <CustomButton
-                title="Login"
-                href="/LoginScreen"
-                variant="secondary"
-              />
-              <CustomButton title="Sign Up" href="/registerScreen" />
-              <CustomButton
-                title="Continue as Guest"
-                variant="ghost"
-                onPress={() => {
-                  beginGuestSession();
-                  router.push("/home");
-                }}
-              />
-            </View>
-          </View>
-
-          <View style={styles.socialBlock}>
-            <Text style={styles.socialLabel}>Or continue with</Text>
-            <View style={styles.socialRow}>
-              <SocialButton
-                brand="Facebook"
-                onPress={() => {
-                  loginAsMember("facebook@fusionyum.com");
-                  router.push("/home");
-                }}
-              />
-              <SocialButton brand="Google" onPress={handleGoogleSignIn} />
-              <SocialButton
-                brand="Apple"
-                onPress={() => {
-                  loginAsMember("apple@fusionyum.com");
-                  router.push("/home");
-                }}
-              />
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Workspace Demos</Text>
-            <View style={styles.workspaceActions}>
-              <CustomButton
-                title="Manager Console"
-                variant="surface"
-                onPress={() => {
-                  beginAdminSession();
-                  router.push("/admin-dashboard");
-                }}
-              />
-              <CustomButton
-                title="Restaurant Console"
-                variant="surface"
-                onPress={() => {
-                  beginRestaurantSession("featured-2");
-                  router.push("/restaurant-dashboard");
-                }}
-              />
-              <CustomButton
-                title="Driver Console"
-                variant="surface"
-                onPress={() => {
-                  beginDriverSession("driver-1");
-                  router.push("/driver-dashboard");
-                }}
-              />
-            </View>
-          </View>
-        </FadeInView>
+        <View style={styles.roleGrid}>
+          {roleCards.map((role, index) => (
+            <FadeInView key={role.id} delay={220 + index * 55} style={styles.roleCell}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Continue as ${role.title}`}
+                style={({ pressed }) => [styles.roleCard, pressed && styles.roleCardPressed]}
+                onPress={() => handleRolePress(role.id)}
+              >
+                <View style={styles.roleIcon}>
+                  <Feather name={role.icon} size={24} color={colors.background} />
+                </View>
+                <View style={styles.roleCopy}>
+                  <Text style={styles.roleTitle}>{role.title}</Text>
+                  <Text style={styles.roleDetail}>{role.detail}</Text>
+                </View>
+                <Feather name="arrow-right" size={18} color={colors.surfaceDeep} />
+              </Pressable>
+            </FadeInView>
+          ))}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -137,83 +159,144 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  backgroundShapeTop: {
-    position: "absolute",
-    top: -60,
-    right: -10,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(115, 144, 114, 0.18)",
-  },
-  backgroundShapeBottom: {
-    position: "absolute",
-    bottom: -40,
-    left: -40,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "rgba(79, 111, 82, 0.11)",
-  },
   container: {
     flex: 1,
     justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    gap: spacing.xxxl,
-  },
-  brandBlock: { gap: 8 },
-  brand: {
-    fontFamily: typography.display,
-    color: colors.primary,
-    fontSize: 44,
-  },
-  subtitle: {
-    fontFamily: typography.body,
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 22,
-    maxWidth: 300,
-  },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    padding: 22,
+    paddingHorizontal: 22,
+    paddingVertical: 28,
     gap: spacing.xl,
+  },
+  brandStage: {
+    alignItems: "center",
+    gap: 10,
+  },
+  logoOrbit: {
+    position: "absolute",
+    top: -7,
+    width: 124,
+    height: 124,
+    borderRadius: 62,
+    borderWidth: 1,
+    borderColor: "rgba(58, 77, 57, 0.2)",
+  },
+  orbitDashTop: {
+    position: "absolute",
+    top: -3,
+    left: 48,
+    width: 26,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.surface,
+  },
+  orbitDashBottom: {
+    position: "absolute",
+    bottom: -3,
+    right: 48,
+    width: 26,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.surfaceDeep,
+  },
+  logoShell: {
+    width: 110,
+    height: 110,
+    borderRadius: 34,
+    backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: colors.primary,
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
     elevation: 4,
   },
-  badge: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.background,
-    borderRadius: radii.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  logoImage: {
+    width: 74,
+    height: 74,
+    borderRadius: 20,
   },
-  badgeText: {
+  brand: {
+    marginTop: 8,
+    fontFamily: typography.display,
+    fontSize: 44,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  tagline: {
     fontFamily: typography.body,
-    fontSize: 11,
-    color: colors.surfaceDeep,
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: "center",
   },
-  section: { gap: spacing.sm },
-  sectionTitle: {
+  promptBlock: {
+    alignItems: "center",
+    gap: 6,
+  },
+  question: {
+    fontFamily: typography.display,
+    fontSize: 25,
+    lineHeight: 31,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  promptCopy: {
+    maxWidth: 310,
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  roleGrid: {
+    gap: 12,
+  },
+  roleCell: {
+    width: "100%",
+  },
+  roleCard: {
+    minHeight: 82,
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
+  roleCardPressed: {
+    opacity: 0.86,
+    transform: [{ scale: 0.985 }],
+  },
+  roleIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  roleTitle: {
     fontFamily: typography.display,
     fontSize: 20,
     color: colors.primary,
   },
-  actions: { gap: spacing.sm },
-  workspaceActions: { gap: spacing.sm },
-  socialBlock: { gap: spacing.md },
-  socialLabel: {
+  roleDetail: {
     fontFamily: typography.body,
     fontSize: 12,
+    lineHeight: 17,
     color: colors.textMuted,
-    textAlign: "center",
   },
-  socialRow: { flexDirection: "row", justifyContent: "center", gap: 14 },
 });

@@ -1,11 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, StatusBar, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
-import { allRestaurants, menuSections } from "./mockData";
-import { formatCurrency, getCartItemCount, getCartSubtotal, usePrototypeState } from "./prototypeState";
+import { allRestaurants } from "./appData";
+import { formatCurrency, getCartItemCount, getCartSubtotal, useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
+
+const headerTopPadding = (StatusBar.currentHeight ?? 0) + 14;
 
 export default function MenuScreen() {
   const {
@@ -13,10 +16,11 @@ export default function MenuScreen() {
     cartItems,
     decreaseMenuItem,
     favoriteIds,
+    getRestaurantMenuSections,
     selectedRestaurantId,
     setSelectedRestaurant,
     toggleFavorite,
-  } = usePrototypeState();
+  } = useAppState();
 
   const restaurant = useMemo(
     () => allRestaurants.find((entry) => entry.id === selectedRestaurantId) ?? allRestaurants[0],
@@ -29,24 +33,62 @@ export default function MenuScreen() {
   const restaurantCartCount = getCartItemCount(restaurantCartItems);
   const cartTotal = cartItems.length > 0 ? getCartSubtotal(cartItems) + 5 : 5;
   const isFavorite = favoriteIds.includes(restaurant.id);
+  const restaurantMenuSections = useMemo(
+    () =>
+      getRestaurantMenuSections(restaurant.id)
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => item.available),
+        }))
+        .filter((section) => section.items.length > 0),
+    [getRestaurantMenuSections, restaurant.id],
+  );
+  const liveHighlights = useMemo(
+    () =>
+      restaurantMenuSections
+        .flatMap((section) => section.items)
+        .filter((item) => item.popular || item.isNew)
+        .slice(0, 4),
+    [restaurantMenuSections],
+  );
   const recommendation = allRestaurants.find((entry) => entry.id !== restaurant.id) ?? restaurant;
 
   const getQuantity = (itemId: string) =>
     restaurantCartItems.find((item) => item.id === itemId)?.quantity ?? 0;
 
+  const handleBack = () => {
+    goBackOrReplace("/home");
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={12}
+            style={styles.backButton}
+            onPress={handleBack}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>MENU</Text>
           <Pressable
+            accessibilityLabel={
+              isFavorite ? "Remove restaurant from favorites" : "Save restaurant to favorites"
+            }
+            accessibilityRole="button"
+            hitSlop={12}
             style={[styles.favoriteButton, isFavorite && styles.favoriteButtonActive]}
             onPress={() => toggleFavorite(restaurant.id)}
           >
-            <Feather name="heart" size={16} color={isFavorite ? colors.white : colors.background} />
+            <Feather
+              name="heart"
+              size={16}
+              color={isFavorite ? colors.white : colors.background}
+              fill={isFavorite ? colors.white : "transparent"}
+            />
           </Pressable>
         </FadeInView>
 
@@ -71,7 +113,10 @@ export default function MenuScreen() {
         <FadeInView delay={150} style={styles.card}>
           <Text style={styles.cardTitle}>Popular here</Text>
           <View style={styles.popularList}>
-            {restaurant.popularDishes.map((dish) => (
+            {(liveHighlights.length > 0
+              ? liveHighlights.map((item) => item.name)
+              : restaurant.popularDishes
+            ).map((dish) => (
               <View key={dish} style={styles.popularDish}>
                 <Feather name="star" size={14} color={colors.surface} />
                 <Text style={styles.popularDishText}>{dish}</Text>
@@ -80,7 +125,7 @@ export default function MenuScreen() {
           </View>
         </FadeInView>
 
-        {menuSections.map((section) => (
+        {restaurantMenuSections.map((section) => (
           <View key={section.id} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             {section.items.map((item) => {
@@ -96,6 +141,11 @@ export default function MenuScreen() {
                           <Text style={styles.popularText}>Popular</Text>
                         </View>
                       ) : null}
+                      {item.isNew ? (
+                        <View style={styles.newTag}>
+                          <Text style={styles.newText}>New</Text>
+                        </View>
+                      ) : null}
                     </View>
                     <Text style={styles.menuDescription}>{item.description}</Text>
                     <Text style={styles.menuPrice}>{item.price}</Text>
@@ -109,7 +159,15 @@ export default function MenuScreen() {
                       <Text style={styles.stepperValue}>{itemQuantity}</Text>
                       <Pressable
                         style={styles.stepperButton}
-                        onPress={() => addMenuItem({ id: item.id, name: item.name, price: item.price })}
+                        onPress={() =>
+                          addMenuItem({
+                            id: item.id,
+                            name: item.name,
+                            price: item.price,
+                            restaurantId: restaurant.id,
+                            restaurantName: restaurant.name,
+                          })
+                        }
                       >
                         <Feather name="plus" size={14} color={colors.background} />
                       </Pressable>
@@ -117,7 +175,15 @@ export default function MenuScreen() {
                   ) : (
                     <Pressable
                       style={styles.addButton}
-                      onPress={() => addMenuItem({ id: item.id, name: item.name, price: item.price })}
+                      onPress={() =>
+                        addMenuItem({
+                          id: item.id,
+                          name: item.name,
+                          price: item.price,
+                          restaurantId: restaurant.id,
+                          restaurantName: restaurant.name,
+                        })
+                      }
                     >
                       <Text style={styles.addButtonText}>Add</Text>
                     </Pressable>
@@ -187,7 +253,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: headerTopPadding,
     paddingBottom: 40,
     gap: spacing.lg,
   },
@@ -197,9 +263,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
@@ -210,9 +276,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   favoriteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
@@ -336,6 +402,17 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 10,
     color: colors.primary,
+  },
+  newTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#ECFDF3",
+  },
+  newText: {
+    fontFamily: typography.body,
+    fontSize: 10,
+    color: colors.success,
   },
   menuDescription: {
     fontFamily: typography.body,

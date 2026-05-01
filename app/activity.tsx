@@ -3,11 +3,12 @@ import { router } from "expo-router";
 import React, { useMemo } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function ActivityScreen() {
-  const { adminOrders, currentOrder, profile } = usePrototypeState();
+  const { adminOrders, currentOrder, profile } = useAppState();
 
   const liveOpsOrder = useMemo(
     () => adminOrders.find((order) => order.id === currentOrder?.id),
@@ -58,7 +59,7 @@ export default function ActivityScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/home")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>ACTIVITY</Text>
@@ -130,8 +131,13 @@ export default function ActivityScreen() {
             <Pressable style={styles.secondaryAction} onPress={() => router.push(`/order-receipt?orderId=${currentOrder.id}`)}>
               <Text style={styles.secondaryActionText}>View Receipt</Text>
             </Pressable>
-            <Pressable style={styles.primaryAction} onPress={() => router.push("/help-center?topic=order")}>
-              <Text style={styles.primaryActionText}>Get Help</Text>
+            <Pressable
+              style={styles.primaryAction}
+              onPress={() =>
+                router.push(`/order-tracking?orderId=${encodeURIComponent(currentOrder.id)}`)
+              }
+            >
+              <Text style={styles.primaryActionText}>Track Live</Text>
             </Pressable>
           </View>
         </FadeInView>

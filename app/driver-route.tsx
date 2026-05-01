@@ -10,7 +10,8 @@ import {
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function DriverRouteScreen() {
@@ -21,7 +22,7 @@ export default function DriverRouteScreen() {
     profile,
     selectedDriverId,
     updateAdminOrderStatus,
-  } = usePrototypeState();
+  } = useAppState();
 
   const activeDriver = useMemo(
     () =>
@@ -37,15 +38,7 @@ export default function DriverRouteScreen() {
         order.driver === activeDriver?.name,
     );
 
-    if (matchingDriverOrder) {
-      return matchingDriverOrder;
-    }
-
-    return adminOrders.find(
-      (order) =>
-        order.status === "Ready for Driver" ||
-        order.status === "Out for Delivery",
-    );
+    return matchingDriverOrder;
   }, [activeDriver?.name, adminOrders]);
 
   const pickupComplete = activeOrder?.status === "Out for Delivery";
@@ -84,7 +77,7 @@ export default function DriverRouteScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/driver-dashboard")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>ROUTE VIEW</Text>
@@ -140,17 +133,17 @@ export default function DriverRouteScreen() {
             >
               <Text style={styles.primaryButtonText}>Mark Picked Up</Text>
             </Pressable>
-          ) : null}
-
-          <Pressable
-            style={styles.completeButton}
-            onPress={async () => {
-              await completeDriverDelivery(activeOrder.id);
-              router.replace("/driver-dashboard");
-            }}
-          >
-            <Text style={styles.completeButtonText}>Mark Delivered</Text>
-          </Pressable>
+          ) : (
+            <Pressable
+              style={styles.completeButton}
+              onPress={async () => {
+                await completeDriverDelivery(activeOrder.id);
+                router.replace("/driver-dashboard");
+              }}
+            >
+              <Text style={styles.completeButtonText}>Mark Delivered</Text>
+            </Pressable>
+          )}
         </FadeInView>
       </ScrollView>
     </SafeAreaView>

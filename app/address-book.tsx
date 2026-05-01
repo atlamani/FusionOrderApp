@@ -5,11 +5,12 @@ import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "rea
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function AddressBookScreen() {
-  const { profile, savedLocationOptions, updateAddress } = usePrototypeState();
+  const { profile, savedLocationOptions, updateAddress } = useAppState();
   const [address, setAddress] = useState(profile.address);
   const [deliveryNote, setDeliveryNote] = useState(profile.deliveryNote);
   const canSave = address.trim().length > 8;
@@ -20,14 +21,14 @@ export default function AddressBookScreen() {
     }
 
     updateAddress(address.trim(), deliveryNote.trim());
-    router.back();
+    goBackOrReplace("/profile");
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>DELIVERY ADDRESS</Text>

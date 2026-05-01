@@ -4,8 +4,8 @@ import React from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "../FadeInView";
 import { CustomButton } from "../customButton";
-import { profileShortcuts } from "../mockData";
-import { getInitials, usePrototypeState } from "../prototypeState";
+import { profileShortcuts } from "../appData";
+import { getInitials, useAppState } from "../appState";
 import { colors, spacing, typography } from "../theme";
 
 const routeMap: Record<string, string> = {
@@ -16,7 +16,7 @@ const routeMap: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
-  const { logout, profile, sessionMode } = usePrototypeState();
+  const { logout, profile, sessionMode } = useAppState();
   const isSignedOut = sessionMode === "signed-out";
   const isAdmin = sessionMode === "admin";
   const isRestaurant = sessionMode === "restaurant";
@@ -25,14 +25,14 @@ export default function ProfileScreen() {
   const displaySubtitle = isSignedOut
     ? "Sign in to save favorites, manage delivery details, and unlock rewards."
     : isAdmin
-      ? "Manager access enabled for local operations demo"
+      ? "Manager access enabled for local operations"
     : isRestaurant
       ? "Restaurant partner mode enabled for kitchen and menu controls"
     : isDriver
       ? "Driver mode enabled for assignments and route completion"
     : sessionMode === "guest"
-      ? "Browsing in guest mode with local-only demo data"
-      : `${profile.rewardsTier} | FusionYum prototype member`;
+      ? "Browsing in guest mode"
+      : `${profile.rewardsTier} | FusionYum member`;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
           <>
             <FadeInView delay={120} style={styles.rewardsCard}>
               <Text style={styles.rewardsLabel}>Operations Workspace</Text>
-              <Text style={styles.rewardsValue}>Manager Demo</Text>
+              <Text style={styles.rewardsValue}>Manager Console</Text>
               <Text style={styles.rewardsCopy}>
                 Open the operations dashboard to review live orders, restaurant approvals, and feedback.
               </Text>
@@ -88,7 +88,7 @@ export default function ProfileScreen() {
           <>
             <FadeInView delay={120} style={styles.rewardsCard}>
               <Text style={styles.rewardsLabel}>Partner Workspace</Text>
-              <Text style={styles.rewardsValue}>Restaurant Demo</Text>
+              <Text style={styles.rewardsValue}>Restaurant Console</Text>
               <Text style={styles.rewardsCopy}>
                 Open the restaurant console to manage the kitchen queue, prep timing, and menu availability.
               </Text>
@@ -108,7 +108,7 @@ export default function ProfileScreen() {
           <>
             <FadeInView delay={120} style={styles.rewardsCard}>
               <Text style={styles.rewardsLabel}>Driver Workspace</Text>
-              <Text style={styles.rewardsValue}>Courier Demo</Text>
+              <Text style={styles.rewardsValue}>Courier Console</Text>
               <Text style={styles.rewardsCopy}>
                 Open the driver console to claim assignments, view route progress, and complete deliveries.
               </Text>
@@ -130,7 +130,7 @@ export default function ProfileScreen() {
               <Text style={styles.rewardsLabel}>Rewards Progress</Text>
               <Text style={styles.rewardsValue}>{profile.rewardsPoints} pts</Text>
               <Text style={styles.rewardsCopy}>
-                Place one more mock order to unlock your next free dessert reward.
+                Place one more order to unlock your next free dessert reward.
               </Text>
               <View style={styles.progressTrack}>
                 <View style={styles.progressFill} />

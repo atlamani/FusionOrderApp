@@ -14,6 +14,8 @@ export default function SocialButton({ brand, onPress }: SocialButtonProps) {
   return (
     <Pressable
       accessibilityLabel={`${brand} sign in`}
+      accessibilityRole="button"
+      hitSlop={4}
       style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
       onPress={onPress}
     >

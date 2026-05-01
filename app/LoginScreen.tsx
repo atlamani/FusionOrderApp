@@ -10,7 +10,6 @@ import SocialButton from "./socialButton";
 import { colors, spacing, typography } from "./theme";
 
 export default function LoginScreen() {
-  // const { loginAsMember } = usePrototypeState();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<
@@ -39,7 +38,8 @@ export default function LoginScreen() {
 
       if (
         error.code === "auth/user-not-found" ||
-        error.code === "suth/wrong-password"
+        error.code === "auth/wrong-password" ||
+        error.code === "auth/invalid-credential"
       ) {
         setErrorMessage("Invalid email or password");
       } else if (error.code === "auth/invalid-email") {
@@ -79,7 +79,7 @@ export default function LoginScreen() {
             <View style={styles.helperCard}>
               <Feather name="circle" size={16} color={colors.surfaceDeep} />
               <Text style={styles.helperCardText}>
-                Demo tip: any email and password will work here.
+                Use a Firebase test account here, or continue as guest from the welcome screen.
               </Text>
             </View>
 
@@ -113,8 +113,7 @@ export default function LoginScreen() {
               <SocialButton
                 brand="Facebook"
                 onPress={() => {
-                  Alert.alert("Coming Soon!");
-                  router.push("/home");
+                  Alert.alert("Facebook sign-in is not connected yet.");
                 }}
               />
               <SocialButton
@@ -124,8 +123,7 @@ export default function LoginScreen() {
               <SocialButton
                 brand="Apple"
                 onPress={() => {
-                  Alert.alert("Coming Soon!");
-                  router.push("/home");
+                  Alert.alert("Apple sign-in is not connected yet.");
                 }}
               />
             </View>

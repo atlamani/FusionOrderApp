@@ -10,8 +10,8 @@ import {
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-import { menuByRestaurantId } from "./mockData";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function AdminRestaurantDetailScreen() {
@@ -20,8 +20,9 @@ export default function AdminRestaurantDetailScreen() {
     adminRestaurants,
     approveRestaurant,
     beginRestaurantSession,
+    getRestaurantMenuSections,
     toggleAdminMenuItemAvailability,
-  } = usePrototypeState();
+  } = useAppState();
 
   const restaurant = useMemo(
     () =>
@@ -31,13 +32,10 @@ export default function AdminRestaurantDetailScreen() {
   );
 
   const menuSections = useMemo(
-    () => menuByRestaurantId[restaurant.id] ?? [],
-    [restaurant.id],
+    () => (restaurant ? getRestaurantMenuSections(restaurant.id) : []),
+    [getRestaurantMenuSections, restaurant],
   );
-  const menuItems = useMemo(
-    () => menuSections.flatMap((section) => section.items),
-    [menuSections],
-  );
+  const menuItems = useMemo(() => menuSections.flatMap((section) => section.items), [menuSections]);
 
   if (!restaurant) {
     return null;
@@ -50,7 +48,7 @@ export default function AdminRestaurantDetailScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/admin-restaurants")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>MENU CONTROLS</Text>
@@ -60,7 +58,7 @@ export default function AdminRestaurantDetailScreen() {
         <FadeInView delay={90} style={styles.hero}>
           <Text style={styles.name}>{restaurant.name}</Text>
           <Text style={styles.detail}>
-            {restaurant.cuisine} · {restaurant.manager} · Avg prep{" "}
+            {restaurant.cuisine} - {restaurant.manager} - Avg prep{" "}
             {restaurant.avgPrepTime}
           </Text>
           <Pressable
@@ -86,7 +84,8 @@ export default function AdminRestaurantDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Menu controls</Text>
             <Text style={styles.sectionHint}>
-              Toggle availability for the live menu shown to customers
+              Toggle availability for {menuItems.length} live menu item
+              {menuItems.length === 1 ? "" : "s"} shown to customers
             </Text>
           </View>
         </FadeInView>
@@ -107,7 +106,8 @@ export default function AdminRestaurantDetailScreen() {
                     <View style={styles.menuCopy}>
                       <Text style={styles.itemName}>{item.name}</Text>
                       <Text style={styles.itemDetail}>
-                        {item.price} {item.popular ? "· Popular pick" : ""}
+                        {item.price} {item.popular ? "- Popular pick" : ""}
+                        {item.isNew ? " - New" : ""}
                       </Text>
                     </View>
                     <Pressable

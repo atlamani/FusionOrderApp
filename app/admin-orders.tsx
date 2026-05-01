@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Pressable,
@@ -10,7 +9,8 @@ import {
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 const orderFilters = [
@@ -30,7 +30,7 @@ const nextManagerStatus: Record<
 };
 
 export default function AdminOrdersScreen() {
-  const { adminOrders, updateAdminOrderStatus } = usePrototypeState();
+  const { adminOrders, updateAdminOrderStatus } = useAppState();
   const [activeFilter, setActiveFilter] =
     useState<(typeof orderFilters)[number]>("All");
 
@@ -49,7 +49,7 @@ export default function AdminOrdersScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/admin-dashboard")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>LIVE ORDERS</Text>

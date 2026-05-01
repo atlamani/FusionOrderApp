@@ -10,7 +10,8 @@ import {
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
-import { usePrototypeState } from "./prototypeState";
+import { useAppState } from "./appState";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function DriverAssignmentsScreen() {
@@ -19,7 +20,7 @@ export default function DriverAssignmentsScreen() {
     claimDriverAssignment,
     driverProfiles,
     selectedDriverId,
-  } = usePrototypeState();
+  } = useAppState();
 
   const activeDriver = useMemo(
     () =>
@@ -29,7 +30,12 @@ export default function DriverAssignmentsScreen() {
   );
 
   const readyOrders = useMemo(
-    () => adminOrders.filter((order) => order.status === "Ready for Driver"),
+    () =>
+      adminOrders.filter(
+        (order) =>
+          order.status === "Ready for Driver" &&
+          (!order.driver || order.driver === "Unassigned"),
+      ),
     [adminOrders],
   );
   const activeOrders = useMemo(
@@ -50,7 +56,7 @@ export default function DriverAssignmentsScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/driver-dashboard")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>ASSIGNMENTS</Text>
@@ -62,7 +68,7 @@ export default function DriverAssignmentsScreen() {
           {readyOrders.length === 0 ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>
-                No ready orders at the moment.
+                No unassigned ready orders at the moment.
               </Text>
             </View>
           ) : (

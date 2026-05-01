@@ -4,7 +4,8 @@ import React, { useMemo, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
-import { faqEntries, helpTopics } from "./mockData";
+import { faqEntries, helpTopics } from "./appData";
+import { goBackOrReplace } from "./navigation";
 import { colors, spacing, typography } from "./theme";
 
 export default function HelpCenterScreen() {
@@ -20,7 +21,7 @@ export default function HelpCenterScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>HELP CENTER</Text>
@@ -30,7 +31,7 @@ export default function HelpCenterScreen() {
         <FadeInView delay={100} style={styles.heroCard}>
           <Text style={styles.heroTitle}>Need a hand?</Text>
           <Text style={styles.heroCopy}>
-            Choose a topic and send a mock support request to make the prototype feel complete.
+            Choose a topic and send a support request to the right team.
           </Text>
         </FadeInView>
 
@@ -75,7 +76,7 @@ export default function HelpCenterScreen() {
             <View style={styles.confirmationCard}>
               <Feather name="check-circle" size={18} color={colors.success} />
               <Text style={styles.confirmationText}>
-                Support request queued for the {selectedTopic} team. A mock specialist will reply in-app shortly.
+                Support request queued for the {selectedTopic} team. A specialist will reply in-app shortly.
               </Text>
             </View>
           ) : null}
