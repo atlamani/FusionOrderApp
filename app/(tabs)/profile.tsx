@@ -46,6 +46,9 @@ export default function ProfileScreen() {
             <Text style={styles.subtitle}>{displaySubtitle}</Text>
           </View>
           <Pressable
+            accessibilityLabel={isSignedOut ? "Open login screen" : "Edit profile"}
+            accessibilityRole="button"
+            hitSlop={10}
             style={styles.editButton}
             onPress={() => router.push(isSignedOut ? "/LoginScreen" : "/edit-profile")}
           >

@@ -44,7 +44,13 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location to find nearby restaurants."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
