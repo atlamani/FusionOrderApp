@@ -151,6 +151,10 @@ type DiscoveryFilters = {
   cuisineId: string;
   dietaryTag: string | null;
   price: string | null;
+  /** Minimum rating (out of 5). 0 means no filter. */
+  minRating: number;
+  /** Maximum distance in miles. null means no filter. */
+  maxDistanceMi: number | null;
 };
 
 function isPermissionDenied(error: unknown) {
@@ -351,6 +355,8 @@ const defaultFilters: DiscoveryFilters = {
   cuisineId: "all",
   dietaryTag: null,
   price: null,
+  minRating: 0,
+  maxDistanceMi: null,
 };
 
 function parsePrice(value: string) {
@@ -597,16 +603,7 @@ export function AppStateProvider({
   children: React.ReactNode;
 }) {
   const defaultRestaurant = allRestaurants[1] ?? allRestaurants[0];
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    {
-      id: "menu-1",
-      name: "Tacos Numero 1",
-      price: 12.99,
-      quantity: 1,
-      restaurantId: defaultRestaurant?.id ?? "featured-2",
-      restaurantName: defaultRestaurant?.name ?? "Tacos Numero 1",
-    },
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([
     "featured-1",
     "featured-2",

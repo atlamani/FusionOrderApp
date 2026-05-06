@@ -64,7 +64,13 @@ export default function FavoritesScreen() {
           return (
             <View key={restaurant.id} style={styles.favoriteCard}>
               <Image source={restaurant.image} style={styles.favoriteImage} />
-              <Pressable style={styles.removeButton} onPress={() => toggleFavorite(restaurant.id)}>
+              <Pressable
+                accessibilityLabel={`Remove ${restaurant.name} from favorites`}
+                accessibilityRole="button"
+                hitSlop={10}
+                style={styles.removeButton}
+                onPress={() => toggleFavorite(restaurant.id)}
+              >
                 <Feather name="heart" size={16} color={colors.white} />
               </Pressable>
               <View style={styles.favoriteBody}>

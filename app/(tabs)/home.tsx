@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -14,11 +15,12 @@ import {
 import FadeInView from "../FadeInView";
 import {
   Restaurant,
-  allRestaurants,
   cuisineTags,
   recommendationMoments,
 } from "../appData";
 import { useAppState } from "../appState";
+import { useRestaurants } from "../services/useRestaurants";
+import { useUserLocation } from "../services/useUserLocation";
 import { colors, spacing, typography } from "../theme";
 
 function RestaurantCard({
@@ -49,6 +51,12 @@ function RestaurantCard({
           style={[styles.restaurantImage, compact && styles.compactImage]}
         />
         <Pressable
+          accessibilityLabel={
+            isFavorite ? `Remove ${item.name} from favorites` : `Save ${item.name} to favorites`
+          }
+          accessibilityRole="button"
+          accessibilityState={{ selected: isFavorite }}
+          hitSlop={10}
           style={[
             styles.favoriteButton,
             isFavorite && styles.favoriteButtonActive,
@@ -90,9 +98,24 @@ export default function DiscoverScreen() {
     discoveryFilters,
     favoriteIds,
     recentSearches,
+    resetDiscoveryFilters,
     setSelectedRestaurant,
     submitSearch,
   } = useAppState();
+
+  const {
+    latitude: userLatitude,
+    longitude: userLongitude,
+  } = useUserLocation();
+
+  const {
+    restaurants,
+    isLoading: isLoadingRestaurants,
+    error: restaurantsError,
+  } = useRestaurants({
+    latitude: userLatitude ?? undefined,
+    longitude: userLongitude ?? undefined,
+  });
 
   const selectedCuisineLabel =
     cuisineTags.find((tag) => tag.id === discoveryFilters.cuisineId)?.label ??
@@ -102,22 +125,22 @@ export default function DiscoverScreen() {
     () =>
       recommendationMoments[0]?.restaurantIds
         .map((restaurantId) =>
-          allRestaurants.find((restaurant) => restaurant.id === restaurantId),
+          restaurants.find((restaurant) => restaurant.id === restaurantId),
         )
         .filter((restaurant): restaurant is Restaurant =>
           Boolean(restaurant),
         ) ?? [],
-    [],
+    [restaurants],
   );
 
   const browseRestaurants = useMemo(() => {
     if (discoveryFilters.cuisineId === "all") {
-      return allRestaurants.slice(0, 6);
+      return restaurants.slice(0, 6);
     }
 
     const selectedCuisine = discoveryFilters.cuisineId.toLowerCase();
 
-    return allRestaurants.filter(
+    return restaurants.filter(
       (restaurant) =>
         restaurant.cuisine.toLowerCase().includes(selectedCuisine) ||
         restaurant.dietaryTags.some((tag) =>
@@ -127,7 +150,7 @@ export default function DiscoverScreen() {
           dish.toLowerCase().includes(selectedCuisine),
         ),
     );
-  }, [discoveryFilters.cuisineId]);
+  }, [discoveryFilters.cuisineId, restaurants]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -144,6 +167,9 @@ export default function DiscoverScreen() {
             </Text>
           </View>
           <Pressable
+            accessibilityLabel="Open activity history"
+            accessibilityRole="button"
+            hitSlop={10}
             style={styles.headerAction}
             onPress={() => router.push("/activity")}
           >
@@ -193,6 +219,10 @@ export default function DiscoverScreen() {
 
             return (
               <Pressable
+                accessibilityLabel={`Filter results by ${item.label}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
+                hitSlop={6}
                 style={[styles.tagChip, isActive && styles.tagChipActive]}
                 onPress={() => {
                   applyDiscoveryFilters({ cuisineId: item.id });
@@ -212,10 +242,27 @@ export default function DiscoverScreen() {
         <FadeInView delay={180} style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recommended for you</Text>
-            <Pressable onPress={() => router.push("/search")}>
+            <Pressable
+              accessibilityLabel="See all recommended restaurants"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => router.push("/search")}
+            >
               <Text style={styles.sectionLink}>See all</Text>
             </Pressable>
           </View>
+          {isLoadingRestaurants ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={colors.surface} />
+              <Text style={styles.loadingRowText}>Loading restaurants...</Text>
+            </View>
+          ) : restaurantsError ? (
+            <View style={styles.notice}>
+              <Text style={styles.noticeText}>
+                Live results unavailable. Showing offline favorites.
+              </Text>
+            </View>
+          ) : null}
           {recommendedRestaurants.map((restaurant) => (
             <RestaurantCard key={restaurant.id} item={restaurant} />
           ))}
@@ -247,11 +294,31 @@ export default function DiscoverScreen() {
 
         <FadeInView delay={300} style={styles.section}>
           <Text style={styles.sectionTitle}>Browse nearby</Text>
-          <View style={styles.grid}>
-            {browseRestaurants.map((restaurant) => (
-              <RestaurantCard key={restaurant.id} item={restaurant} compact />
-            ))}
-          </View>
+          {browseRestaurants.length === 0 && !isLoadingRestaurants ? (
+            <View style={styles.browseEmpty}>
+              <Text style={styles.browseEmptyTitle}>
+                No matches for {selectedCuisineLabel}
+              </Text>
+              <Text style={styles.browseEmptyCopy}>
+                Try a different category or reset filters to see all nearby spots.
+              </Text>
+              <Pressable
+                accessibilityLabel="Reset cuisine filter"
+                accessibilityRole="button"
+                hitSlop={10}
+                style={styles.browseEmptyButton}
+                onPress={resetDiscoveryFilters}
+              >
+                <Text style={styles.browseEmptyButtonText}>Reset Filters</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.grid}>
+              {browseRestaurants.map((restaurant) => (
+                <RestaurantCard key={restaurant.id} item={restaurant} compact />
+              ))}
+            </View>
+          )}
         </FadeInView>
       </ScrollView>
     </SafeAreaView>
@@ -511,5 +578,66 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     rowGap: 14,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  loadingRowText: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  notice: {
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  noticeText: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  browseEmpty: {
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    gap: 8,
+    alignItems: "center",
+  },
+  browseEmptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.primary,
+  },
+  browseEmptyCopy: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  browseEmptyButton: {
+    marginTop: 4,
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  browseEmptyButtonText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.background,
   },
 });

@@ -73,7 +73,13 @@ export default function CheckoutScreen() {
               </Text>
               <Text style={styles.noteText}>{profile.deliveryNote}</Text>
             </View>
-            <Pressable style={styles.editButton} onPress={() => router.push("/address-book")}>
+            <Pressable
+              accessibilityLabel="Edit delivery address"
+              accessibilityRole="button"
+              hitSlop={10}
+              style={styles.editButton}
+              onPress={() => router.push("/address-book")}
+            >
               <Feather name="edit-2" size={16} color={colors.surfaceDeep} />
             </Pressable>
           </View>
@@ -85,7 +91,13 @@ export default function CheckoutScreen() {
         </FadeInView>
 
         <FadeInView delay={80} style={styles.sectionHeader}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/home")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={12}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/home")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.sectionHeaderText}>CHECKOUT</Text>
@@ -124,11 +136,20 @@ export default function CheckoutScreen() {
                       </View>
                       <View style={styles.quantityWrap}>
                         <View style={styles.quantityControl}>
-                          <Pressable style={styles.quantityButton} onPress={() => decreaseMenuItem(item.id)}>
+                          <Pressable
+                            accessibilityLabel={`Decrease quantity of ${item.name}`}
+                            accessibilityRole="button"
+                            hitSlop={10}
+                            style={styles.quantityButton}
+                            onPress={() => decreaseMenuItem(item.id)}
+                          >
                             <Feather name="minus" size={14} color={colors.text} />
                           </Pressable>
                           <Text style={styles.quantityValue}>{item.quantity}</Text>
                           <Pressable
+                            accessibilityLabel={`Increase quantity of ${item.name}`}
+                            accessibilityRole="button"
+                            hitSlop={10}
                             style={styles.quantityButton}
                             onPress={() =>
                               addMenuItem({
@@ -143,7 +164,13 @@ export default function CheckoutScreen() {
                             <Feather name="plus" size={14} color={colors.text} />
                           </Pressable>
                         </View>
-                        <Pressable style={styles.deleteButton} onPress={() => removeCartItem(item.id)}>
+                        <Pressable
+                          accessibilityLabel={`Remove ${item.name} from cart`}
+                          accessibilityRole="button"
+                          hitSlop={8}
+                          style={styles.deleteButton}
+                          onPress={() => removeCartItem(item.id)}
+                        >
                           <Feather name="trash-2" size={14} color="#dc2626" />
                         </Pressable>
                       </View>

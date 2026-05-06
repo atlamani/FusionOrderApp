@@ -256,9 +256,15 @@ export default function MenuScreen() {
         <FadeInView delay={300} style={styles.card}>
           <Text style={styles.cardTitle}>You might also like</Text>
           <Pressable
+            accessibilityLabel={`Open ${recommendation.name} menu`}
+            accessibilityRole="button"
             style={styles.recommendationRow}
             onPress={() => {
               setSelectedRestaurant(recommendation.id);
+              router.push({
+                pathname: "/restaurant-menu",
+                params: { restaurantId: recommendation.id },
+              });
             }}
           >
             <View style={styles.recommendationCopy}>
