@@ -33,7 +33,6 @@ yarn-error.*
 # local env files
 .env
 .env.*
-!.env.example
 serviceAccount*.json
 *service-account*.json
 firebase-admin-key*.json
