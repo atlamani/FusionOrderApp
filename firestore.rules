@@ -187,6 +187,19 @@ service cloud.firestore {
         isDriverDeliveryUpdate();
     }
 
+    // Customer reports a problem with their own order. Locked down to just
+    // the issue summary string, structured issueReport, and updatedAt so a
+    // customer cannot mutate totals, items, status, or delivery details.
+    function isCustomerIssueReport() {
+      return ownsOrder(resource.data) &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "issue",
+          "issueReport",
+          "updatedAt"
+        ]);
+    }
+
     function isRestaurantProfileUpdate(restaurantId) {
       return isRestaurantOwner(restaurantId) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -215,6 +228,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isCustomerOrderCreate();
       allow read: if isSignedIn() && canReadOrder(resource.data);
       allow update: if isAdmin() ||
+        isCustomerIssueReport() ||
         isRestaurantOrderStatusUpdate() ||
         isDriverOrderUpdate();
       allow delete: if false;
@@ -225,6 +239,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isCustomerOrderCreate();
       allow read: if isSignedIn() && canReadOrder(resource.data);
       allow update: if isAdmin() ||
+        isCustomerIssueReport() ||
         isRestaurantOrderStatusUpdate() ||
         isDriverOrderUpdate();
       allow delete: if false;

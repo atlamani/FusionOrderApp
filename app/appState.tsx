@@ -1006,7 +1006,16 @@ export function AppStateProvider({
       feedbackUnsubscribe?.();
       driverUnsubscribe?.();
     };
-  }, []);
+    // Re-run when the signed-in user, session role, or selected partner/driver
+    // identifiers change so the Firestore subscriptions reflect the latest
+    // staff scope (admin / restaurant / driver / member) and pick up newly
+    // placed orders the customer just created.
+  }, [
+    currentUser?.uid,
+    sessionMode,
+    selectedPartnerRestaurantId,
+    selectedDriverId,
+  ]);
 
   useEffect(() => {
     const matchingOrder = adminOrders.find(
