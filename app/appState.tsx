@@ -191,6 +191,17 @@ function isPermissionDenied(error: unknown) {
   );
 }
 
+/**
+ * Tier ladder for the loyalty program. Thresholds match the copy on the
+ * Rewards Club screen ("Free dessert at 450 pts" lines up with Silver).
+ */
+function computeRewardsTier(points: number): string {
+  if (points >= 1500) return "Platinum Member";
+  if (points >= 750) return "Gold Member";
+  if (points >= 250) return "Silver Member";
+  return "Bronze Member";
+}
+
 function timestampToMs(value: Order["createdAt"] | Order["updatedAt"]): number {
   if (!value) return 0;
   if (value instanceof Date) return value.getTime();
@@ -1300,6 +1311,12 @@ export function AppStateProvider({
             if (Array.isArray(firestoreProfile.favoriteRestaurantIds)) {
               setFavoriteIds(firestoreProfile.favoriteRestaurantIds);
             }
+            if (firestoreProfile.settings) {
+              setSettings((current) => ({
+                ...current,
+                ...firestoreProfile.settings,
+              }));
+            }
           } else {
             const resolvedFullName = resolveProfileName(
               user.displayName,
@@ -1354,6 +1371,7 @@ export function AppStateProvider({
         setFavoriteIds(defaultFavoriteRestaurantIds);
         setOrderHistory(initialOrderHistory);
         setDeclinedAssignmentIds([]);
+        setSettings(defaultSettings);
       }
     });
 
@@ -1654,10 +1672,20 @@ export function AppStateProvider({
         }
       },
       toggleSetting: (key: keyof AppSettings) =>
-        setSettings((current) => ({
-          ...current,
-          [key]: !current[key],
-        })),
+        setSettings((current) => {
+          const next = {
+            ...current,
+            [key]: !current[key],
+          };
+          if (currentUser) {
+            void saveUserProfile(currentUser.uid, {
+              settings: next,
+            }).catch((error) => {
+              console.error("Failed to persist account settings:", error);
+            });
+          }
+          return next;
+        }),
       reorderFromHistory: (orderId: string) => {
         const order = orderHistory.find((entry) => entry.id === orderId);
         if (!order) {
@@ -1689,17 +1717,32 @@ export function AppStateProvider({
         );
       },
       joinRewards: (email: string) => {
-        if (!email.trim()) {
+        const trimmedEmail = email.trim();
+        if (!trimmedEmail) {
           return;
         }
 
         setJoinedRewards(true);
-        setRewardsEmail(email);
-        setProfile((current) => ({
-          ...current,
-          email,
-          rewardsPoints: current.rewardsPoints + 45,
-        }));
+        setRewardsEmail(trimmedEmail);
+        setProfile((current) => {
+          const nextPoints = current.rewardsPoints + 45;
+          const nextTier = computeRewardsTier(nextPoints);
+          if (currentUser) {
+            void saveUserProfile(currentUser.uid, {
+              email: trimmedEmail,
+              rewardsPoints: nextPoints,
+              rewardsTier: nextTier,
+            }).catch((error) => {
+              console.error("Failed to persist rewards signup:", error);
+            });
+          }
+          return {
+            ...current,
+            email: trimmedEmail,
+            rewardsPoints: nextPoints,
+            rewardsTier: nextTier,
+          };
+        });
       },
       setSelectedRestaurant: (restaurantId: string) => {
         setSelectedRestaurantId(restaurantId);
@@ -2495,6 +2538,29 @@ export function AppStateProvider({
             },
             ...current,
           ]);
+
+          // Award rewards points: 1 point per dollar of subtotal (tax + tip
+          // excluded so a customer can't farm points by tipping themselves).
+          // Tier auto-bumps based on lifetime balance.
+          const earnedPoints = Math.max(0, Math.floor(subtotal));
+          if (earnedPoints > 0) {
+            const nextPoints = profile.rewardsPoints + earnedPoints;
+            const nextTier = computeRewardsTier(nextPoints);
+            setProfile((currentProfile) => ({
+              ...currentProfile,
+              rewardsPoints: nextPoints,
+              rewardsTier: nextTier,
+            }));
+            if (currentUser) {
+              void saveUserProfile(currentUser.uid, {
+                rewardsPoints: nextPoints,
+                rewardsTier: nextTier,
+              }).catch((error) => {
+                console.error("Failed to persist rewards points:", error);
+              });
+            }
+          }
+
           setCartItems([]);
           return orderId;
         } catch (error) {

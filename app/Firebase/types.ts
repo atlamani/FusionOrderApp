@@ -29,6 +29,18 @@ export interface UserProfile {
    * detail page. Persisted so favorites survive sign-out / reload.
    */
   favoriteRestaurantIds?: string[];
+  /**
+   * Account settings toggles surfaced on the Account Settings screen
+   * (order updates, promo alerts, biometric lock, quick reorder). Stored
+   * as a flat object so the existing `merge: true` profile write covers
+   * them without a separate document.
+   */
+  settings?: {
+    orderUpdates?: boolean;
+    promoAlerts?: boolean;
+    biometricLock?: boolean;
+    quickReorder?: boolean;
+  };
   rewardsPoints?: number;
   rewardsTier?: string;
   createdAt?: FirebaseFirestoreTypes.FieldValue | Date | string | null;
