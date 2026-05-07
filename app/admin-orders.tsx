@@ -26,21 +26,18 @@ import {
 } from "./safeHeaderLayout";
 import { colors, spacing, typography } from "./theme";
 
+// Admin sees the full order pipeline as a read-only oversight view.
+// Per Level 1 DFD, the restaurant role handles Preparing / Ready for Driver
+// transitions; admin's responsibility is approvals, analytics, escalations,
+// and customer support (issue resolution + cancellation).
 const orderFilters = [
   "All",
   "Pending",
   "Preparing",
   "Ready for Driver",
+  "Out for Delivery",
+  "Completed",
 ] as const;
-
-const nextManagerStatus: Record<
-  "Pending" | "Preparing" | "Ready for Driver",
-  "Preparing" | "Ready for Driver" | null
-> = {
-  Pending: "Preparing",
-  Preparing: "Ready for Driver",
-  "Ready for Driver": null,
-};
 
 const RESOLUTION_OPTIONS: OrderIssueResolutionAction[] = [
   "refund",
@@ -52,12 +49,7 @@ const RESOLUTION_OPTIONS: OrderIssueResolutionAction[] = [
 export default function AdminOrdersScreen() {
   const insets = useSafeAreaInsets();
   const headerTopPadding = getSafeHeaderTopPadding(insets.top);
-  const {
-    adminOrders,
-    updateAdminOrderStatus,
-    resolveOrderIssue,
-    cancelAdminOrder,
-  } = useAppState();
+  const { adminOrders, resolveOrderIssue, cancelAdminOrder } = useAppState();
   const [activeFilter, setActiveFilter] =
     useState<(typeof orderFilters)[number]>("All");
   const [resolvingOrderId, setResolvingOrderId] = useState<string | null>(null);
@@ -306,49 +298,39 @@ export default function AdminOrdersScreen() {
               </View>
             ) : null}
 
-            <View style={styles.actionRow}>
-              {order.status === "Pending" ||
-              order.status === "Preparing" ||
-              order.status === "Ready for Driver"
-                ? (() => {
-                    const currentStatus = order.status;
-                    const nextStatus = nextManagerStatus[currentStatus];
-
-                    return (
-                      <>
-                        <Pressable
-                          accessibilityLabel={`Cancel order ${order.id}`}
-                          accessibilityRole="button"
-                          style={styles.cancelOrderButton}
-                          onPress={() => handleCancelOrder(order.id)}
-                        >
-                          <Text style={styles.cancelOrderText}>Cancel</Text>
-                        </Pressable>
-                        {nextStatus ? (
-                          <Pressable
-                            style={styles.primaryAction}
-                            onPress={() => {
-                              updateAdminOrderStatus(order.id, nextStatus);
-                            }}
-                          >
-                            <Text style={styles.primaryActionText}>
-                              {currentStatus === "Pending"
-                                ? "Start Preparing"
-                                : "Mark Ready for Driver"}
-                            </Text>
-                          </Pressable>
-                        ) : (
-                          <View style={styles.completedPill}>
-                            <Text style={styles.completedPillText}>
-                              Waiting for Driver
-                            </Text>
-                          </View>
-                        )}
-                      </>
-                    );
-                  })()
-                : null}
-            </View>
+            {/*
+             * Per the Level 1 DFD, the restaurant role transitions orders
+             * Preparing -> Ready for Driver. The admin's only direct order
+             * actions are escalations: cancellation and issue resolution.
+             */}
+            {order.status === "Pending" ||
+            order.status === "Preparing" ||
+            order.status === "Ready for Driver" ||
+            order.status === "Out for Delivery" ? (
+              <View style={styles.actionRow}>
+                <View style={styles.statusHint}>
+                  <Feather name="info" size={12} color={colors.textMuted} />
+                  <Text style={styles.statusHintText}>
+                    {order.status === "Pending" ||
+                    order.status === "Preparing"
+                      ? "Restaurant marks Preparing / Ready"
+                      : order.status === "Ready for Driver"
+                        ? "Awaiting driver pickup"
+                        : "Driver delivering"}
+                  </Text>
+                </View>
+                {order.status !== "Out for Delivery" ? (
+                  <Pressable
+                    accessibilityLabel={`Cancel order ${order.id}`}
+                    accessibilityRole="button"
+                    style={styles.cancelOrderButton}
+                    onPress={() => handleCancelOrder(order.id)}
+                  >
+                    <Text style={styles.cancelOrderText}>Cancel Order</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
           </FadeInView>
         ))}
       </ScrollView>
@@ -598,7 +580,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.background,
   },
-  actionRow: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   cancelOrderButton: {
     minHeight: 42,
     borderRadius: 14,
@@ -614,30 +601,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.danger,
   },
-  primaryAction: {
-    minHeight: 42,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    justifyContent: "center",
+  statusHint: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 6,
   },
-  primaryActionText: {
-    fontFamily: typography.display,
-    fontSize: 14,
-    color: colors.background,
-  },
-  completedPill: {
-    minHeight: 42,
-    borderRadius: 14,
-    backgroundColor: "#ECFDF3",
-    paddingHorizontal: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  completedPillText: {
-    fontFamily: typography.display,
-    fontSize: 14,
-    color: colors.success,
+  statusHintText: {
+    fontFamily: typography.body,
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 0.3,
   },
 });
