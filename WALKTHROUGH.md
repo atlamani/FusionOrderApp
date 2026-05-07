@@ -141,16 +141,28 @@ account fulfills all of those orders.
 
 | Feature | Where to See It |
 |---|---|
-| Smart food-based search | Search screen with filters |
+| Smart food-based search with live autocomplete | Search screen — typing 2+ chars hits Google Places Autocomplete biased to your campus |
 | Cuisine / dietary / price / rating / distance filters | Search screen |
+| Favorites-only filter on search | Pill next to "Top matches" |
+| Persistent recent + saved searches | Per-user, hydrated from Firestore on sign-in |
+| Persistent favorites | Heart icon writes to user profile, survives sign-out |
 | Multi-restaurant unified cart | Add items from 2+ restaurants in one session |
-| Real-time order tracking | Order Tracking screen with Firestore subscription |
+| Real-time order tracking with live driver GPS | Order Tracking — third pin appears once driver is en route |
 | Real Google Maps | Checkout, Order Tracking, Driver Route |
+| Restaurant detail enrichments | Address, hours, phone, website, "Open in Maps" / "Call" / "Visit" deep links |
+| Restaurant reviews with verified-review gate | Customer must own a delivered order to post; rule enforced server-side |
+| Order Help screen (timeline-style closure) | After reporting an issue, tap "View status" on order tracking |
 | Order issue reporting | Report Issue button on order tracking |
-| Admin issue resolution | Live Orders → Resolve Issue |
-| Cuisine-aware menus | Restaurant detail screen renders items per cuisine |
+| Admin issue resolution with refund destination | Live Orders → Resolve Issue → pick action + destination + amount |
+| Rewards points (1 pt / $1 of subtotal, auto-tier promotion) | Profile → Rewards Club; balance updates after each delivered order |
+| Persistent account settings | Account Settings toggles hydrate from Firestore profile |
+| Skeleton loaders | Home, Search, Order Tracking show shaped placeholders during load |
+| Driver accept / decline with per-session dismissal | Driver Assignments — declined orders disappear from the driver's list |
+| Live driver location broadcast | Driver Route streams GPS to Firestore; customer sees driver pin update |
+| Customer order history hydrated from Firestore | Activity tab pulls every past order owned by the signed-in user |
 | Per-user profile + saved addresses | Edit Profile / Address Book |
 | Role-based access | StaffAccessGate redirects unauthorized users to the matching login |
+| Proper staff logout | Red "Log out" button at the bottom of every staff dashboard with confirmation |
 
 ## Architecture Tour
 
@@ -165,26 +177,38 @@ account fulfills all of those orders.
 
 Key code locations:
 
-- `app/services/restaurantService.ts` — Google Places integration
-- `app/Firebase/orderIssues.ts` — issue reporting service
+- `app/services/restaurantService.ts` — Google Places discovery + autocomplete
+- `app/Firebase/orderIssues.ts` — issue reporting + resolution + customer-message composer
+- `app/Firebase/reviews.ts` — review submit + restaurant-scoped subscription
+- `app/Firebase/orders.ts` — single-order subscription + per-customer history query
+- `app/Firebase/driverLocation.ts` — driver GPS publish helper
 - `app/Firebase/admin.ts` — staff scope subscriptions
 - `app/Firebase/checkout.ts` — order placement
-- `firestore.rules` — security rules per role
+- `firestore.rules` — security rules per role (incl. verified-review gate, driver location updates)
 - `components/MapPreview.tsx` — reusable map component
 - `components/ReportIssueModal.tsx` — customer issue reporting UI
+- `components/ReviewSubmitModal.tsx` — star rating + text review form
+- `components/Skeleton.tsx` — animated loading placeholders
+- `app/order-issue-status.tsx` — Order Help timeline screen
 
 ## Current Limitations
 
 - Google Places restaurants do not ship with menu data; cuisine-aware menu
   templates render plausible items until each restaurant publishes its own
   menu through the partner workflow.
-- Payment is not yet integrated with a real payment processor.
-- Driver location on the map uses a stable offset; live GPS broadcasting
-  is future work.
+- Payment is not yet integrated with a real payment processor; the saved
+  cards on the payment screen are seed data and the "Add new card" form is
+  a visual placeholder.
+- Push notifications (Order Updates / Promo Alerts toggles in Account
+  Settings) are flagged "Coming soon" — APNs/FCM wiring is future work.
+- Biometric Lock toggle (Face ID / Touch ID) is flagged "Coming soon" —
+  requires `expo-local-authentication` integration.
 - Restaurant onboarding currently runs through `tools/set-staff-claims.js`
   rather than an in-app self-service signup flow.
-- The reviews and ratings collection described in the ERD is not yet wired
-  to Firestore writes; restaurant detail pages display the seeded reviews.
+- Customer-side menu still falls back to cuisine-template stubs even when
+  restaurant staff edit prices/availability through the partner Menu
+  Controls screen — wiring those writes through to the customer view is
+  future work.
 
 ## Troubleshooting
 

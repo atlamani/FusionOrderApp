@@ -16,21 +16,29 @@ const settingLabels = [
     key: "orderUpdates",
     title: "Order updates",
     detail: "Push timing updates as your order moves through the flow.",
+    // Push notifications aren't wired up yet — the order tracking screen
+    // already streams live status via the in-app subscription, so this
+    // toggle has nothing to gate today. Honest label until APNs/FCM lands.
+    comingSoon: true,
   },
   {
     key: "promoAlerts",
     title: "Promo alerts",
     detail: "Receive featured drops, rewards nudges, and promo codes.",
+    comingSoon: true,
   },
   {
     key: "biometricLock",
     title: "Face ID / Touch ID",
     detail: "Keep saved cards and profile details tucked behind your device lock.",
+    // Requires expo-local-authentication wiring + secure storage gate.
+    comingSoon: true,
   },
   {
     key: "quickReorder",
     title: "Quick reorder",
     detail: "Show one-tap reorder actions throughout favorites and activity history.",
+    comingSoon: false,
   },
 ] as const;
 
@@ -72,11 +80,28 @@ export default function AccountSettingsScreen() {
         {settingLabels.map((setting, index) => (
           <FadeInView key={setting.key} delay={150 + index * 50} style={styles.settingCard}>
             <View style={styles.settingCopy}>
-              <Text style={styles.settingTitle}>{setting.title}</Text>
+              <View style={styles.settingTitleRow}>
+                <Text style={styles.settingTitle}>{setting.title}</Text>
+                {setting.comingSoon ? (
+                  <View style={styles.comingSoonBadge}>
+                    <Text style={styles.comingSoonText}>Coming soon</Text>
+                  </View>
+                ) : null}
+              </View>
               <Text style={styles.settingDetail}>{setting.detail}</Text>
             </View>
             <Pressable
-              style={[styles.toggle, settings[setting.key] && styles.toggleActive]}
+              accessibilityRole="switch"
+              accessibilityState={{
+                checked: settings[setting.key],
+                disabled: setting.comingSoon,
+              }}
+              disabled={setting.comingSoon}
+              style={[
+                styles.toggle,
+                settings[setting.key] && styles.toggleActive,
+                setting.comingSoon && styles.toggleDisabled,
+              ]}
               onPress={() => toggleSetting(setting.key)}
             >
               <View style={[styles.toggleKnob, settings[setting.key] && styles.toggleKnobActive]} />
@@ -155,10 +180,31 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  settingTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   settingTitle: {
     fontFamily: typography.display,
     fontSize: 18,
     color: colors.primary,
+  },
+  comingSoonBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  comingSoonText: {
+    fontFamily: typography.body,
+    fontSize: 10,
+    color: colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   settingDetail: {
     fontFamily: typography.body,
@@ -176,6 +222,9 @@ const styles = StyleSheet.create({
   },
   toggleActive: {
     backgroundColor: colors.surface,
+  },
+  toggleDisabled: {
+    opacity: 0.4,
   },
   toggleKnob: {
     width: 24,

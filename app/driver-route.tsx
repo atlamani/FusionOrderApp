@@ -118,11 +118,19 @@ export default function DriverRouteScreen() {
 
     const now = Date.now();
     const last = lastPublishRef.current;
+    // First sample: publish immediately so the customer sees the driver on
+    // the map within the first GPS read. Subsequent samples are throttled
+    // to ~15s OR a meaningful movement (~22m), whichever fires first, so
+    // we don't burn a write on every minor jitter.
+    if (!last) {
+      lastPublishRef.current = { ms: now, lat, lng };
+      void publishDriverLocation(activeOrder.id, lat, lng);
+      return;
+    }
     const movedEnough =
-      !last ||
       Math.abs(last.lat - lat) > 0.0002 ||
       Math.abs(last.lng - lng) > 0.0002;
-    const dueByTime = !last || now - last.ms > 15_000;
+    const dueByTime = now - last.ms > 15_000;
     if (!movedEnough && !dueByTime) return;
 
     lastPublishRef.current = { ms: now, lat, lng };

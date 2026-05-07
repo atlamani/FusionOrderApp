@@ -12,7 +12,7 @@ import { colors, typography } from "./theme";
 export default function ActivityHistoryScreen() {
   const insets = useSafeAreaInsets();
   const headerTopPadding = getSafeHeaderTopPadding(insets.top);
-  const { orderHistory, reorderFromHistory } = useAppState();
+  const { orderHistory, reorderFromHistory, settings } = useAppState();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -105,17 +105,22 @@ export default function ActivityHistoryScreen() {
               </View>
 
               <View style={styles.buttonRow}>
+                {settings.quickReorder ? (
+                  <Pressable
+                    style={styles.reorderButton}
+                    onPress={() => {
+                      reorderFromHistory(order.id);
+                      router.push("/checkout");
+                    }}
+                  >
+                    <Text style={styles.reorderButtonText}>Reorder</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
-                  style={styles.reorderButton}
-                  onPress={() => {
-                    reorderFromHistory(order.id);
-                    router.push("/checkout");
-                  }}
-                >
-                  <Text style={styles.reorderButtonText}>Reorder</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.receiptButton}
+                  style={[
+                    styles.receiptButton,
+                    !settings.quickReorder && styles.receiptButtonFull,
+                  ]}
                   onPress={() =>
                     router.push(
                       `/order-tracking?orderId=${encodeURIComponent(order.id)}`,
@@ -340,6 +345,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
+  },
+  receiptButtonFull: {
+    flex: 0,
+    width: "100%",
   },
   receiptButtonText: {
     fontFamily: typography.display,
