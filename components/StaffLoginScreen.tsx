@@ -138,7 +138,12 @@ export default function StaffLoginScreen({ role }: { role: StaffRole }) {
         // Places-sourced restaurant. It signs in through the same restaurant
         // login flow but goes straight to the order queue (the partner
         // dashboard cards depend on a single restaurantId we don't have).
-        if (claims.googleAggregator === true) {
+        // School-project demo convenience: the email below is treated as
+        // the aggregator even before custom claims are provisioned.
+        const aggregatorEmail =
+          credential.user.email?.trim().toLowerCase() ?? "";
+        const isDemoAggregator = aggregatorEmail === "google@fusionyum.com";
+        if (claims.googleAggregator === true || isDemoAggregator) {
           beginGoogleAggregatorSession();
           router.replace("/restaurant-orders");
           return;

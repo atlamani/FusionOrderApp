@@ -195,7 +195,23 @@ function isDemoSeedingEnabled() {
   );
 }
 
-function resolveStaffSessionFromClaims(claims: StaffClaims):
+/**
+ * Email accounts that are treated as the Google aggregator without needing
+ * a `googleAggregator: true` custom claim. This is a school-project demo
+ * convenience — production deployments should rely on Firebase custom
+ * claims set via `tools/set-staff-claims.js`.
+ */
+const GOOGLE_AGGREGATOR_DEMO_EMAILS = new Set(["google@fusionyum.com"]);
+
+export function isGoogleAggregatorDemoEmail(email: string | null | undefined) {
+  if (!email) return false;
+  return GOOGLE_AGGREGATOR_DEMO_EMAILS.has(email.trim().toLowerCase());
+}
+
+function resolveStaffSessionFromClaims(
+  claims: StaffClaims,
+  email?: string | null,
+):
   | { mode: "admin" }
   | { mode: "restaurant"; restaurantId: string }
   | { mode: "googleAggregator" }
@@ -207,8 +223,10 @@ function resolveStaffSessionFromClaims(claims: StaffClaims):
 
   // The Google aggregator role fulfills orders against any restaurant
   // discovered via the Google Places API. One staff account can see and
-  // progress orders for every Google-sourced restaurant.
-  if (claims.googleAggregator === true) {
+  // progress orders for every Google-sourced restaurant. The demo also
+  // recognises a hardcoded email fallback so the aggregator can sign in
+  // before custom claims are configured.
+  if (claims.googleAggregator === true || isGoogleAggregatorDemoEmail(email)) {
     return { mode: "googleAggregator" };
   }
 
@@ -1095,6 +1113,7 @@ export function AppStateProvider({
           const tokenResult = await user.getIdTokenResult(true);
           const staffSession = resolveStaffSessionFromClaims(
             tokenResult.claims as StaffClaims,
+            user.email,
           );
 
           setSessionMode(staffSession.mode);

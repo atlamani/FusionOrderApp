@@ -67,6 +67,16 @@ function isPermissionDenied(error: unknown) {
   return code === "firestore/permission-denied";
 }
 
+// School-project demo convenience: signing in with this email is treated
+// as the Google aggregator even when the `googleAggregator: true` custom
+// claim hasn't been provisioned yet.
+const GOOGLE_AGGREGATOR_DEMO_EMAILS = new Set(["google@fusionyum.com"]);
+
+function isGoogleAggregatorDemoEmail(email: string | null | undefined) {
+  if (!email) return false;
+  return GOOGLE_AGGREGATOR_DEMO_EMAILS.has(email.trim().toLowerCase());
+}
+
 async function getStaffScope(): Promise<StaffScope> {
   const user = auth().currentUser;
   if (!user) {
@@ -80,7 +90,10 @@ async function getStaffScope(): Promise<StaffScope> {
     return { mode: "admin" };
   }
 
-  if (claims.googleAggregator === true) {
+  if (
+    claims.googleAggregator === true ||
+    isGoogleAggregatorDemoEmail(user.email)
+  ) {
     return { mode: "googleAggregator" };
   }
 

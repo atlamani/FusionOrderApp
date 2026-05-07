@@ -22,7 +22,13 @@ service cloud.firestore {
     }
 
     function isGoogleAggregator() {
-      return isSignedIn() && request.auth.token.googleAggregator == true;
+      // School-project demo convenience: also treat a hardcoded email as
+      // the aggregator even without the custom claim. Production setups
+      // should rely on the custom claim only.
+      return isSignedIn() && (
+        request.auth.token.googleAggregator == true ||
+        request.auth.token.email == "google@fusionyum.com"
+      );
     }
 
     function isStaff() {
