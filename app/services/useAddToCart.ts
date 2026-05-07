@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import { Alert } from "react-native";
 import { useAppState } from "../appState";
 
 type AddToCartItem = {
@@ -11,37 +10,19 @@ type AddToCartItem = {
 };
 
 /**
- * Wraps `addMenuItem` with the cross-restaurant cart guard. If the cart already
- * contains items from a different restaurant, prompts the user to confirm
- * replacing the cart before adding the new item. Otherwise adds silently.
+ * Adds a menu item to the cart. FusionYum's spec calls for a unified
+ * multi-restaurant cart, so we deliberately do NOT block items from a second
+ * restaurant — the checkout flow groups items by restaurant and the order
+ * captures the mix as a single unified order ("FusionYum Mixed Order").
  *
- * Returns a stable function suitable for `onPress` handlers.
+ * The underlying `addMenuItem` no longer short-circuits on cross-restaurant
+ * conflicts, so calling this is always additive.
  */
 export function useAddToCart() {
   const { addMenuItem } = useAppState();
-
   return useCallback(
     (item: AddToCartItem) => {
-      const result = addMenuItem(item);
-
-      if (result.status === "conflict") {
-        Alert.alert(
-          "Start a new cart?",
-          `Your cart already has items from ${
-            result.currentRestaurantName ?? "another restaurant"
-          }. Adding "${item.name}" will replace those items.`,
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Replace cart",
-              style: "destructive",
-              onPress: () => {
-                addMenuItem(item, { replaceCart: true });
-              },
-            },
-          ],
-        );
-      }
+      addMenuItem(item);
     },
     [addMenuItem],
   );

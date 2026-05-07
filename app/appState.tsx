@@ -1225,25 +1225,12 @@ export function AppStateProvider({
         const restaurantName =
           item.restaurantName ?? restaurant?.name ?? "FusionYum";
 
-        // Detect cross-restaurant conflict before any mutation. We only block
-        // when the existing cart actually contains items from a different
-        // restaurant; an empty cart or items from the same restaurant are fine.
-        const conflictingItem = cartItems.find(
-          (cartItem) =>
-            cartItem.restaurantId &&
-            restaurantId &&
-            cartItem.restaurantId !== restaurantId,
-        );
-
-        if (conflictingItem && !options?.replaceCart) {
-          return {
-            status: "conflict",
-            currentRestaurantName: conflictingItem.restaurantName,
-          };
-        }
+        // FusionYum supports a unified multi-restaurant cart per the spec,
+        // so we do NOT block items from a second restaurant. The `replaceCart`
+        // option is preserved so callers (e.g. "reorder" flow) can opt into
+        // clearing the cart explicitly.
 
         setCartItems((current) => {
-          // If we're replacing the cart, drop everything from the old restaurant.
           const baseline = options?.replaceCart
             ? current.filter((cartItem) => cartItem.restaurantId === restaurantId)
             : current;
