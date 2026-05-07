@@ -21,6 +21,10 @@ import {
 } from "../appData";
 import { useAppState } from "../appState";
 import { getSafeContentTopPadding } from "../safeHeaderLayout";
+import {
+  BROWSE_ONLY_BADGE,
+  isOrderableRestaurant,
+} from "../services/restaurantOrdering";
 import { colors, spacing, typography } from "../theme";
 
 function RestaurantCard({
@@ -76,6 +80,12 @@ function RestaurantCard({
         <View style={styles.badgePill}>
           <Text style={styles.badgeText}>{item.badge}</Text>
         </View>
+        {!isOrderableRestaurant(item) ? (
+          <View style={styles.viewOnlyChip}>
+            <Feather name="info" size={11} color={colors.background} />
+            <Text style={styles.viewOnlyChipText}>{BROWSE_ONLY_BADGE}</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.restaurantContent}>
@@ -514,6 +524,24 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 11,
     color: colors.background,
+  },
+  viewOnlyChip: {
+    position: "absolute",
+    right: 12,
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(176,116,28,0.92)",
+  },
+  viewOnlyChipText: {
+    fontFamily: typography.display,
+    fontSize: 10,
+    color: colors.background,
+    letterSpacing: 0.4,
   },
   restaurantContent: {
     paddingHorizontal: 12,
