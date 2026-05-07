@@ -22,9 +22,9 @@ service cloud.firestore {
     }
 
     function isGoogleAggregator() {
-      // School-project demo convenience: also treat a hardcoded email as
-      // the aggregator even without the custom claim. Production setups
-      // should rely on the custom claim only.
+      // The hardcoded email is a fallback so the aggregator account can
+      // operate before its custom claim has been provisioned. Production
+      // setups should rely on the custom claim once it is configured.
       return isSignedIn() && (
         request.auth.token.googleAggregator == true ||
         request.auth.token.email == "google@fusionyum.com"

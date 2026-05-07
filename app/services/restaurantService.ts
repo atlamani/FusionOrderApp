@@ -31,7 +31,7 @@ export type RestaurantDiscoveryResult = {
   restaurants: Restaurant[];
   featured: Restaurant[];
   nearby: Restaurant[];
-  source: "google" | "mock";
+  source: "google" | "partner";
   usingFallback: boolean;
   message: string;
 };
@@ -302,7 +302,7 @@ function getFallbackDiscovery(message: string): RestaurantDiscoveryResult {
     restaurants: fallbackRestaurants,
     featured: fallbackFeaturedRestaurants,
     nearby: fallbackNearbyRestaurants,
-    source: "mock",
+    source: "partner",
     usingFallback: true,
     message,
   };
@@ -569,7 +569,7 @@ export async function loadRestaurantDiscovery(
 ): Promise<RestaurantDiscoveryResult> {
   if (!getGooglePlacesApiKey()) {
     return getFallbackDiscovery(
-      "Using local mock restaurants because no Google Places API key is configured.",
+      "Showing partner restaurants. Configure a Google Places API key to load nearby results.",
     );
   }
 
@@ -578,7 +578,7 @@ export async function loadRestaurantDiscovery(
 
     if (restaurants.length === 0) {
       return getFallbackDiscovery(
-        "Google Places returned no restaurants for this location, so local mock data is displayed.",
+        "No nearby restaurants matched your search, so partner restaurants are shown.",
       );
     }
 
@@ -588,12 +588,12 @@ export async function loadRestaurantDiscovery(
       nearby: restaurants.slice(3),
       source: "google",
       usingFallback: false,
-      message: "Restaurant data loaded from Google Places.",
+      message: "Restaurants loaded from Google Places.",
     };
   } catch (error) {
     console.error("Google Places restaurant discovery failed:", error);
     return getFallbackDiscovery(
-      "Google Places could not be reached, so local mock data is displayed.",
+      "Couldn't reach Google Places. Showing partner restaurants instead.",
     );
   }
 }

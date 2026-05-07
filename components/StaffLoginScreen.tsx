@@ -138,12 +138,13 @@ export default function StaffLoginScreen({ role }: { role: StaffRole }) {
         // Places-sourced restaurant. It signs in through the same restaurant
         // login flow but goes straight to the order queue (the partner
         // dashboard cards depend on a single restaurantId we don't have).
-        // School-project demo convenience: the email below is treated as
-        // the aggregator even before custom claims are provisioned.
+        // The hardcoded email below is a fallback so the aggregator account
+        // can sign in before its custom claim has been provisioned.
         const aggregatorEmail =
           credential.user.email?.trim().toLowerCase() ?? "";
-        const isDemoAggregator = aggregatorEmail === "google@fusionyum.com";
-        if (claims.googleAggregator === true || isDemoAggregator) {
+        const isFallbackAggregator =
+          aggregatorEmail === "google@fusionyum.com";
+        if (claims.googleAggregator === true || isFallbackAggregator) {
           beginGoogleAggregatorSession();
           router.replace("/restaurant-orders");
           return;

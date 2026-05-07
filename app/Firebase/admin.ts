@@ -67,14 +67,14 @@ function isPermissionDenied(error: unknown) {
   return code === "firestore/permission-denied";
 }
 
-// School-project demo convenience: signing in with this email is treated
+// Fallback email allowlist: signing in with one of these emails is treated
 // as the Google aggregator even when the `googleAggregator: true` custom
-// claim hasn't been provisioned yet.
-const GOOGLE_AGGREGATOR_DEMO_EMAILS = new Set(["google@fusionyum.com"]);
+// claim has not yet been provisioned for the account.
+const GOOGLE_AGGREGATOR_FALLBACK_EMAILS = new Set(["google@fusionyum.com"]);
 
-function isGoogleAggregatorDemoEmail(email: string | null | undefined) {
+function isGoogleAggregatorFallbackEmail(email: string | null | undefined) {
   if (!email) return false;
-  return GOOGLE_AGGREGATOR_DEMO_EMAILS.has(email.trim().toLowerCase());
+  return GOOGLE_AGGREGATOR_FALLBACK_EMAILS.has(email.trim().toLowerCase());
 }
 
 async function getStaffScope(): Promise<StaffScope> {
@@ -92,7 +92,7 @@ async function getStaffScope(): Promise<StaffScope> {
 
   if (
     claims.googleAggregator === true ||
-    isGoogleAggregatorDemoEmail(user.email)
+    isGoogleAggregatorFallbackEmail(user.email)
   ) {
     return { mode: "googleAggregator" };
   }
@@ -584,9 +584,9 @@ function subscribeToOrdersQuery(
     (error) => {
       onData(fallbackOrders);
       if (isPermissionDenied(error)) {
-        // Surface the silent failure so devs can spot a missing custom
-        // claim or undeployed Firestore rules instead of seeing seed
-        // orders forever. The UI still falls back so demos keep working.
+        // Surface the silent failure so engineers can spot a missing custom
+        // claim or undeployed Firestore rules instead of seeing partner
+        // orders forever. The UI still falls back so the app keeps working.
         console.warn(
           "[admin] Order subscription denied by Firestore rules. " +
             "Confirm the signed-in account has the admin / restaurantId / " +

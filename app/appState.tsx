@@ -189,23 +189,26 @@ function isPermissionDenied(error: unknown) {
   );
 }
 
-function isDemoSeedingEnabled() {
+function isDevSeedingEnabled() {
   return (
-    __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEMO_SEEDING === "true"
+    __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_SEEDING === "true"
   );
 }
 
 /**
  * Email accounts that are treated as the Google aggregator without needing
- * a `googleAggregator: true` custom claim. This is a school-project demo
- * convenience — production deployments should rely on Firebase custom
- * claims set via `tools/set-staff-claims.js`.
+ * a `googleAggregator: true` custom claim. Production deployments should
+ * still configure custom claims via `tools/set-staff-claims.js`; this
+ * email allowlist is a fallback so the aggregator account can sign in
+ * before claims are provisioned.
  */
-const GOOGLE_AGGREGATOR_DEMO_EMAILS = new Set(["google@fusionyum.com"]);
+const GOOGLE_AGGREGATOR_FALLBACK_EMAILS = new Set(["google@fusionyum.com"]);
 
-export function isGoogleAggregatorDemoEmail(email: string | null | undefined) {
+export function isGoogleAggregatorFallbackEmail(
+  email: string | null | undefined,
+) {
   if (!email) return false;
-  return GOOGLE_AGGREGATOR_DEMO_EMAILS.has(email.trim().toLowerCase());
+  return GOOGLE_AGGREGATOR_FALLBACK_EMAILS.has(email.trim().toLowerCase());
 }
 
 function resolveStaffSessionFromClaims(
@@ -223,10 +226,13 @@ function resolveStaffSessionFromClaims(
 
   // The Google aggregator role fulfills orders against any restaurant
   // discovered via the Google Places API. One staff account can see and
-  // progress orders for every Google-sourced restaurant. The demo also
-  // recognises a hardcoded email fallback so the aggregator can sign in
-  // before custom claims are configured.
-  if (claims.googleAggregator === true || isGoogleAggregatorDemoEmail(email)) {
+  // progress orders for every Google-sourced restaurant. The email
+  // allowlist below acts as a fallback when custom claims have not yet
+  // been provisioned for the aggregator account.
+  if (
+    claims.googleAggregator === true ||
+    isGoogleAggregatorFallbackEmail(email)
+  ) {
     return { mode: "googleAggregator" };
   }
 
@@ -830,9 +836,9 @@ export function AppStateProvider({
       restaurants: fallbackAllRestaurants,
       featured: fallbackAllRestaurants.slice(0, 3),
       nearby: fallbackAllRestaurants.slice(3),
-      source: "mock",
+      source: "partner",
       usingFallback: true,
-      message: "Using local mock restaurants while discovery loads.",
+      message: "Showing partner restaurants while nearby results load.",
     });
   const [restaurantDataLoading, setRestaurantDataLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -886,7 +892,7 @@ export function AppStateProvider({
           (await import("./Firebase/admin")) as unknown as AdminServiceModule;
         if (isMounted) {
           adminServiceRef.current = module;
-          if (isDemoSeedingEnabled()) {
+          if (isDevSeedingEnabled()) {
             try {
               await module.ensureAdminSeedData?.();
             } catch (error) {

@@ -70,7 +70,7 @@ export default function DriverRouteScreen() {
   const routeEtaLabel = pickupComplete ? "Customer ETA" : "Pickup ETA";
 
   // Use the actual restaurant's coordinates when available (Google Places
-  // results carry lat/lng); fall back to a stable offset for mock data.
+  // results carry lat/lng); fall back to a stable offset for partner restaurants.
   const orderRestaurant = useMemo(() => {
     if (!activeOrder?.restaurant) return undefined;
     return restaurants.find(

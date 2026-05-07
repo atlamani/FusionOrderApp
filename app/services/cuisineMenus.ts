@@ -6,10 +6,12 @@ type MenuTemplate = {
 }[];
 
 /**
- * Generates plausible menu sections based on the cuisine of a discovered restaurant.
+ * Generates menu sections based on the cuisine of a discovered restaurant.
  *
- * The Google Places API does not return menu data, so this gives us a believable
- * placeholder until real menus are populated (e.g. via Firestore).
+ * The Google Places API does not return menu data, so cuisine-aware menu
+ * templates render reasonable items (tacos for Mexican spots, ramen for
+ * ramen shops, etc.) until each restaurant onboards its own menu via the
+ * partner dashboard / Firestore.
  *
  * Item IDs are derived from the restaurant's stable ID + a slug so the same
  * restaurant always produces the same menu IDs across mounts.

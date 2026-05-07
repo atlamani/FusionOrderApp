@@ -8,7 +8,7 @@ export type UseRestaurantsState = {
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
-  source: "mock" | "google";
+  source: "partner" | "google";
   refetch: () => Promise<void>;
 };
 
@@ -18,15 +18,15 @@ const HAS_API_KEY = getGooglePlacesApiKey().length > 0;
  * Returns the restaurant list with loading/error state.
  *
  * - If a Places key is configured, fetches live results from the shared Places service.
- * - Otherwise, returns the bundled mock data immediately and never enters a loading state,
- *   so screens render the same content they always did when the key is absent.
+ * - Otherwise, returns the bundled partner restaurants immediately and never enters a
+ *   loading state, so screens render the same content they always did when the key is absent.
  */
 export function useRestaurants(query: RestaurantQuery = {}): UseRestaurantsState {
   const [restaurants, setRestaurants] = useState<Restaurant[]>(allRestaurants);
   const [isLoading, setIsLoading] = useState<boolean>(HAS_API_KEY);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [source, setSource] = useState<"mock" | "google">("mock");
+  const [source, setSource] = useState<"partner" | "google">("partner");
   const isMountedRef = useRef(true);
 
   const queryKey = JSON.stringify(query);
@@ -35,7 +35,7 @@ export function useRestaurants(query: RestaurantQuery = {}): UseRestaurantsState
     async (mode: "initial" | "refresh") => {
       if (!HAS_API_KEY) {
         setRestaurants(allRestaurants);
-        setSource("mock");
+        setSource("partner");
         setIsLoading(false);
         setError(null);
         return;
@@ -54,7 +54,7 @@ export function useRestaurants(query: RestaurantQuery = {}): UseRestaurantsState
       } catch (err) {
         if (!isMountedRef.current) return;
         setRestaurants(allRestaurants);
-        setSource("mock");
+        setSource("partner");
         setError(err instanceof Error ? err.message : "Unable to load restaurants");
       } finally {
         if (!isMountedRef.current) return;

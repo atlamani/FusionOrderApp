@@ -8,7 +8,7 @@ export type RestaurantReview = {
 
 export type Restaurant = {
   id: string;
-  source?: "mock" | "google";
+  source?: "partner" | "google";
   placeId?: string;
   name: string;
   cuisine: string;

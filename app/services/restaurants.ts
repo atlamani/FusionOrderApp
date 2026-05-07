@@ -14,7 +14,7 @@ export type RestaurantQuery = {
 
 export type RestaurantFetchResult = {
   restaurants: Restaurant[];
-  source: "google" | "mock";
+  source: "google" | "partner";
   error?: string;
 };
 
@@ -44,12 +44,12 @@ export async function fetchRestaurants(
 
     return {
       restaurants: restaurants.length > 0 ? restaurants : allRestaurants,
-      source: hasGooglePlacesKey && restaurants.length > 0 ? "google" : "mock",
+      source: hasGooglePlacesKey && restaurants.length > 0 ? "google" : "partner",
     };
   } catch (error) {
     return {
       restaurants: allRestaurants,
-      source: "mock",
+      source: "partner",
       error: error instanceof Error ? error.message : "Unable to load restaurants",
     };
   }

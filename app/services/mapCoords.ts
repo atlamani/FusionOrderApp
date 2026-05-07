@@ -3,8 +3,9 @@ import type { MapCoordinate } from "../../components/MapPreview";
 
 /**
  * Computes a deterministic offset from `campusLocation` for restaurants that
- * don't have real coordinates (e.g. mock data). Different IDs map to
- * different offsets so two mock restaurants don't sit on top of each other.
+ * don't have real coordinates (partner restaurants without geocoded
+ * positions). Different IDs map to different offsets so two restaurants
+ * don't sit on top of each other.
  *
  * The offsets stay within ~0.005° (~0.3 mi) so the map still feels local.
  */
@@ -26,7 +27,7 @@ function deterministicOffset(seed: string): MapCoordinate {
 /**
  * Returns coordinates for a restaurant. Prefers the real lat/lng returned
  * by Google Places; falls back to a stable offset around the campus when
- * the restaurant has no coords (mock data).
+ * the restaurant has no coords.
  */
 export function getRestaurantCoordinate(
   restaurant: Pick<Restaurant, "id" | "latitude" | "longitude"> | undefined,
@@ -45,7 +46,8 @@ export function getRestaurantCoordinate(
 }
 
 /**
- * Returns a sensible "delivery destination" coordinate for demo flows.
+ * Returns a sensible "delivery destination" coordinate for delivery
+ * preview flows on checkout / order tracking / driver route screens.
  *
  * If a `pickup` coordinate is provided, the destination is placed roughly
  * half a mile away from it so the route line on the map represents a
