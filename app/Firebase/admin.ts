@@ -785,12 +785,14 @@ export function subscribeToAdminOrders(
 
     if (scope.mode === "googleAggregator") {
       // Range query selects every order whose restaurantId starts with
-      // "google-". This works without a composite index (single-field range).
+      // "google-". The upper bound is just past "google." in lexicographic
+      // order, so any "google-XXX" string falls below it. Using "google."
+      // (period) as the upper bound is simpler and encoding-safe.
       return subscribeToOrdersQuery(
         firestore()
           .collection(ORDERS_COLLECTION)
           .where("restaurantId", ">=", "google-")
-          .where("restaurantId", "<", "google-￿"),
+          .where("restaurantId", "<", "google."),
         fallbackOrders,
         onData,
         onError,
