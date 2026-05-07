@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Image,
+  Linking,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -87,6 +88,42 @@ export default function RestaurantMenuScreen() {
   const recommendation = restaurant
     ? restaurants.find((entry) => entry.id !== restaurant.id) ?? restaurant
     : undefined;
+
+  const [hoursExpanded, setHoursExpanded] = useState(false);
+
+  const hasInfoCard = Boolean(
+    restaurant &&
+      (restaurant.address ||
+        restaurant.phone ||
+        restaurant.websiteUri ||
+        restaurant.openNow !== undefined ||
+        (restaurant.hours && restaurant.hours.length > 0)),
+  );
+
+  const handleOpenMaps = () => {
+    if (!restaurant) return;
+    const target =
+      restaurant.mapUri ||
+      (restaurant.address
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+            restaurant.address,
+          )}`
+        : null);
+    if (target) {
+      Linking.openURL(target).catch(() => undefined);
+    }
+  };
+
+  const handleCall = () => {
+    if (!restaurant?.phone) return;
+    const sanitized = restaurant.phone.replace(/[^0-9+]/g, "");
+    Linking.openURL(`tel:${sanitized}`).catch(() => undefined);
+  };
+
+  const handleVisitWebsite = () => {
+    if (!restaurant?.websiteUri) return;
+    Linking.openURL(restaurant.websiteUri).catch(() => undefined);
+  };
 
   const getQuantity = (itemId: string) =>
     restaurantCartItems.find((item) => item.id === itemId)?.quantity ?? 0;
@@ -175,6 +212,108 @@ export default function RestaurantMenuScreen() {
             </View>
           </View>
         </FadeInView>
+
+        {hasInfoCard ? (
+          <FadeInView delay={130} style={styles.card}>
+            <View style={styles.infoTitleRow}>
+              <Text style={styles.cardTitle}>About this restaurant</Text>
+              {restaurant.openNow !== undefined ? (
+                <View
+                  style={[
+                    styles.statusPill,
+                    restaurant.openNow
+                      ? styles.statusPillOpen
+                      : styles.statusPillClosed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusPillText,
+                      restaurant.openNow
+                        ? styles.statusPillTextOpen
+                        : styles.statusPillTextClosed,
+                    ]}
+                  >
+                    {restaurant.openNow ? "Open now" : "Closed"}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {restaurant.address ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="View restaurant on Google Maps"
+                style={styles.infoRow}
+                onPress={handleOpenMaps}
+              >
+                <Feather name="map-pin" size={16} color={colors.surface} />
+                <Text style={styles.infoText} numberOfLines={2}>
+                  {restaurant.address}
+                </Text>
+                <Text style={styles.infoAction}>View on Maps</Text>
+              </Pressable>
+            ) : null}
+
+            {restaurant.phone ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Call ${restaurant.name}`}
+                style={styles.infoRow}
+                onPress={handleCall}
+              >
+                <Feather name="phone" size={16} color={colors.surface} />
+                <Text style={styles.infoText}>{restaurant.phone}</Text>
+                <Text style={styles.infoAction}>Call</Text>
+              </Pressable>
+            ) : null}
+
+            {restaurant.websiteUri ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Visit website for ${restaurant.name}`}
+                style={styles.infoRow}
+                onPress={handleVisitWebsite}
+              >
+                <Feather name="globe" size={16} color={colors.surface} />
+                <Text style={styles.infoText} numberOfLines={1}>
+                  {restaurant.websiteUri.replace(/^https?:\/\//, "")}
+                </Text>
+                <Text style={styles.infoAction}>Visit</Text>
+              </Pressable>
+            ) : null}
+
+            {restaurant.hours && restaurant.hours.length > 0 ? (
+              <View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    hoursExpanded ? "Collapse hours" : "Show hours"
+                  }
+                  style={styles.infoRow}
+                  onPress={() => setHoursExpanded((current) => !current)}
+                >
+                  <Feather name="clock" size={16} color={colors.surface} />
+                  <Text style={styles.infoText}>Hours</Text>
+                  <Feather
+                    name={hoursExpanded ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={colors.textMuted}
+                  />
+                </Pressable>
+                {hoursExpanded ? (
+                  <View style={styles.hoursList}>
+                    {restaurant.hours.map((line) => (
+                      <Text key={line} style={styles.hoursText}>
+                        {line}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </FadeInView>
+        ) : null}
 
         <FadeInView delay={150} style={styles.card}>
           <Text style={styles.cardTitle}>Popular here</Text>
@@ -470,6 +609,61 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 18,
     color: colors.primary,
+  },
+  infoTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusPillOpen: {
+    backgroundColor: "#ECFDF3",
+  },
+  statusPillClosed: {
+    backgroundColor: "#FEF2F2",
+  },
+  statusPillText: {
+    fontFamily: typography.display,
+    fontSize: 11,
+  },
+  statusPillTextOpen: {
+    color: colors.success,
+  },
+  statusPillTextClosed: {
+    color: "#B42318",
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+  },
+  infoText: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text,
+  },
+  infoAction: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.surface,
+  },
+  hoursList: {
+    paddingLeft: 26,
+    paddingTop: 4,
+    gap: 4,
+  },
+  hoursText: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.textMuted,
   },
   popularList: {
     gap: 10,
