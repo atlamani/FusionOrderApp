@@ -565,7 +565,25 @@ type AppStateValue = {
     prepTime: string,
   ) => Promise<void>;
   claimDriverAssignment: (orderId: string) => Promise<void>;
+  /**
+   * Per-driver dismissal of a ready assignment. The order stays in
+   * Firestore (other drivers can still claim it) but disappears from
+   * this driver's "Ready for pickup" list until they sign out.
+   */
+  declineDriverAssignment: (orderId: string) => void;
+  /** IDs the current driver session has dismissed. */
+  declinedAssignmentIds: string[];
   completeDriverDelivery: (orderId: string) => Promise<void>;
+  /**
+   * Pushes a live GPS sample for the driver onto the order doc so the
+   * customer's tracking screen can plot it. No-ops when there is no
+   * signed-in driver session or the order isn't theirs.
+   */
+  publishDriverLocation: (
+    orderId: string,
+    latitude: number,
+    longitude: number,
+  ) => Promise<void>;
 };
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -956,6 +974,9 @@ export function AppStateProvider({
   const [selectedDriverId, setSelectedDriverId] = useState(
     defaultSelectedDriverId,
   );
+  const [declinedAssignmentIds, setDeclinedAssignmentIds] = useState<string[]>(
+    [],
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [recentSearches, setRecentSearches] =
     useState<string[]>(defaultRecentSearches);
@@ -1332,6 +1353,7 @@ export function AppStateProvider({
         setSavedSearches(defaultSavedSearches);
         setFavoriteIds(defaultFavoriteRestaurantIds);
         setOrderHistory(initialOrderHistory);
+        setDeclinedAssignmentIds([]);
       }
     });
 
@@ -1344,6 +1366,7 @@ export function AppStateProvider({
     () => ({
       cartItems,
       cartQuantity,
+      declinedAssignmentIds,
       favoriteIds,
       savedCardsExpanded,
       selectedRestaurantId,
@@ -2274,6 +2297,38 @@ export function AppStateProvider({
           }
         }
       },
+      declineDriverAssignment: (orderId: string) => {
+        setDeclinedAssignmentIds((current) =>
+          current.includes(orderId) ? current : [...current, orderId],
+        );
+      },
+      publishDriverLocation: async (
+        orderId: string,
+        latitude: number,
+        longitude: number,
+      ) => {
+        if (!currentUser || !selectedDriverId) {
+          return;
+        }
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return;
+        }
+        try {
+          const { publishDriverLocation } = await import(
+            "./Firebase/driverLocation"
+          );
+          await publishDriverLocation({
+            orderId,
+            driverId: selectedDriverId,
+            latitude,
+            longitude,
+          });
+        } catch (error) {
+          if (!isPermissionDenied(error)) {
+            console.warn("Failed to publish driver location:", error);
+          }
+        }
+      },
       completeDriverDelivery: async (orderId: string) => {
         const activeDriver = driverProfiles.find(
           (driver) => driver.id === selectedDriverId,
@@ -2454,6 +2509,7 @@ export function AppStateProvider({
       customTip,
       currentOrder,
       currentUser,
+      declinedAssignmentIds,
       defaultRestaurant,
       discoveryFilters,
       driverProfiles,

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   Pressable,
   SafeAreaView,
@@ -22,6 +22,7 @@ import {
   getDeliveryCoordinate,
   getRestaurantCoordinate,
 } from "./services/mapCoords";
+import { useUserLocation } from "./services/useUserLocation";
 import { colors, spacing, typography } from "./theme";
 import { MapPreview } from "../components/MapPreview";
 
@@ -33,7 +34,7 @@ export default function DriverRouteScreen() {
     adminOrders,
     completeDriverDelivery,
     driverProfiles,
-    profile,
+    publishDriverLocation,
     restaurants,
     selectedDriverId,
     updateAdminOrderStatus,
@@ -64,9 +65,20 @@ export default function DriverRouteScreen() {
   const routeHeadline = pickupComplete
     ? "Drive to customer"
     : "Head to the restaurant";
+  // For deliveries the source of truth is the order's deliveryAddress.
+  // Falling back to `profile.address` was wrong here — `profile` is the
+  // signed-in driver's profile, not the customer's, so a driver with an
+  // unset customer address ended up seeing their own home as the drop
+  // destination. Now we show the customer address when present and hide
+  // the row entirely when it's missing rather than render a misleading
+  // value.
   const routeAddress = pickupComplete
-    ? activeOrder?.deliveryAddress || profile.address
-    : `${activeOrder?.restaurant} pickup`;
+    ? activeOrder?.deliveryAddress?.trim()
+      ? activeOrder.deliveryAddress
+      : null
+    : activeOrder?.restaurant
+      ? `${activeOrder.restaurant} pickup`
+      : null;
   const routeEtaLabel = pickupComplete ? "Customer ETA" : "Pickup ETA";
 
   // Use the actual restaurant's coordinates when available (Google Places
@@ -87,6 +99,40 @@ export default function DriverRouteScreen() {
     () => getDeliveryCoordinate(pickupCoord),
     [pickupCoord],
   );
+
+  // Pull live GPS while a delivery is in progress so the customer's
+  // tracking screen can plot the driver. Throttled by useUserLocation
+  // (10s / 50m) plus an additional sanity guard here so we never write
+  // more than one position per ~15s even on rapid updates.
+  const userLocation = useUserLocation();
+  const lastPublishRef = useRef<{ ms: number; lat: number; lng: number } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!activeOrder) return;
+    if (activeOrder.status !== "Out for Delivery") return;
+    const lat = userLocation.latitude;
+    const lng = userLocation.longitude;
+    if (lat == null || lng == null) return;
+
+    const now = Date.now();
+    const last = lastPublishRef.current;
+    const movedEnough =
+      !last ||
+      Math.abs(last.lat - lat) > 0.0002 ||
+      Math.abs(last.lng - lng) > 0.0002;
+    const dueByTime = !last || now - last.ms > 15_000;
+    if (!movedEnough && !dueByTime) return;
+
+    lastPublishRef.current = { ms: now, lat, lng };
+    void publishDriverLocation(activeOrder.id, lat, lng);
+  }, [
+    activeOrder,
+    publishDriverLocation,
+    userLocation.latitude,
+    userLocation.longitude,
+  ]);
 
   if (!activeOrder) {
     return (
@@ -173,10 +219,23 @@ export default function DriverRouteScreen() {
             >{`Status: ${activeOrder.status}`}</Text>
           </View>
 
-          <View style={styles.detailRow}>
-            <Feather name="map-pin" size={16} color={colors.surfaceDeep} />
-            <Text style={styles.detailText}>{routeAddress}</Text>
-          </View>
+          {routeAddress ? (
+            <View style={styles.detailRow}>
+              <Feather name="map-pin" size={16} color={colors.surfaceDeep} />
+              <Text style={styles.detailText}>{routeAddress}</Text>
+            </View>
+          ) : pickupComplete ? (
+            <View style={styles.detailRow}>
+              <Feather
+                name="alert-circle"
+                size={16}
+                color={colors.warning}
+              />
+              <Text style={[styles.detailText, styles.detailTextWarning]}>
+                Delivery address unavailable — contact customer support.
+              </Text>
+            </View>
+          ) : null}
 
           {!pickupComplete ? (
             <Pressable
@@ -298,6 +357,9 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 13,
     color: colors.text,
+  },
+  detailTextWarning: {
+    color: colors.warning,
   },
   primaryButton: {
     minHeight: 46,

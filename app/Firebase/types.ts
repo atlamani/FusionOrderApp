@@ -101,6 +101,19 @@ export interface Order {
   restaurant?: string;
   placedAt?: string;
   adminStatus?: AdminOrderStatus;
+  /**
+   * Live driver location samples written by the driver while a delivery
+   * is in progress. The customer's order tracking subscribes to these
+   * fields and renders a live marker on the map.
+   */
+  driverLatitude?: number;
+  driverLongitude?: number;
+  driverLocationUpdatedAt?:
+    | Date
+    | string
+    | number
+    | FirebaseFirestoreTypes.FieldValue
+    | null;
 }
 
 export type AdminOrderStatus =

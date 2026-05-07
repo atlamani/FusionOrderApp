@@ -27,6 +27,8 @@ export default function DriverAssignmentsScreen() {
   const {
     adminOrders,
     claimDriverAssignment,
+    declineDriverAssignment,
+    declinedAssignmentIds,
     driverProfiles,
     selectedDriverId,
   } = useAppState();
@@ -44,9 +46,10 @@ export default function DriverAssignmentsScreen() {
           order.status === "Ready for Driver" &&
           (order.driverId == null ||
             !order.driver ||
-            order.driver === unassignedDriverLabel),
+            order.driver === unassignedDriverLabel) &&
+          !declinedAssignmentIds.includes(order.id),
       ),
-    [adminOrders],
+    [adminOrders, declinedAssignmentIds],
   );
   const activeOrders = useMemo(
     () =>
@@ -125,18 +128,30 @@ export default function DriverAssignmentsScreen() {
                     <Text style={styles.statusText}>Ready</Text>
                   </View>
                 </View>
-                <Pressable
-                  style={styles.primaryAction}
-                  onPress={async () => {
-                    await claimDriverAssignment(order.id);
-                    router.push({
-                      pathname: "/driver-route",
-                      params: { orderId: order.id },
-                    });
-                  }}
-                >
-                  <Text style={styles.primaryActionText}>Claim Delivery</Text>
-                </Pressable>
+                <View style={styles.actionRow}>
+                  <Pressable
+                    style={styles.declineAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Decline order ${order.id}`}
+                    onPress={() => declineDriverAssignment(order.id)}
+                  >
+                    <Text style={styles.declineActionText}>Decline</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.primaryAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Accept order ${order.id}`}
+                    onPress={async () => {
+                      await claimDriverAssignment(order.id);
+                      router.push({
+                        pathname: "/driver-route",
+                        params: { orderId: order.id },
+                      });
+                    }}
+                  >
+                    <Text style={styles.primaryActionText}>Accept</Text>
+                  </Pressable>
+                </View>
               </FadeInView>
             ))
           )}
@@ -283,7 +298,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.surfaceDeep,
   },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
   primaryAction: {
+    flex: 2,
     minHeight: 42,
     borderRadius: 14,
     backgroundColor: colors.primary,
@@ -294,6 +314,21 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 14,
     color: colors.background,
+  },
+  declineAction: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  declineActionText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.danger,
   },
   secondaryAction: {
     minHeight: 42,

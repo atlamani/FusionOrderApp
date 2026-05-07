@@ -55,6 +55,8 @@ type TrackingOrder = {
   deliveryNote?: string;
   issueStatus?: "open" | "in_progress" | "resolved";
   issueResolutionMessage?: string;
+  driverLatitude?: number;
+  driverLongitude?: number;
 };
 
 const adminStatusToTrackingStatus = (status?: string): OrderStatus => {
@@ -127,6 +129,12 @@ const fromFirebaseOrder = (order: Order): TrackingOrder => ({
   issueResolutionMessage:
     order.issueReport?.resolution?.customerMessage ??
     order.issueReport?.resolution?.notes,
+  driverLatitude:
+    typeof order.driverLatitude === "number" ? order.driverLatitude : undefined,
+  driverLongitude:
+    typeof order.driverLongitude === "number"
+      ? order.driverLongitude
+      : undefined,
 });
 
 const fromCustomerOrder = (
@@ -504,6 +512,20 @@ export default function OrderTrackingScreen() {
                     kind: "destination",
                     label: "You",
                   },
+                  ...(displayOrder.status === "out_for_delivery" &&
+                  typeof displayOrder.driverLatitude === "number" &&
+                  typeof displayOrder.driverLongitude === "number"
+                    ? [
+                        {
+                          coordinate: {
+                            latitude: displayOrder.driverLatitude,
+                            longitude: displayOrder.driverLongitude,
+                          },
+                          kind: "current" as const,
+                          label: "Driver",
+                        },
+                      ]
+                    : []),
                 ]}
               />
             </View>

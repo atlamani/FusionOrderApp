@@ -222,10 +222,26 @@ service cloud.firestore {
         request.resource.data.adminStatus == "Completed";
     }
 
+    // Continuous GPS samples while the order is in transit. Limited to
+    // the live-location fields so a driver can't piggyback other
+    // changes onto a position update.
+    function isDriverLocationUpdate() {
+      return driverOwnsOrder(resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "driverLatitude",
+          "driverLongitude",
+          "driverLocationUpdatedAt",
+          "updatedAt"
+        ]) &&
+        request.resource.data.driverLatitude is number &&
+        request.resource.data.driverLongitude is number;
+    }
+
     function isDriverOrderUpdate() {
       return isDriverClaimUpdate() ||
         isDriverPickupUpdate() ||
-        isDriverDeliveryUpdate();
+        isDriverDeliveryUpdate() ||
+        isDriverLocationUpdate();
     }
 
     // Customer reports a problem with their own order. Locked down to just
