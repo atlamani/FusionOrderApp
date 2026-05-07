@@ -26,12 +26,14 @@ type FirestoreQuery =
 type StaffScope =
   | { mode: "admin" }
   | { mode: "restaurant"; restaurantId: string }
+  | { mode: "googleAggregator" }
   | { mode: "driver"; driverId: string }
   | { mode: "member" };
 type StaffClaims = {
   admin?: unknown;
   restaurantId?: unknown;
   driverId?: unknown;
+  googleAggregator?: unknown;
 };
 
 const ORDERS_COLLECTION = "orders";
@@ -76,6 +78,10 @@ async function getStaffScope(): Promise<StaffScope> {
 
   if (claims.admin === true) {
     return { mode: "admin" };
+  }
+
+  if (claims.googleAggregator === true) {
+    return { mode: "googleAggregator" };
   }
 
   if (
@@ -132,6 +138,14 @@ function getDriverName(driverId: string) {
 function getSeedOrdersForScope(scope: StaffScope) {
   if (scope.mode === "admin") {
     return seedAdminOrders;
+  }
+
+  if (scope.mode === "googleAggregator") {
+    // The aggregator account fulfills any order whose restaurantId came
+    // from Google Places (we tag those with a `google-` prefix).
+    return seedAdminOrders.filter((order) =>
+      order.restaurantId.startsWith("google-"),
+    );
   }
 
   if (scope.mode === "restaurant") {
@@ -753,6 +767,20 @@ export function subscribeToAdminOrders(
         firestore()
           .collection(ORDERS_COLLECTION)
           .where("restaurantId", "==", scope.restaurantId),
+        fallbackOrders,
+        onData,
+        onError,
+      );
+    }
+
+    if (scope.mode === "googleAggregator") {
+      // Range query selects every order whose restaurantId starts with
+      // "google-". This works without a composite index (single-field range).
+      return subscribeToOrdersQuery(
+        firestore()
+          .collection(ORDERS_COLLECTION)
+          .where("restaurantId", ">=", "google-")
+          .where("restaurantId", "<", "google-￿"),
         fallbackOrders,
         onData,
         onError,

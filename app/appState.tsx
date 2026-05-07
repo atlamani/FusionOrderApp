@@ -44,6 +44,7 @@ type SessionMode =
   | "member"
   | "admin"
   | "restaurant"
+  | "googleAggregator"
   | "driver";
 type AdminOrderStatus =
   | "Pending"
@@ -178,6 +179,7 @@ type StaffClaims = {
   admin?: unknown;
   restaurantId?: unknown;
   driverId?: unknown;
+  googleAggregator?: unknown;
 };
 
 function isPermissionDenied(error: unknown) {
@@ -196,10 +198,18 @@ function isDemoSeedingEnabled() {
 function resolveStaffSessionFromClaims(claims: StaffClaims):
   | { mode: "admin" }
   | { mode: "restaurant"; restaurantId: string }
+  | { mode: "googleAggregator" }
   | { mode: "driver"; driverId: string }
   | { mode: "member" } {
   if (claims.admin === true) {
     return { mode: "admin" };
+  }
+
+  // The Google aggregator role fulfills orders against any restaurant
+  // discovered via the Google Places API. One staff account can see and
+  // progress orders for every Google-sourced restaurant.
+  if (claims.googleAggregator === true) {
+    return { mode: "googleAggregator" };
   }
 
   if (

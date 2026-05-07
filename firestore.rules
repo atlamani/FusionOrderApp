@@ -21,8 +21,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.driverId is string;
     }
 
+    function isGoogleAggregator() {
+      return isSignedIn() && request.auth.token.googleAggregator == true;
+    }
+
     function isStaff() {
-      return isAdmin() || isRestaurantStaff() || isDriverStaff();
+      return isAdmin() ||
+        isRestaurantStaff() ||
+        isDriverStaff() ||
+        isGoogleAggregator();
     }
 
     function isRestaurantOwner(restaurantId) {
@@ -53,6 +60,13 @@ service cloud.firestore {
         data.driverId == request.auth.token.driverId;
     }
 
+    function googleAggregatorOwnsOrder(data) {
+      return isGoogleAggregator() &&
+        ("restaurantId" in data) &&
+        data.restaurantId is string &&
+        data.restaurantId.matches("^google-.*");
+    }
+
     function orderIsReadyForDriver(data) {
       return (
         (("status" in data) && data.status in ["ready", "Ready for Driver"]) ||
@@ -77,6 +91,7 @@ service cloud.firestore {
       return isAdmin() ||
         ownsOrder(data) ||
         restaurantOwnsOrder(data) ||
+        googleAggregatorOwnsOrder(data) ||
         driverOwnsOrder(data) ||
         driverCanReadAvailableOrder(data);
     }
@@ -124,6 +139,22 @@ service cloud.firestore {
 
     function isRestaurantOrderStatusUpdate() {
       return restaurantOwnsOrder(resource.data) &&
+        request.resource.data.restaurantId == resource.data.restaurantId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "adminStatus",
+          "eta",
+          "updatedAt"
+        ]) &&
+        request.resource.data.status in ["preparing", "ready"] &&
+        request.resource.data.adminStatus in ["Preparing", "Ready for Driver"];
+    }
+
+    // The Google aggregator can transition orders Preparing / Ready for any
+    // Google-sourced restaurant. Same shape as the restaurant rule above
+    // but scoped to google-* restaurantIds.
+    function isGoogleAggregatorOrderStatusUpdate() {
+      return googleAggregatorOwnsOrder(resource.data) &&
         request.resource.data.restaurantId == resource.data.restaurantId &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "status",
@@ -230,6 +261,7 @@ service cloud.firestore {
       allow update: if isAdmin() ||
         isCustomerIssueReport() ||
         isRestaurantOrderStatusUpdate() ||
+        isGoogleAggregatorOrderStatusUpdate() ||
         isDriverOrderUpdate();
       allow delete: if false;
     }
@@ -241,6 +273,7 @@ service cloud.firestore {
       allow update: if isAdmin() ||
         isCustomerIssueReport() ||
         isRestaurantOrderStatusUpdate() ||
+        isGoogleAggregatorOrderStatusUpdate() ||
         isDriverOrderUpdate();
       allow delete: if false;
     }

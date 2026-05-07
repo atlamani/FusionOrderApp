@@ -5,6 +5,10 @@
       "role": "manager"
     },
     {
+      "email": "google@fusionyum.com",
+      "role": "googleAggregator"
+    },
+    {
       "email": "nypizzaplace@fusionyum.com",
       "role": "restaurant",
       "restaurantId": "featured-1"

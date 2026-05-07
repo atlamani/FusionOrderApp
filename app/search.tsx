@@ -24,10 +24,6 @@ import {
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
 import { getSafeHeaderTopPadding } from "./safeHeaderLayout";
-import {
-  BROWSE_ONLY_BADGE,
-  isOrderableRestaurant,
-} from "./services/restaurantOrdering";
 import { colors, spacing, typography } from "./theme";
 
 const ratingFilters = [
@@ -370,16 +366,7 @@ export default function SearchScreen() {
                 }}
               >
                 <View style={styles.resultCopy}>
-                  <View style={styles.resultNameRow}>
-                    <Text style={styles.resultName}>{restaurant.name}</Text>
-                    {!isOrderableRestaurant(restaurant) ? (
-                      <View style={styles.resultViewOnlyChip}>
-                        <Text style={styles.resultViewOnlyText}>
-                          {BROWSE_ONLY_BADGE}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
+                  <Text style={styles.resultName}>{restaurant.name}</Text>
                   <Text style={styles.resultMeta}>
                     {restaurant.cuisine} | {restaurant.distance} | {restaurant.price}
                   </Text>
@@ -799,30 +786,10 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
-  resultNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
   resultName: {
     fontFamily: typography.display,
     fontSize: 18,
     color: colors.primary,
-  },
-  resultViewOnlyChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "rgba(176,116,28,0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(176,116,28,0.4)",
-  },
-  resultViewOnlyText: {
-    fontFamily: typography.display,
-    fontSize: 10,
-    color: "#B0741C",
-    letterSpacing: 0.4,
   },
   resultMeta: {
     fontFamily: typography.body,

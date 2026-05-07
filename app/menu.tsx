@@ -22,10 +22,6 @@ import {
 import { goBackOrReplace } from "./navigation";
 import { getSafeHeaderTopPadding } from "./safeHeaderLayout";
 import { useAddToCart } from "./services/useAddToCart";
-import {
-  BROWSE_ONLY_EXPLANATION,
-  isOrderableRestaurant,
-} from "./services/restaurantOrdering";
 import { colors, spacing, typography } from "./theme";
 
 export default function MenuScreen() {
@@ -59,7 +55,6 @@ export default function MenuScreen() {
       ? getCartSubtotal(cartItems) + checkoutPricing.deliveryFee
       : 0;
   const isFavorite = favoriteIds.includes(restaurant.id);
-  const orderable = isOrderableRestaurant(restaurant);
   const restaurantMenuSections = useMemo(
     () =>
       getRestaurantMenuSections(restaurant.id)
@@ -145,20 +140,6 @@ export default function MenuScreen() {
           </View>
         </FadeInView>
 
-        {!orderable ? (
-          <FadeInView delay={130} style={styles.browseOnlyBanner}>
-            <View style={styles.browseOnlyIcon}>
-              <Feather name="info" size={16} color={colors.background} />
-            </View>
-            <View style={styles.browseOnlyCopy}>
-              <Text style={styles.browseOnlyTitle}>View only</Text>
-              <Text style={styles.browseOnlyText}>
-                {BROWSE_ONLY_EXPLANATION}
-              </Text>
-            </View>
-          </FadeInView>
-        ) : null}
-
         <FadeInView delay={150} style={styles.card}>
           <Text style={styles.cardTitle}>Popular here</Text>
           <View style={styles.popularList}>
@@ -202,11 +183,7 @@ export default function MenuScreen() {
                     <Text style={styles.menuPrice}>{item.price}</Text>
                   </View>
 
-                  {!orderable ? (
-                    <View style={styles.viewOnlyPill}>
-                      <Text style={styles.viewOnlyPillText}>View only</Text>
-                    </View>
-                  ) : itemQuantity > 0 ? (
+                  {itemQuantity > 0 ? (
                     <View style={styles.stepper}>
                       <Pressable
                         style={styles.stepperButton}
@@ -518,53 +495,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 12,
     color: colors.background,
-  },
-  viewOnlyPill: {
-    minWidth: 76,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 12,
-  },
-  viewOnlyPillText: {
-    fontFamily: typography.display,
-    fontSize: 11,
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-  },
-  browseOnlyBanner: {
-    flexDirection: "row",
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: "#FFF4E6",
-    borderWidth: 1,
-    borderColor: "#F5D7A4",
-  },
-  browseOnlyIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.warning,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  browseOnlyCopy: { flex: 1, gap: 2 },
-  browseOnlyTitle: {
-    fontFamily: typography.display,
-    fontSize: 14,
-    color: colors.warning,
-    letterSpacing: 0.5,
-  },
-  browseOnlyText: {
-    fontFamily: typography.body,
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.text,
   },
   stepper: {
     minWidth: 104,

@@ -20,6 +20,7 @@ These accounts have Firebase custom claims set up in `tools/staff-claims.example
 | Role | Email | Restaurant ID |
 |------|-------|--------------|
 | Manager (Admin) | `manager@fusionyum.com` | — |
+| **Google Aggregator** | `google@fusionyum.com` | — (catches every Google Places order) |
 | Restaurant (Pizza) | `nypizzaplace@fusionyum.com` | `featured-1` |
 | Restaurant (Tacos) | `tacosnumero1@fusionyum.com` | `featured-2` |
 | Restaurant (Greek) | `pillarsofathens@fusionyum.com` | `featured-3` |
@@ -74,12 +75,25 @@ This walkthrough hits every documented feature in roughly 8 minutes.
 
 ### Part 2: Restaurant Side (1.5 min)
 
+#### Partner restaurant flow (mock / seed restaurants)
+
 1. **Sign out**, sign in as the matching restaurant account (e.g. `tacosnumero1@fusionyum.com`)
 2. **Restaurant Dashboard** → **Kitchen Queue**
 3. The new order appears at the top with status **Pending**
 4. Tap **Start Prep** → status moves to **Preparing**
 5. Tap **Mark Ready** → status moves to **Ready for Driver**
 6. Notice: the restaurant only sees orders for its own `restaurantId`. Other restaurants' orders are hidden by Firestore rules.
+
+#### Google Places restaurant flow (catch-all aggregator)
+
+When a customer orders from a restaurant discovered via the Google Places API, no per-restaurant staff account exists. Instead, **one** aggregator account fulfills all of those orders.
+
+1. Place an order against a Google Places result (any restaurant card without a featured/seed badge)
+2. **Sign out**, sign in as `google@fusionyum.com`
+3. **Restaurant Dashboard** → **Google Queue** (header changes from "Kitchen Queue" to "Google Queue")
+4. A green info banner explains "Showing every order placed against a restaurant discovered via Google Places."
+5. Each order card shows the originating Google restaurant's name above the customer's name
+6. Same status progression buttons (**Start Prep** → **Mark Ready**) work the same way
 
 ### Part 3: Driver Side (1 min)
 

@@ -45,6 +45,13 @@ export default function StaffAccessGate({
     return <>{children}</>;
   }
 
+  // The Google aggregator role fulfills orders for any Google-sourced
+  // restaurant, so it should pass any "restaurant" gate the same way a
+  // partner restaurant login does.
+  if (role === "restaurant" && sessionMode === "googleAggregator") {
+    return <>{children}</>;
+  }
+
   const copy = roleCopy[role];
 
   const handleLoginPress = () => {

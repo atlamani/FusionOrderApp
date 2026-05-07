@@ -37,6 +37,7 @@ const restaurantEmail = readArg("restaurant-email", process.env.RESTAURANT_EMAIL
 const restaurantId = readArg("restaurant-id", process.env.RESTAURANT_ID);
 const driverEmail = readArg("driver-email", process.env.DRIVER_EMAIL);
 const driverId = readArg("driver-id", process.env.DRIVER_ID);
+const googleEmail = readArg("google-email", process.env.GOOGLE_AGGREGATOR_EMAIL);
 
 const serviceAccount = require(resolveLocalPath(requireValue("key", serviceAccountPath)));
 
@@ -54,6 +55,10 @@ function normalizeClaims(entry) {
       return { admin: true };
     }
 
+    if (entry.claims.googleAggregator === true) {
+      return { googleAggregator: true };
+    }
+
     if (typeof entry.claims.restaurantId === "string" && entry.claims.restaurantId.trim()) {
       return { restaurantId: entry.claims.restaurantId.trim() };
     }
@@ -65,6 +70,10 @@ function normalizeClaims(entry) {
 
   if (entry.role === "manager" || entry.role === "admin") {
     return { admin: true };
+  }
+
+  if (entry.role === "googleAggregator" || entry.role === "google") {
+    return { googleAggregator: true };
   }
 
   if (entry.role === "restaurant") {
@@ -114,6 +123,13 @@ function readArgumentAssignments() {
     assignments.push({
       email: normalizeEmail(driverEmail),
       claims: { driverId: requireValue("driver-id", driverId).trim() },
+    });
+  }
+
+  if (googleEmail) {
+    assignments.push({
+      email: normalizeEmail(googleEmail),
+      claims: { googleAggregator: true },
     });
   }
 
