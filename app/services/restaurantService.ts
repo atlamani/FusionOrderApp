@@ -606,3 +606,103 @@ export async function loadRestaurantDiscovery(
     );
   }
 }
+
+export type PlaceAutocompleteSuggestion = {
+  placeId: string;
+  primaryText: string;
+  secondaryText: string;
+};
+
+/**
+ * Hits Google Places Autocomplete (New v1) for live, location-aware
+ * suggestions while the customer is still typing. Returns up to five
+ * restaurant predictions biased to the supplied location. Throws when
+ * the API key is missing or the request fails so callers can fall back
+ * to local suggestions.
+ */
+export async function fetchPlaceAutocomplete({
+  query,
+  location,
+  radiusMeters = 5000,
+}: {
+  query: string;
+  location?: LatLng;
+  radiusMeters?: number;
+}): Promise<PlaceAutocompleteSuggestion[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) {
+    return [];
+  }
+  const apiKey = getGooglePlacesApiKey();
+  if (!apiKey) {
+    return [];
+  }
+
+  const body: Record<string, unknown> = {
+    input: trimmed,
+    includedPrimaryTypes: ["restaurant"],
+  };
+  if (location) {
+    body.locationBias = {
+      circle: {
+        // Strip any extra fields the caller may carry (label, radius, etc.) —
+        // Google rejects the request if `center` has unknown keys.
+        center: {
+          latitude: location.latitude,
+          longitude: location.longitude,
+        },
+        radius: radiusMeters,
+      },
+    };
+  }
+
+  const response = await fetch(
+    "https://places.googleapis.com/v1/places:autocomplete",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(
+      `Google Places autocomplete failed with ${response.status}: ${errorBody}`,
+    );
+  }
+
+  const data = (await response.json()) as {
+    suggestions?: {
+      placePrediction?: {
+        placeId?: string;
+        text?: { text?: string };
+        structuredFormat?: {
+          mainText?: { text?: string };
+          secondaryText?: { text?: string };
+        };
+      };
+    }[];
+  };
+
+  return (data.suggestions ?? [])
+    .map((s): PlaceAutocompleteSuggestion | null => {
+      const prediction = s.placePrediction;
+      if (!prediction?.placeId) return null;
+      const primary =
+        prediction.structuredFormat?.mainText?.text?.trim() ||
+        prediction.text?.text?.trim();
+      if (!primary) return null;
+      return {
+        placeId: prediction.placeId,
+        primaryText: primary,
+        secondaryText:
+          prediction.structuredFormat?.secondaryText?.text?.trim() ?? "",
+      };
+    })
+    .filter((entry): entry is PlaceAutocompleteSuggestion => Boolean(entry))
+    .slice(0, 5);
+}

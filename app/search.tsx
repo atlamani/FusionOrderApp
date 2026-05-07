@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import {
+  campusLocation,
   cuisineTags,
   dietaryFilters,
   priceFilters,
@@ -24,6 +25,10 @@ import {
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
 import { getSafeHeaderTopPadding } from "./safeHeaderLayout";
+import {
+  fetchPlaceAutocomplete,
+  type PlaceAutocompleteSuggestion,
+} from "./services/restaurantService";
 import { colors, spacing, typography } from "./theme";
 
 const ratingFilters = [
@@ -159,6 +164,124 @@ export default function SearchScreen() {
     refreshRestaurants,
   } = useAppState();
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [autocompleteFocused, setAutocompleteFocused] = useState(false);
+  const [placeSuggestions, setPlaceSuggestions] = useState<
+    PlaceAutocompleteSuggestion[]
+  >([]);
+
+  // Debounced Google Places Autocomplete request. Fires ~300 ms after the
+  // last keystroke so we don't burn a quota character per keystroke. Bails
+  // out below 2 chars and silently falls back to local suggestions on
+  // failure (missing API key, offline, etc.).
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      setPlaceSuggestions([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const results = await fetchPlaceAutocomplete({
+          query: trimmed,
+          location: campusLocation,
+          radiusMeters: campusLocation.radiusMeters,
+        });
+        if (!cancelled) {
+          setPlaceSuggestions(results);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPlaceSuggestions([]);
+        }
+        console.warn("Place autocomplete failed; using local suggestions only.", error);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  const autocompleteSuggestions = useMemo(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      return [] as {
+        id: string;
+        label: string;
+        secondary?: string;
+        type: "restaurant" | "cuisine" | "dish" | "recent" | "place";
+      }[];
+    }
+    const normalized = query.toLowerCase();
+    const seen = new Set<string>();
+    const out: {
+      id: string;
+      label: string;
+      secondary?: string;
+      type: "restaurant" | "cuisine" | "dish" | "recent" | "place";
+      rank: number;
+    }[] = [];
+
+    const consider = (
+      label: string,
+      type: "restaurant" | "cuisine" | "dish" | "recent" | "place",
+      extra: { rank?: number; secondary?: string } = {},
+    ) => {
+      const trimmedLabel = label.trim();
+      if (!trimmedLabel) return;
+      const key = `${type}:${trimmedLabel.toLowerCase()}`;
+      if (seen.has(key)) return;
+      const lower = trimmedLabel.toLowerCase();
+      // Live Google Places predictions don't need to substring-match the
+      // typed query — the API already did fuzzy matching for us.
+      if (type !== "place" && !lower.includes(normalized)) return;
+      const prefix = lower.startsWith(normalized) ? 0 : 10;
+      const typeRank =
+        type === "place"
+          ? 0
+          : type === "recent"
+            ? 1
+            : type === "restaurant"
+              ? 2
+              : type === "cuisine"
+                ? 3
+                : 4;
+      seen.add(key);
+      out.push({
+        id: key,
+        label: trimmedLabel,
+        secondary: extra.secondary,
+        type,
+        rank: extra.rank ?? prefix + typeRank,
+      });
+    };
+
+    // Live Places API suggestions sit at the top — they're the freshest
+    // and most location-relevant.
+    placeSuggestions.forEach((place, index) => {
+      consider(place.primaryText, "place", {
+        rank: index, // preserve API-given order
+        secondary: place.secondaryText,
+      });
+    });
+
+    recentSearches.forEach((entry) => consider(entry, "recent"));
+    restaurants.forEach((restaurant) => {
+      consider(restaurant.name, "restaurant");
+      consider(restaurant.cuisine, "cuisine");
+      restaurant.popularDishes.forEach((dish) => consider(dish, "dish"));
+    });
+    cuisineTags.forEach((tag) => consider(tag.label, "cuisine"));
+
+    return out
+      .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label))
+      .slice(0, 7)
+      .map(({ id, label, secondary, type }) => ({ id, label, secondary, type }));
+  }, [cuisineTags, placeSuggestions, recentSearches, restaurants, searchQuery]);
+
+  const showAutocomplete =
+    autocompleteFocused && autocompleteSuggestions.length > 0;
 
   const filteredResults = useMemo(() => {
     const query = searchQuery.trim();
@@ -294,6 +417,11 @@ export default function SearchScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               onSubmitEditing={() => handleSubmitSearch()}
+              onFocus={() => setAutocompleteFocused(true)}
+              onBlur={() => {
+                // Delay so the press on a suggestion still registers.
+                setTimeout(() => setAutocompleteFocused(false), 120);
+              }}
               returnKeyType="search"
             />
             {searchQuery.trim().length > 0 ? (
@@ -333,6 +461,57 @@ export default function SearchScreen() {
               <Feather name="arrow-right" size={16} color={colors.background} />
             </Pressable>
           </View>
+          {showAutocomplete ? (
+            <View style={styles.autocompleteList}>
+              {autocompleteSuggestions.map((suggestion) => (
+                <Pressable
+                  key={suggestion.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Search ${suggestion.label}`}
+                  style={({ pressed }) => [
+                    styles.autocompleteRow,
+                    pressed && styles.autocompleteRowPressed,
+                  ]}
+                  onPress={() => {
+                    setAutocompleteFocused(false);
+                    handleSubmitSearch(suggestion.label);
+                  }}
+                >
+                  <Feather
+                    name={
+                      suggestion.type === "place"
+                        ? "map-pin"
+                        : suggestion.type === "recent"
+                          ? "clock"
+                          : suggestion.type === "restaurant"
+                            ? "shopping-bag"
+                            : suggestion.type === "cuisine"
+                              ? "tag"
+                              : "coffee"
+                    }
+                    size={14}
+                    color={colors.background}
+                  />
+                  <View style={styles.autocompleteCopy}>
+                    <Text style={styles.autocompleteLabel} numberOfLines={1}>
+                      {suggestion.label}
+                    </Text>
+                    {suggestion.secondary ? (
+                      <Text
+                        style={styles.autocompleteSecondary}
+                        numberOfLines={1}
+                      >
+                        {suggestion.secondary}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.autocompleteType}>
+                    {suggestion.type === "place" ? "live" : suggestion.type}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <Text style={styles.helperText}>
             {restaurantDataLoading ? "Refreshing nearby restaurants..." : restaurantDataMessage}
           </Text>
@@ -758,6 +937,44 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(236, 227, 206, 0.18)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  autocompleteList: {
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: colors.primary,
+  },
+  autocompleteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(236, 227, 206, 0.12)",
+  },
+  autocompleteRowPressed: {
+    backgroundColor: "rgba(236, 227, 206, 0.12)",
+  },
+  autocompleteCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  autocompleteLabel: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.background,
+  },
+  autocompleteSecondary: {
+    fontFamily: typography.body,
+    fontSize: 11,
+    color: "rgba(236, 227, 206, 0.66)",
+  },
+  autocompleteType: {
+    fontFamily: typography.display,
+    fontSize: 10,
+    color: "rgba(236, 227, 206, 0.66)",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   helperText: {
     fontFamily: typography.body,
