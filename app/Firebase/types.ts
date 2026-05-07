@@ -24,6 +24,11 @@ export interface UserProfile {
    * screen. Capped at 6 entries.
    */
   savedSearches?: string[];
+  /**
+   * Restaurant IDs the user has hearted on any restaurant card or
+   * detail page. Persisted so favorites survive sign-out / reload.
+   */
+  favoriteRestaurantIds?: string[];
   rewardsPoints?: number;
   rewardsTier?: string;
   createdAt?: FirebaseFirestoreTypes.FieldValue | Date | string | null;

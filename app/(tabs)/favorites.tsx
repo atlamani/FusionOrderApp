@@ -4,7 +4,11 @@ import React from "react";
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "../FadeInView";
-import { favoriteSpots, type Restaurant } from "../appData";
+import {
+  allRestaurants,
+  favoriteSpots,
+  type Restaurant,
+} from "../appData";
 import { useAppState } from "../appState";
 import { getSafeContentTopPadding } from "../safeHeaderLayout";
 import { colors, spacing, typography } from "../theme";
@@ -21,13 +25,16 @@ export default function FavoritesScreen() {
   const headerTopPadding = getSafeContentTopPadding(insets.top);
   const { favoriteIds, restaurants, setSelectedRestaurant, toggleFavorite } =
     useAppState();
-  const restaurantLookup = restaurants.reduce<Record<string, Restaurant>>(
-    (accumulator, restaurant) => {
-      accumulator[restaurant.id] = restaurant;
-      return accumulator;
-    },
-    {},
-  );
+  // Merge the live discovery list with the seed/partner catalog so a
+  // favorite still resolves even when the current discovery query
+  // returned a different set (e.g. user moved location, search refreshed
+  // with Google Places results that don't include featured/nearby IDs).
+  const restaurantLookup = [...allRestaurants, ...restaurants].reduce<
+    Record<string, Restaurant>
+  >((accumulator, restaurant) => {
+    accumulator[restaurant.id] = restaurant;
+    return accumulator;
+  }, {});
   const visibleFavorites = favoriteIds
     .map((restaurantId) => restaurantLookup[restaurantId])
     .filter((restaurant): restaurant is Restaurant => Boolean(restaurant));

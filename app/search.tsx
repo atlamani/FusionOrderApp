@@ -296,6 +296,33 @@ export default function SearchScreen() {
               onSubmitEditing={() => handleSubmitSearch()}
               returnKeyType="search"
             />
+            {searchQuery.trim().length > 0 ? (
+              <Pressable
+                accessibilityLabel={
+                  savedSearches.includes(searchQuery.trim())
+                    ? "Remove search from saved searches"
+                    : "Save current search"
+                }
+                accessibilityRole="button"
+                accessibilityState={{
+                  selected: savedSearches.includes(searchQuery.trim()),
+                }}
+                hitSlop={10}
+                style={styles.bookmarkButton}
+                onPress={() => toggleSavedSearch(searchQuery.trim())}
+              >
+                <Feather
+                  name="bookmark"
+                  size={16}
+                  color={colors.background}
+                  fill={
+                    savedSearches.includes(searchQuery.trim())
+                      ? colors.background
+                      : "transparent"
+                  }
+                />
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityLabel="Search restaurants"
               accessibilityRole="button"
@@ -356,30 +383,6 @@ export default function SearchScreen() {
                   {favoritesOnly ? "Favorites" : "Favorites only"}
                 </Text>
               </Pressable>
-              {searchQuery.trim().length > 0 ? (
-                <Pressable
-                  accessibilityLabel={
-                    savedSearches.includes(searchQuery.trim())
-                      ? "Remove search from saved searches"
-                      : "Save current search"
-                  }
-                  accessibilityRole="button"
-                  hitSlop={8}
-                  style={styles.saveQueryButton}
-                  onPress={() => toggleSavedSearch(searchQuery.trim())}
-                >
-                  <Feather
-                    name="bookmark"
-                    size={14}
-                    color={colors.background}
-                  />
-                  <Text style={styles.saveQueryText}>
-                    {savedSearches.includes(searchQuery.trim())
-                      ? "Saved"
-                      : "Save Search"}
-                  </Text>
-                </Pressable>
-              ) : null}
             </View>
           </View>
           <View style={styles.resultsList}>
@@ -745,6 +748,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: colors.surfaceDeep,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bookmarkButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(236, 227, 206, 0.18)",
     justifyContent: "center",
     alignItems: "center",
   },

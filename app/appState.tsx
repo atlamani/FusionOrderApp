@@ -1159,6 +1159,9 @@ export function AppStateProvider({
             if (Array.isArray(firestoreProfile.savedSearches)) {
               setSavedSearches(firestoreProfile.savedSearches);
             }
+            if (Array.isArray(firestoreProfile.favoriteRestaurantIds)) {
+              setFavoriteIds(firestoreProfile.favoriteRestaurantIds);
+            }
           } else {
             const resolvedFullName = resolveProfileName(
               user.displayName,
@@ -1210,6 +1213,7 @@ export function AppStateProvider({
         setSavedLocationOptions([]);
         setRecentSearches(defaultRecentSearches);
         setSavedSearches(defaultSavedSearches);
+        setFavoriteIds(defaultFavoriteRestaurantIds);
       }
     });
 
@@ -1360,11 +1364,19 @@ export function AppStateProvider({
         setCartItems((current) => current.filter((item) => item.id !== itemId)),
       clearCart: () => setCartItems([]),
       toggleFavorite: (restaurantId: string) =>
-        setFavoriteIds((current) =>
-          current.includes(restaurantId)
+        setFavoriteIds((current) => {
+          const next = current.includes(restaurantId)
             ? current.filter((id) => id !== restaurantId)
-            : [...current, restaurantId],
-        ),
+            : [...current, restaurantId];
+          if (currentUser) {
+            void saveUserProfile(currentUser.uid, {
+              favoriteRestaurantIds: next,
+            }).catch((error) => {
+              console.error("Error persisting favorite restaurants:", error);
+            });
+          }
+          return next;
+        }),
       toggleSavedCardsExpanded: () =>
         setSavedCardsExpanded((current) => !current),
       selectCard: (cardId: PaymentCardId) => setSelectedCardId(cardId),
