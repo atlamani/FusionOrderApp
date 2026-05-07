@@ -86,7 +86,21 @@ export async function processCheckout(orderData: {
 
     return orderId;
   } catch (error) {
-    console.error("Checkout error:", error);
+    const code = (error as { code?: string } | undefined)?.code;
+    const message =
+      error instanceof Error ? error.message : String(error ?? "unknown");
+    if (code === "firestore/permission-denied") {
+      console.error(
+        "[checkout] Firestore rejected the order create. The most likely " +
+          "causes are: (1) firestore.rules has not been deployed " +
+          "(npx firebase deploy --only firestore:rules), or (2) the order " +
+          "payload includes a field that isn't in the isCustomerOrderCreate " +
+          "allowlist. Original error:",
+        message,
+      );
+    } else {
+      console.error("Checkout error:", code ?? "(no code)", message);
+    }
     throw error;
   }
 }

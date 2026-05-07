@@ -570,7 +570,17 @@ function subscribeToOrdersQuery(
     },
     (error) => {
       onData(fallbackOrders);
-      if (!isPermissionDenied(error)) {
+      if (isPermissionDenied(error)) {
+        // Surface the silent failure so devs can spot a missing custom
+        // claim or undeployed Firestore rules instead of seeing seed
+        // orders forever. The UI still falls back so demos keep working.
+        console.warn(
+          "[admin] Order subscription denied by Firestore rules. " +
+            "Confirm the signed-in account has the admin / restaurantId / " +
+            "googleAggregator / driverId custom claim set, and that " +
+            "firestore.rules has been deployed (firebase deploy --only firestore:rules).",
+        );
+      } else {
         onError?.(error);
       }
     },
