@@ -10,17 +10,32 @@ import React, {
 import { onAuthStateChanged, signOutUser } from "./Firebase/auth";
 import { getUserProfile, saveUserProfile } from "./Firebase/firestore";
 import {
-  allRestaurants,
+  allRestaurants as fallbackAllRestaurants,
   adminFeedback as initialAdminFeedback,
   adminOrders as initialAdminOrders,
   adminRestaurants as initialAdminRestaurants,
-  currentOrder as initialCurrentOrder,
+  campusLocation,
+  checkoutPricing,
+  defaultFavoriteRestaurantIds,
+  defaultRecentSearches,
+  defaultSavedSearches,
+  defaultSelectedDriverId,
+  defaultSelectedPartnerRestaurantId,
   driverProfiles as initialDriverProfiles,
   menuByRestaurantId,
   orderHistory as initialOrderHistory,
-  savedAddresses,
+  unassignedDriverLabel,
   type MenuItem,
+  type Restaurant,
 } from "./appData";
+import {
+  loadRestaurantDiscovery,
+  searchNearbyRestaurants,
+  searchRestaurantCatalog,
+  type RestaurantDiscoveryResult,
+  type RestaurantSearchFilters,
+} from "./services/restaurantService";
+import { generateCuisineMenu } from "./services/cuisineMenus";
 
 type PaymentCardId = "visa" | "mastercard" | "amex";
 type SessionMode =
@@ -157,11 +172,49 @@ type DiscoveryFilters = {
   maxDistanceMi: number | null;
 };
 
+type StaffClaims = {
+  admin?: unknown;
+  restaurantId?: unknown;
+  driverId?: unknown;
+};
+
 function isPermissionDenied(error: unknown) {
   return (
     (error as { code?: string } | undefined)?.code ===
     "firestore/permission-denied"
   );
+}
+
+function isDemoSeedingEnabled() {
+  return (
+    __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEMO_SEEDING === "true"
+  );
+}
+
+function resolveStaffSessionFromClaims(claims: StaffClaims):
+  | { mode: "admin" }
+  | { mode: "restaurant"; restaurantId: string }
+  | { mode: "driver"; driverId: string }
+  | { mode: "member" } {
+  if (claims.admin === true) {
+    return { mode: "admin" };
+  }
+
+  if (
+    typeof claims.restaurantId === "string" &&
+    claims.restaurantId.trim().length > 0
+  ) {
+    return { mode: "restaurant", restaurantId: claims.restaurantId.trim() };
+  }
+
+  if (
+    typeof claims.driverId === "string" &&
+    claims.driverId.trim().length > 0
+  ) {
+    return { mode: "driver", driverId: claims.driverId.trim() };
+  }
+
+  return { mode: "member" };
 }
 
 export function getLiveMenuSections(
@@ -197,7 +250,7 @@ function buildCustomerStatuses(status: AdminOrderStatus, driverName?: string) {
       : "Restaurant is preparing your order";
   const deliveryDetail =
     status === "Out for Delivery"
-      ? `${driverName && driverName !== "Unassigned" ? driverName : "Your driver"} is on the way`
+      ? `${driverName && driverName !== unassignedDriverLabel ? driverName : "Your driver"} is on the way`
       : "Driver assignment is pending";
   const deliveredDetail =
     status === "Completed"
@@ -254,6 +307,12 @@ type AppStateValue = {
   savedSearches: string[];
   discoveryFilters: DiscoveryFilters;
   currentOrder: CustomerOrder | null;
+  restaurants: Restaurant[];
+  featuredRestaurants: Restaurant[];
+  nearbyRestaurants: Restaurant[];
+  restaurantDataSource: RestaurantDiscoveryResult["source"];
+  restaurantDataMessage: string;
+  restaurantDataLoading: boolean;
   orderHistory: typeof initialOrderHistory;
   adminOrders: typeof initialAdminOrders;
   adminRestaurants: typeof initialAdminRestaurants;
@@ -262,13 +321,22 @@ type AppStateValue = {
   getRestaurantMenuSections: (restaurantId: string) => LiveMenuSection[];
   addToCart: () => void;
   decreaseCart: () => void;
-  addMenuItem: (item: {
-    id: string;
-    name: string;
-    price: string;
-    restaurantId?: string;
-    restaurantName?: string;
-  }) => void;
+  /**
+   * Adds a menu item to the cart. If the cart already holds items from a
+   * different restaurant, returns `{ status: "conflict" }` and leaves the
+   * cart untouched so the UI can prompt the user. Pass `{ replaceCart: true }`
+   * after confirming with the user to clear the existing cart and add.
+   */
+  addMenuItem: (
+    item: {
+      id: string;
+      name: string;
+      price: string;
+      restaurantId?: string;
+      restaurantName?: string;
+    },
+    options?: { replaceCart?: boolean },
+  ) => { status: "added" | "conflict"; currentRestaurantName?: string };
   decreaseMenuItem: (itemId: string) => void;
   removeCartItem: (itemId: string) => void;
   clearCart: () => void;
@@ -285,6 +353,16 @@ type AppStateValue = {
   logout: () => void;
   updateProfile: (patch: Partial<UserProfile>) => void;
   updateAddress: (address: string, deliveryNote?: string) => void;
+  /**
+   * Adds an address to the user's saved-address list (deduplicated).
+   * Persists to Firestore for signed-in users.
+   */
+  addSavedAddress: (address: string) => Promise<void>;
+  /**
+   * Removes an address from the user's saved list. If the removed address
+   * is the active one, the active address is cleared.
+   */
+  removeSavedAddress: (address: string) => Promise<void>;
   toggleSetting: (key: keyof AppSettings) => void;
   reorderFromHistory: (orderId: string) => void;
   joinRewards: (email: string) => void;
@@ -297,6 +375,11 @@ type AppStateValue = {
   toggleSavedSearch: (value: string) => void;
   applyDiscoveryFilters: (patch: Partial<DiscoveryFilters>) => void;
   resetDiscoveryFilters: () => void;
+  refreshRestaurants: (keyword?: string) => Promise<void>;
+  searchRestaurants: (
+    keyword: string,
+    filters?: RestaurantSearchFilters,
+  ) => Promise<Restaurant[]>;
   placeOrder: () => Promise<string | null>;
   updateAdminOrderStatus: (
     orderId: string,
@@ -335,13 +418,13 @@ type AppStateValue = {
 const AppStateContext = createContext<AppStateValue | null>(null);
 
 const defaultProfile: UserProfile = {
-  fullName: "John Doe",
-  email: "john@fusionyum.com",
-  phone: "(917) 555-0146",
-  address: "1855 Broadway, New York, NY 10023",
-  deliveryNote: "Leave it with the doorman if I am still on a call.",
-  rewardsPoints: 320,
-  rewardsTier: "Gold Member",
+  fullName: "",
+  email: "",
+  phone: "",
+  address: "",
+  deliveryNote: "",
+  rewardsPoints: 0,
+  rewardsTier: "Bronze Member",
 };
 
 const defaultSettings: AppSettings = {
@@ -360,7 +443,20 @@ const defaultFilters: DiscoveryFilters = {
 };
 
 function parsePrice(value: string) {
-  return Number.parseFloat(value.replace("$", ""));
+  return parseCurrencyValue(value);
+}
+
+function parseCurrencyValue(value: string) {
+  const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function findMenuItemByName(name: string) {
+  const normalizedName = name.toLowerCase();
+
+  return Object.values(menuByRestaurantId)
+    .flatMap((sections) => sections.flatMap((section) => section.items))
+    .find((item) => item.name.toLowerCase() === normalizedName);
 }
 
 function normalizeMenuPrice(value: string) {
@@ -393,6 +489,64 @@ function getStaticMenuItem(restaurantId: string, itemId: string) {
   }
 
   return null;
+}
+
+function getDiscoveryMenuPrice(priceTier: string, index: number) {
+  const basePrice =
+    priceTier === "$"
+      ? 8
+      : priceTier === "$$$" || priceTier === "$$$$"
+        ? 18
+        : 13;
+
+  return `$${(basePrice + index * 1.5 + 0.95).toFixed(2)}`;
+}
+
+function buildDiscoveryMenuSections(
+  restaurantId: string,
+  restaurants: Restaurant[],
+): LiveMenuSection[] {
+  const restaurant = restaurants.find((entry) => entry.id === restaurantId);
+  if (!restaurant) {
+    return [];
+  }
+
+  // Google-sourced restaurants don't ship with menus. Generate a cuisine-aware
+  // template so a Mexican spot gets tacos, a pizzeria gets pizzas, etc.
+  if (restaurant.source === "google") {
+    return generateCuisineMenu(restaurantId, restaurant.cuisine).map(
+      (section) => ({
+        id: section.id,
+        title: section.title,
+        items: section.items.map((item) => ({
+          ...item,
+          available: item.available ?? true,
+          category: section.title,
+        })),
+      }),
+    );
+  }
+
+  const dishes =
+    restaurant.popularDishes.length > 0
+      ? restaurant.popularDishes
+      : [`${restaurant.cuisine} favorite`, "Campus combo", "Chef pick"];
+
+  return [
+    {
+      id: `${restaurantId}-discovery-picks`,
+      title: "Popular picks",
+      items: dishes.map((dish, index) => ({
+        id: `${restaurantId}-discovery-${slugifyMenuId(dish) || index}`,
+        name: dish,
+        description: `A popular pick from ${restaurant.name}.`,
+        price: getDiscoveryMenuPrice(restaurant.price, index),
+        available: true,
+        category: "Popular picks",
+        popular: index === 0,
+      })),
+    },
+  ];
 }
 
 function toAdminMenuItem(
@@ -482,7 +636,10 @@ function buildLiveMenuSections(
 }
 
 function formatPlacedAt() {
-  return "Today, 2:30 PM";
+  return `Today, ${new Date().toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
 }
 
 function resolveQuantity(value: number | CartItem[]) {
@@ -549,11 +706,18 @@ function syncOrderHistoryDelivery(
   orderId: string,
   driverName?: string,
 ) {
+  const deliveredAt = new Date().toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
   return current.map((order) =>
     order.id === orderId
       ? {
           ...order,
-          date: driverName ? `Today | Delivered by ${driverName}` : order.date,
+          date: driverName
+            ? `Today at ${deliveredAt} | Delivered by ${driverName}`
+            : `Today at ${deliveredAt} | Delivered`,
           status: "Delivered" as const,
           accent: "#016630",
         }
@@ -602,44 +766,51 @@ export function AppStateProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const defaultRestaurant = allRestaurants[1] ?? allRestaurants[0];
+  const defaultRestaurant =
+    fallbackAllRestaurants[1] ?? fallbackAllRestaurants[0];
+  const [restaurantDiscovery, setRestaurantDiscovery] =
+    useState<RestaurantDiscoveryResult>({
+      restaurants: fallbackAllRestaurants,
+      featured: fallbackAllRestaurants.slice(0, 3),
+      nearby: fallbackAllRestaurants.slice(3),
+      source: "mock",
+      usingFallback: true,
+      message: "Using local mock restaurants while discovery loads.",
+    });
+  const [restaurantDataLoading, setRestaurantDataLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([
-    "featured-1",
-    "featured-2",
-    "nearby-1",
-  ]);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(
+    defaultFavoriteRestaurantIds,
+  );
   const [savedCardsExpanded, setSavedCardsExpanded] = useState(true);
   const [selectedCardId, setSelectedCardId] = useState<PaymentCardId>("visa");
-  const [selectedTip, setSelectedTip] = useState("15%");
-  const [customTip, setCustomTip] = useState("0.00");
+  const [selectedTip, setSelectedTip] = useState(checkoutPricing.defaultTip);
+  const [customTip, setCustomTip] = useState(
+    checkoutPricing.customTipDefault,
+  );
   const [sessionMode, setSessionMode] = useState<SessionMode>("signed-out");
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [joinedRewards, setJoinedRewards] = useState(false);
   const [rewardsEmail, setRewardsEmail] = useState(defaultProfile.email);
-  const [savedLocationOptions] = useState(savedAddresses);
+  const [savedLocationOptions, setSavedLocationOptions] = useState<string[]>([]);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState(
     defaultRestaurant?.id ?? "",
   );
   const [selectedPartnerRestaurantId, setSelectedPartnerRestaurantId] =
-    useState("featured-2");
-  const [selectedDriverId, setSelectedDriverId] = useState("driver-1");
+    useState(defaultSelectedPartnerRestaurantId);
+  const [selectedDriverId, setSelectedDriverId] = useState(
+    defaultSelectedDriverId,
+  );
   const [searchQuery, setSearchQuery] = useState("");
-  const [recentSearches, setRecentSearches] = useState<string[]>([
-    "Tacos",
-    "Dessert delivery",
-    "Healthy bowls",
-  ]);
-  const [savedSearches, setSavedSearches] = useState<string[]>([
-    "Pizza near campus",
-  ]);
+  const [recentSearches, setRecentSearches] =
+    useState<string[]>(defaultRecentSearches);
+  const [savedSearches, setSavedSearches] =
+    useState<string[]>(defaultSavedSearches);
   const [discoveryFilters, setDiscoveryFilters] =
     useState<DiscoveryFilters>(defaultFilters);
-  const [currentOrder, setCurrentOrder] = useState<CustomerOrder | null>(
-    initialCurrentOrder,
-  );
+  const [currentOrder, setCurrentOrder] = useState<CustomerOrder | null>(null);
   const [orderHistory, setOrderHistory] = useState(initialOrderHistory);
   const [adminOrders, setAdminOrders] = useState(initialAdminOrders);
   const [adminRestaurants, setAdminRestaurants] = useState(
@@ -658,10 +829,12 @@ export function AppStateProvider({
           (await import("./Firebase/admin")) as unknown as AdminServiceModule;
         if (isMounted) {
           adminServiceRef.current = module;
-          try {
-            await module.ensureAdminSeedData?.();
-          } catch (error) {
-            console.error("Error seeding admin collections:", error);
+          if (isDemoSeedingEnabled()) {
+            try {
+              await module.ensureAdminSeedData?.();
+            } catch (error) {
+              console.error("Error seeding admin collections:", error);
+            }
           }
         }
       } catch (error) {
@@ -681,6 +854,41 @@ export function AppStateProvider({
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDiscovery = async () => {
+      setRestaurantDataLoading(true);
+      const discovery = await loadRestaurantDiscovery({
+        location: campusLocation,
+        radiusMeters: campusLocation.radiusMeters,
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      setRestaurantDiscovery(discovery);
+      setSelectedRestaurantId((current) =>
+        discovery.restaurants.some((restaurant) => restaurant.id === current)
+          ? current
+          : (discovery.restaurants[0]?.id ?? current),
+      );
+      setRestaurantDataLoading(false);
+    };
+
+    void loadDiscovery();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentUser?.uid,
+    selectedDriverId,
+    selectedPartnerRestaurantId,
+    sessionMode,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -834,7 +1042,24 @@ export function AppStateProvider({
     const unsubscribe = onAuthStateChanged(async (user) => {
       if (user) {
         setCurrentUser(user);
-        setSessionMode("member");
+
+        try {
+          const tokenResult = await user.getIdTokenResult(true);
+          const staffSession = resolveStaffSessionFromClaims(
+            tokenResult.claims as StaffClaims,
+          );
+
+          setSessionMode(staffSession.mode);
+          if (staffSession.mode === "restaurant") {
+            setSelectedPartnerRestaurantId(staffSession.restaurantId);
+          }
+          if (staffSession.mode === "driver") {
+            setSelectedDriverId(staffSession.driverId);
+          }
+        } catch (error) {
+          console.error("Error reading staff authorization claims:", error);
+          setSessionMode("member");
+        }
 
         try {
           const firestoreProfile = await getUserProfile(user.uid);
@@ -842,7 +1067,7 @@ export function AppStateProvider({
             const resolvedFullName = resolveProfileName(
               firestoreProfile.displayName || user.displayName,
               firestoreProfile.email || user.email,
-              defaultProfile.fullName,
+              "FusionYum Member",
             );
 
             setProfile({
@@ -854,11 +1079,12 @@ export function AppStateProvider({
               rewardsPoints: firestoreProfile.rewardsPoints || 0,
               rewardsTier: firestoreProfile.rewardsTier || "Bronze Member",
             });
+            setSavedLocationOptions(firestoreProfile.savedAddresses ?? []);
           } else {
             const resolvedFullName = resolveProfileName(
               user.displayName,
               user.email,
-              defaultProfile.fullName,
+              "FusionYum Member",
             );
 
             const newProfile = {
@@ -897,19 +1123,17 @@ export function AppStateProvider({
         }
       } else {
         setCurrentUser(null);
-        if (
-          sessionMode !== "guest" &&
-          sessionMode !== "admin" &&
-          sessionMode !== "restaurant" &&
-          sessionMode !== "driver"
-        ) {
-          setSessionMode("signed-out");
-        }
+        setSessionMode((current) =>
+          current === "guest" ? "guest" : "signed-out",
+        );
+        // Clear personal data so a new sign-in starts clean.
+        setProfile(defaultProfile);
+        setSavedLocationOptions([]);
       }
     });
 
     return unsubscribe;
-  }, [sessionMode]);
+  }, []);
 
   const cartQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -927,6 +1151,12 @@ export function AppStateProvider({
       savedSearches,
       discoveryFilters,
       currentOrder,
+      restaurants: restaurantDiscovery.restaurants,
+      featuredRestaurants: restaurantDiscovery.featured,
+      nearbyRestaurants: restaurantDiscovery.nearby,
+      restaurantDataSource: restaurantDiscovery.source,
+      restaurantDataMessage: restaurantDiscovery.message,
+      restaurantDataLoading,
       orderHistory,
       adminOrders,
       adminRestaurants,
@@ -944,7 +1174,9 @@ export function AppStateProvider({
       savedLocationOptions,
       addToCart: () => {
         const restaurant =
-          allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??
+          restaurantDiscovery.restaurants.find(
+            (entry) => entry.id === selectedRestaurantId,
+          ) ??
           defaultRestaurant;
         setCartItems((current) => {
           const existing = current.find((item) => item.id === "menu-1");
@@ -960,11 +1192,11 @@ export function AppStateProvider({
             ...current,
             {
               id: "menu-1",
-              name: "Tacos Numero 1",
-              price: 12.99,
+              name: restaurant?.popularDishes[0] ?? "Campus favorite",
+              price: parsePrice(getDiscoveryMenuPrice(restaurant?.price ?? "$$", 0)),
               quantity: 1,
-              restaurantId: restaurant?.id ?? "featured-2",
-              restaurantName: restaurant?.name ?? "Taqueria La Mexicana",
+              restaurantId: restaurant?.id ?? defaultRestaurant?.id ?? "",
+              restaurantName: restaurant?.name ?? "FusionYum",
             },
           ];
         });
@@ -979,24 +1211,51 @@ export function AppStateProvider({
             )
             .filter((item) => item.quantity > 0),
         ),
-      addMenuItem: (item) => {
+      addMenuItem: (item, options) => {
         const restaurant =
-          allRestaurants.find((entry) => entry.id === item.restaurantId) ??
-          allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??
+          restaurantDiscovery.restaurants.find(
+            (entry) => entry.id === item.restaurantId,
+          ) ??
+          restaurantDiscovery.restaurants.find(
+            (entry) => entry.id === selectedRestaurantId,
+          ) ??
           defaultRestaurant;
         const restaurantId =
           item.restaurantId ?? restaurant?.id ?? selectedRestaurantId;
         const restaurantName =
           item.restaurantName ?? restaurant?.name ?? "FusionYum";
+
+        // Detect cross-restaurant conflict before any mutation. We only block
+        // when the existing cart actually contains items from a different
+        // restaurant; an empty cart or items from the same restaurant are fine.
+        const conflictingItem = cartItems.find(
+          (cartItem) =>
+            cartItem.restaurantId &&
+            restaurantId &&
+            cartItem.restaurantId !== restaurantId,
+        );
+
+        if (conflictingItem && !options?.replaceCart) {
+          return {
+            status: "conflict",
+            currentRestaurantName: conflictingItem.restaurantName,
+          };
+        }
+
         setCartItems((current) => {
-          const existing = current.find(
+          // If we're replacing the cart, drop everything from the old restaurant.
+          const baseline = options?.replaceCart
+            ? current.filter((cartItem) => cartItem.restaurantId === restaurantId)
+            : current;
+
+          const existing = baseline.find(
             (cartItem) =>
               cartItem.id === item.id &&
               cartItem.restaurantId === restaurantId,
           );
 
           if (existing) {
-            return current.map((cartItem) =>
+            return baseline.map((cartItem) =>
               cartItem.id === item.id &&
               cartItem.restaurantId === existing.restaurantId
                 ? { ...cartItem, quantity: cartItem.quantity + 1 }
@@ -1005,7 +1264,7 @@ export function AppStateProvider({
           }
 
           return [
-            ...current,
+            ...baseline,
             {
               id: item.id,
               name: item.name,
@@ -1016,6 +1275,8 @@ export function AppStateProvider({
             },
           ];
         });
+
+        return { status: "added" };
       },
       decreaseMenuItem: (itemId: string) =>
         setCartItems((current) =>
@@ -1050,7 +1311,7 @@ export function AppStateProvider({
             email: identifier.includes("@") ? identifier : current.email,
             fullName:
               current.fullName === "Guest Explorer"
-                ? defaultProfile.fullName
+                ? "FusionYum Member"
                 : current.fullName,
           }));
           setRewardsEmail(identifier.includes("@") ? identifier : rewardsEmail);
@@ -1077,8 +1338,8 @@ export function AppStateProvider({
         }
         setSessionMode("signed-out");
         setCartItems([]);
-        setSelectedTip("15%");
-        setCustomTip("0.00");
+        setSelectedTip(checkoutPricing.defaultTip);
+        setCustomTip(checkoutPricing.customTipDefault);
         setSavedCardsExpanded(true);
         setSearchQuery("");
       },
@@ -1125,6 +1386,48 @@ export function AppStateProvider({
           }
         }
       },
+      addSavedAddress: async (address: string) => {
+        const trimmed = address.trim();
+        if (!trimmed) return;
+
+        const next = savedLocationOptions.includes(trimmed)
+          ? savedLocationOptions
+          : [...savedLocationOptions, trimmed];
+
+        if (next === savedLocationOptions) return;
+        setSavedLocationOptions(next);
+
+        if (currentUser) {
+          try {
+            await saveUserProfile(currentUser.uid, { savedAddresses: next });
+          } catch (error) {
+            console.error("Error saving address list to Firestore:", error);
+          }
+        }
+      },
+      removeSavedAddress: async (address: string) => {
+        const next = savedLocationOptions.filter((entry) => entry !== address);
+        if (next.length === savedLocationOptions.length) return;
+
+        setSavedLocationOptions(next);
+
+        // If we just removed the active address, clear it on the profile too.
+        const wasActive = profile.address === address;
+        if (wasActive) {
+          setProfile((current) => ({ ...current, address: "" }));
+        }
+
+        if (currentUser) {
+          try {
+            await saveUserProfile(currentUser.uid, {
+              savedAddresses: next,
+              ...(wasActive ? { address: "" } : {}),
+            });
+          } catch (error) {
+            console.error("Error removing saved address from Firestore:", error);
+          }
+        }
+      },
       toggleSetting: (key: keyof AppSettings) =>
         setSettings((current) => ({
           ...current,
@@ -1141,10 +1444,18 @@ export function AppStateProvider({
             const match = item.match(/x(\d+)/i);
             const quantity = match ? Number.parseInt(match[1], 10) : 1;
             const name = item.replace(/\sx\d+/i, "").trim();
+            const menuItem = findMenuItemByName(name);
+            const estimatedUnitPrice =
+              parseCurrencyValue(order.total) /
+              Math.max(order.items.length, 1) /
+              Math.max(quantity, 1);
+
             return {
               id: `reorder-${orderId}-${index}`,
               name,
-              price: 12.99,
+              price: menuItem
+                ? parsePrice(menuItem.price)
+                : Number(estimatedUnitPrice.toFixed(2)),
               quantity,
               restaurantId: `reorder-${orderId}`,
               restaurantName: order.restaurant,
@@ -1201,8 +1512,65 @@ export function AppStateProvider({
           ...patch,
         })),
       resetDiscoveryFilters: () => setDiscoveryFilters(defaultFilters),
-      getRestaurantMenuSections: (restaurantId: string) =>
-        buildLiveMenuSections(restaurantId, adminRestaurants),
+      refreshRestaurants: async (keyword?: string) => {
+        setRestaurantDataLoading(true);
+        const discovery = await loadRestaurantDiscovery({
+          location: campusLocation,
+          radiusMeters: campusLocation.radiusMeters,
+          keyword,
+        });
+        setRestaurantDiscovery(discovery);
+        setSelectedRestaurantId((current) =>
+          discovery.restaurants.some((restaurant) => restaurant.id === current)
+            ? current
+            : (discovery.restaurants[0]?.id ?? current),
+        );
+        setRestaurantDataLoading(false);
+      },
+      searchRestaurants: async (
+        keyword: string,
+        filters: RestaurantSearchFilters = {},
+      ) => {
+        const trimmed = keyword.trim();
+        if (!trimmed) {
+          return searchRestaurantCatalog(restaurantDiscovery.restaurants, "", {
+            ...discoveryFilters,
+            ...filters,
+          });
+        }
+
+        try {
+          const liveResults = await searchNearbyRestaurants({
+            location: campusLocation,
+            radiusMeters: campusLocation.radiusMeters,
+            keyword: trimmed,
+          });
+
+          return searchRestaurantCatalog(liveResults, trimmed, {
+            ...discoveryFilters,
+            ...filters,
+          });
+        } catch (error) {
+          console.error("Restaurant search failed:", error);
+          return searchRestaurantCatalog(restaurantDiscovery.restaurants, trimmed, {
+            ...discoveryFilters,
+            ...filters,
+          });
+        }
+      },
+      getRestaurantMenuSections: (restaurantId: string) => {
+        const liveSections = buildLiveMenuSections(
+          restaurantId,
+          adminRestaurants,
+        );
+
+        return liveSections.length > 0
+          ? liveSections
+          : buildDiscoveryMenuSections(
+              restaurantId,
+              restaurantDiscovery.restaurants,
+            );
+      },
       addRestaurantMenuItem: async (
         restaurantId: string,
         item: RestaurantMenuItemDraft,
@@ -1508,6 +1876,8 @@ export function AppStateProvider({
           ? {
               ...matchingOrder,
               driver: activeDriver.name,
+              driverId: activeDriver.id,
+              driverName: activeDriver.name,
               status: "Ready for Driver" as const,
               eta: "Pickup pending",
               issue: null,
@@ -1520,6 +1890,8 @@ export function AppStateProvider({
               ? {
                   ...order,
                   driver: activeDriver.name,
+                  driverId: activeDriver.id,
+                  driverName: activeDriver.name,
                   status: "Ready for Driver",
                   eta: "Pickup pending",
                   issue: null,
@@ -1633,7 +2005,7 @@ export function AppStateProvider({
           const subtotal = getCartSubtotal(cartItems);
           const taxes = getCartTaxes(cartItems);
           const tip = getTipAmount(cartItems, selectedTip, customTip);
-          const total = subtotal + taxes + 5 + tip;
+          const total = subtotal + taxes + checkoutPricing.deliveryFee + tip;
           const restaurantNames = [
             ...new Set(cartItems.map((item) => item.restaurantName)),
           ];
@@ -1659,7 +2031,7 @@ export function AppStateProvider({
               })),
               subtotal,
               taxes,
-              deliveryFee: 5,
+              deliveryFee: checkoutPricing.deliveryFee,
               tip,
               totalAmount: total,
               deliveryAddress: profile.address,
@@ -1716,7 +2088,10 @@ export function AppStateProvider({
               status: "Pending",
               placedAt: "Just now",
               eta: nextOrder.eta.replace("Estimated: ", ""),
-              driver: "Unassigned",
+              driver: unassignedDriverLabel,
+              driverId: null,
+              driverName: null,
+              deliveryAddress: profile.address,
               issue: null,
             },
             ...current,
@@ -1746,6 +2121,8 @@ export function AppStateProvider({
       orderHistory,
       profile,
       recentSearches,
+      restaurantDataLoading,
+      restaurantDiscovery,
       rewardsEmail,
       savedCardsExpanded,
       savedLocationOptions,
@@ -1785,15 +2162,18 @@ export function getCartSubtotal(value: number | CartItem[]) {
     return value.reduce((sum, item) => sum + item.price * item.quantity, 0);
   }
 
-  return 8.99 * value;
+  const fallbackItem = menuByRestaurantId["featured-2"]?.[0]?.items[0];
+  return parsePrice(fallbackItem?.price ?? "$0.00") * value;
 }
 
 export function getCartTaxes(value: number | CartItem[]) {
   if (Array.isArray(value)) {
-    return value.length > 0 ? getCartSubtotal(value) * 0.082 : 0;
+    return value.length > 0
+      ? getCartSubtotal(value) * checkoutPricing.taxRate
+      : 0;
   }
 
-  return value > 0 ? 0.74 * value : 0;
+  return value > 0 ? getCartSubtotal(value) * checkoutPricing.taxRate : 0;
 }
 
 export function getTipAmount(

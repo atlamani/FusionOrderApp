@@ -12,15 +12,15 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "../FadeInView";
 import {
-  Restaurant,
   cuisineTags,
   recommendationMoments,
+  type Restaurant,
 } from "../appData";
 import { useAppState } from "../appState";
-import { useRestaurants } from "../services/useRestaurants";
-import { useUserLocation } from "../services/useUserLocation";
+import { getSafeContentTopPadding } from "../safeHeaderLayout";
 import { colors, spacing, typography } from "../theme";
 
 function RestaurantCard({
@@ -61,7 +61,10 @@ function RestaurantCard({
             styles.favoriteButton,
             isFavorite && styles.favoriteButtonActive,
           ]}
-          onPress={() => toggleFavorite(item.id)}
+          onPress={(event) => {
+            event.stopPropagation();
+            toggleFavorite(item.id);
+          }}
         >
           <Feather
             name="heart"
@@ -81,7 +84,7 @@ function RestaurantCard({
           <Text style={styles.restaurantRating}>{item.rating}/5</Text>
         </View>
         <Text style={styles.restaurantCuisine}>
-          {`${item.cuisine} · ${item.distance} · ${item.price}`}
+          {`${item.cuisine} | ${item.distance} | ${item.price}`}
         </Text>
         {!compact ? (
           <Text style={styles.restaurantDescription}>{item.description}</Text>
@@ -92,46 +95,41 @@ function RestaurantCard({
 }
 
 export default function DiscoverScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeContentTopPadding(insets.top);
   const {
     applyDiscoveryFilters,
     cartQuantity,
     discoveryFilters,
     favoriteIds,
+    featuredRestaurants,
     recentSearches,
     resetDiscoveryFilters,
+    restaurants,
+    restaurantDataLoading,
+    restaurantDataMessage,
     setSelectedRestaurant,
     submitSearch,
   } = useAppState();
-
-  const {
-    latitude: userLatitude,
-    longitude: userLongitude,
-  } = useUserLocation();
-
-  const {
-    restaurants,
-    isLoading: isLoadingRestaurants,
-    error: restaurantsError,
-  } = useRestaurants({
-    latitude: userLatitude ?? undefined,
-    longitude: userLongitude ?? undefined,
-  });
 
   const selectedCuisineLabel =
     cuisineTags.find((tag) => tag.id === discoveryFilters.cuisineId)?.label ??
     "All";
 
-  const recommendedRestaurants = useMemo(
-    () =>
+  const recommendedRestaurants = useMemo(() => {
+    const curatedRestaurants =
       recommendationMoments[0]?.restaurantIds
         .map((restaurantId) =>
           restaurants.find((restaurant) => restaurant.id === restaurantId),
         )
         .filter((restaurant): restaurant is Restaurant =>
           Boolean(restaurant),
-        ) ?? [],
-    [restaurants],
-  );
+        ) ?? [];
+
+    return curatedRestaurants.length > 0
+      ? curatedRestaurants
+      : featuredRestaurants;
+  }, [featuredRestaurants, restaurants]);
 
   const browseRestaurants = useMemo(() => {
     if (discoveryFilters.cuisineId === "all") {
@@ -158,7 +156,10 @@ export default function DiscoverScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <FadeInView delay={40} style={styles.header}>
+        <FadeInView
+          delay={40}
+          style={[styles.header, { paddingTop: headerTopPadding }]}
+        >
           <View>
             <Text style={styles.headerTitle}>FusionYum</Text>
             <Text style={styles.headerSubtitle}>
@@ -167,9 +168,9 @@ export default function DiscoverScreen() {
             </Text>
           </View>
           <Pressable
-            accessibilityLabel="Open activity history"
+            accessibilityLabel="Open activity"
             accessibilityRole="button"
-            hitSlop={10}
+            hitSlop={16}
             style={styles.headerAction}
             onPress={() => router.push("/activity")}
           >
@@ -192,6 +193,11 @@ export default function DiscoverScreen() {
 
         <FadeInView delay={140} style={styles.recentSearchCard}>
           <Text style={styles.sectionTitle}>Recent search energy</Text>
+          <Text style={styles.discoveryStatus}>
+            {restaurantDataLoading
+              ? "Refreshing nearby options..."
+              : restaurantDataMessage}
+          </Text>
           <View style={styles.recentSearchList}>
             {recentSearches.slice(0, 3).map((term) => (
               <Pressable
@@ -251,16 +257,10 @@ export default function DiscoverScreen() {
               <Text style={styles.sectionLink}>See all</Text>
             </Pressable>
           </View>
-          {isLoadingRestaurants ? (
+          {restaurantDataLoading ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator size="small" color={colors.surface} />
               <Text style={styles.loadingRowText}>Loading restaurants...</Text>
-            </View>
-          ) : restaurantsError ? (
-            <View style={styles.notice}>
-              <Text style={styles.noticeText}>
-                Live results unavailable. Showing offline favorites.
-              </Text>
             </View>
           ) : null}
           {recommendedRestaurants.map((restaurant) => (
@@ -276,7 +276,11 @@ export default function DiscoverScreen() {
             filters, and open richer restaurant details.
           </Text>
           <Pressable
-            style={styles.recommendationButton}
+            style={[
+              styles.recommendationButton,
+              browseRestaurants.length === 0 && styles.recommendationButtonDisabled,
+            ]}
+            disabled={browseRestaurants.length === 0}
             onPress={() => {
               const restaurant = browseRestaurants[0];
               if (restaurant) {
@@ -288,13 +292,17 @@ export default function DiscoverScreen() {
               }
             }}
           >
-            <Text style={styles.recommendationButtonText}>Open Top Match</Text>
+            <Text style={styles.recommendationButtonText}>
+              {browseRestaurants.length > 0
+                ? "Open Top Match"
+                : "No Match Available"}
+            </Text>
           </Pressable>
         </FadeInView>
 
         <FadeInView delay={300} style={styles.section}>
           <Text style={styles.sectionTitle}>Browse nearby</Text>
-          {browseRestaurants.length === 0 && !isLoadingRestaurants ? (
+          {browseRestaurants.length === 0 && !restaurantDataLoading ? (
             <View style={styles.browseEmpty}>
               <Text style={styles.browseEmptyTitle}>
                 No matches for {selectedCuisineLabel}
@@ -337,7 +345,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: colors.surface,
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 16,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -394,6 +401,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  discoveryStatus: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
   },
   recentSearchPill: {
     paddingHorizontal: 12,
@@ -567,6 +580,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
+  },
+  recommendationButtonDisabled: {
+    opacity: 0.5,
   },
   recommendationButtonText: {
     fontFamily: typography.display,

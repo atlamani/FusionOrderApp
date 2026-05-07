@@ -7,12 +7,12 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  StatusBar,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
-import { allRestaurants } from "./appData";
+import { checkoutPricing } from "./appData";
 import {
   formatCurrency,
   getCartItemCount,
@@ -20,48 +20,61 @@ import {
   useAppState,
 } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import { getSafeHeaderTopPadding } from "./safeHeaderLayout";
+import { useAddToCart } from "./services/useAddToCart";
 import { colors, spacing, typography } from "./theme";
 
-const headerTopPadding = (StatusBar.currentHeight ?? 0) + 14;
-
 export default function RestaurantMenuScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const { restaurantId } = useLocalSearchParams<{ restaurantId?: string }>();
 
   const {
-    addMenuItem,
     cartItems,
     decreaseMenuItem,
     favoriteIds,
     getRestaurantMenuSections,
+    restaurants,
     selectedRestaurantId,
     setSelectedRestaurant,
     toggleFavorite,
   } = useAppState();
+  const addToCart = useAddToCart();
 
   const restaurant = useMemo(
     () =>
-      allRestaurants.find((entry) => entry.id === restaurantId) ??
-      allRestaurants.find((entry) => entry.id === selectedRestaurantId) ??
-      allRestaurants[0],
-    [restaurantId, selectedRestaurantId],
+      restaurants.find((entry) => entry.id === restaurantId) ??
+      (restaurantId
+        ? undefined
+        : restaurants.find((entry) => entry.id === selectedRestaurantId) ??
+          restaurants[0]),
+    [restaurantId, restaurants, selectedRestaurantId],
   );
 
   const restaurantCartItems = useMemo(
-    () => cartItems.filter((item) => item.restaurantId === restaurant.id),
-    [cartItems, restaurant.id],
+    () =>
+      restaurant
+        ? cartItems.filter((item) => item.restaurantId === restaurant.id)
+        : [],
+    [cartItems, restaurant],
   );
   const restaurantCartCount = getCartItemCount(restaurantCartItems);
-  const cartTotal = cartItems.length > 0 ? getCartSubtotal(cartItems) + 5 : 5;
-  const isFavorite = favoriteIds.includes(restaurant.id);
+  const cartTotal =
+    cartItems.length > 0
+      ? getCartSubtotal(cartItems) + checkoutPricing.deliveryFee
+      : 0;
+  const isFavorite = restaurant ? favoriteIds.includes(restaurant.id) : false;
   const restaurantMenuSections = useMemo(
     () =>
-      getRestaurantMenuSections(restaurant.id)
-        .map((section) => ({
-          ...section,
-          items: section.items.filter((item) => item.available),
-        }))
-        .filter((section) => section.items.length > 0),
-    [getRestaurantMenuSections, restaurant.id],
+      restaurant
+        ? getRestaurantMenuSections(restaurant.id)
+            .map((section) => ({
+              ...section,
+              items: section.items.filter((item) => item.available),
+            }))
+            .filter((section) => section.items.length > 0)
+        : [],
+    [getRestaurantMenuSections, restaurant],
   );
   const liveHighlights = useMemo(
     () =>
@@ -71,8 +84,9 @@ export default function RestaurantMenuScreen() {
         .slice(0, 4),
     [restaurantMenuSections],
   );
-  const recommendation =
-    allRestaurants.find((entry) => entry.id !== restaurant.id) ?? restaurant;
+  const recommendation = restaurant
+    ? restaurants.find((entry) => entry.id !== restaurant.id) ?? restaurant
+    : undefined;
 
   const getQuantity = (itemId: string) =>
     restaurantCartItems.find((item) => item.id === itemId)?.quantity ?? 0;
@@ -81,17 +95,41 @@ export default function RestaurantMenuScreen() {
     goBackOrReplace("/home");
   };
 
+  if (!restaurant || !recommendation) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>Restaurant not found</Text>
+          <Text style={styles.emptyCopy}>
+            This restaurant is no longer available in the current discovery list.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to search"
+            style={styles.emptyButton}
+            onPress={() => goBackOrReplace("/search")}
+          >
+            <Text style={styles.emptyButtonText}>Back to Search</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
       >
         <FadeInView delay={40} style={styles.header}>
           <Pressable
             accessibilityLabel="Go back"
             accessibilityRole="button"
-            hitSlop={12}
+            hitSlop={16}
             style={styles.backButton}
             onPress={handleBack}
           >
@@ -103,7 +141,7 @@ export default function RestaurantMenuScreen() {
               isFavorite ? "Remove restaurant from favorites" : "Save restaurant to favorites"
             }
             accessibilityRole="button"
-            hitSlop={12}
+            hitSlop={16}
             style={[
               styles.favoriteButton,
               isFavorite && styles.favoriteButtonActive,
@@ -197,7 +235,7 @@ export default function RestaurantMenuScreen() {
                       <Pressable
                         style={styles.stepperButton}
                         onPress={() =>
-                          addMenuItem({
+                          addToCart({
                             id: item.id,
                             name: item.name,
                             price: item.price,
@@ -217,7 +255,7 @@ export default function RestaurantMenuScreen() {
                     <Pressable
                       style={styles.addButton}
                       onPress={() =>
-                        addMenuItem({
+                        addToCart({
                           id: item.id,
                           name: item.name,
                           price: item.price,
@@ -292,7 +330,7 @@ export default function RestaurantMenuScreen() {
           <Text style={styles.checkoutButtonText}>
             {cartItems.length > 0
               ? `View Cart | ${restaurantCartCount} item${restaurantCartCount === 1 ? "" : "s"} here | ${formatCurrency(cartTotal)}`
-              : "Review Cart | $5.00"}
+              : `Cart Empty | ${formatCurrency(0)}`}
           </Text>
         </Pressable>
       </ScrollView>
@@ -305,9 +343,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 28,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  emptyCopy: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  emptyButton: {
+    minWidth: 160,
+    minHeight: 46,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  emptyButtonText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.background,
+  },
   content: {
     paddingHorizontal: 20,
-    paddingTop: headerTopPadding,
     paddingBottom: 40,
     gap: spacing.lg,
   },

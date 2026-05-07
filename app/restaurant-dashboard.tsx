@@ -5,29 +5,35 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
+import {
+  getRolePortalTopInset,
+  rolePortalHeaderSidePadding,
+  rolePortalHeaderSize,
+} from "./rolePortalLayout";
+import { getRestaurantMetrics } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
 
-const headerTopPadding = (StatusBar.currentHeight ?? 0) + 18;
-
 export default function RestaurantDashboardScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getRolePortalTopInset(insets.top);
   const {
     adminOrders,
     adminRestaurants,
     getRestaurantMenuSections,
     logout,
     selectedPartnerRestaurantId,
-    setSelectedPartnerRestaurant,
   } = useAppState();
 
   const restaurant = useMemo(
-    () => adminRestaurants.find((entry) => entry.id === selectedPartnerRestaurantId) ?? adminRestaurants[0],
+    () => adminRestaurants.find((entry) => entry.id === selectedPartnerRestaurantId),
     [adminRestaurants, selectedPartnerRestaurantId],
   );
 
@@ -37,16 +43,26 @@ export default function RestaurantDashboardScreen() {
   );
 
   const metrics = useMemo(() => {
-    const restaurantOrders = adminOrders.filter((order) => order.restaurantId === restaurant?.id);
-    return {
-      active: restaurantOrders.filter((order) => order.status !== "Completed").length,
-      ready: restaurantOrders.filter((order) => order.status === "Ready for Driver").length,
-      pausedItems: liveMenuItems.filter((item) => !item.available).length,
-    };
+    return getRestaurantMetrics({
+      orders: adminOrders,
+      restaurantId: restaurant?.id ?? "",
+      menuItems: liveMenuItems,
+    });
   }, [adminOrders, liveMenuItems, restaurant]);
 
   if (!restaurant) {
-    return null;
+    return (
+      <StaffAccessGate role="restaurant">
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No restaurant assigned</Text>
+            <Text style={styles.emptyCopy}>
+              This account needs a restaurantId claim before it can open the partner console.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </StaffAccessGate>
+    );
   }
 
   const handleLogout = () => {
@@ -55,17 +71,28 @@ export default function RestaurantDashboardScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <StaffAccessGate role="restaurant">
+      <SafeAreaView style={styles.safeArea}>
       <Pressable
         accessibilityLabel="Exit restaurant console"
         accessibilityRole="button"
         hitSlop={18}
-        style={({ pressed }) => [styles.floatingExitButton, pressed && styles.pressedButton]}
+        style={({ pressed }) => [
+          styles.floatingExitButton,
+          { top: headerTopPadding },
+          pressed && styles.pressedButton,
+        ]}
         onPress={handleLogout}
       >
         <Feather name="arrow-left" size={20} color={colors.background} />
       </Pressable>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.navRow}>
           <View style={styles.headerSpacer} />
         </FadeInView>
@@ -80,20 +107,17 @@ export default function RestaurantDashboardScreen() {
           </View>
         </FadeInView>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
-          {adminRestaurants.map((entry) => {
-            const active = entry.id === restaurant.id;
-            return (
-              <Pressable
-                key={entry.id}
-                style={[styles.selectorChip, active && styles.selectorChipActive]}
-                onPress={() => setSelectedPartnerRestaurant(entry.id)}
-              >
-                <Text style={[styles.selectorText, active && styles.selectorTextActive]}>{entry.name}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <FadeInView delay={100} style={styles.identityCard}>
+          <View style={styles.identityIcon}>
+            <Feather name="lock" size={16} color={colors.background} />
+          </View>
+          <View style={styles.identityCopy}>
+            <Text style={styles.identityTitle}>Signed-in location</Text>
+            <Text style={styles.identityText}>
+              {restaurant.name} only. Admin manages other locations from the manager console.
+            </Text>
+          </View>
+        </FadeInView>
 
         <View style={styles.metricGrid}>
           <FadeInView delay={90} style={styles.metricCard}>
@@ -143,7 +167,8 @@ export default function RestaurantDashboardScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -151,9 +176,28 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: headerTopPadding,
     paddingBottom: 36,
     gap: spacing.lg,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    gap: 10,
+  },
+  emptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 28,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  emptyCopy: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMuted,
+    textAlign: "center",
   },
   navRow: {
     minHeight: 54,
@@ -165,10 +209,9 @@ const styles = StyleSheet.create({
   },
   floatingExitButton: {
     position: "absolute",
-    top: headerTopPadding,
-    left: 20,
-    width: 44,
-    height: 44,
+    left: rolePortalHeaderSidePadding,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
     borderRadius: 14,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -177,8 +220,8 @@ const styles = StyleSheet.create({
     elevation: 1000,
   },
   headerSpacer: {
-    width: 44,
-    height: 44,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
   },
   pressedButton: {
     opacity: 0.78,
@@ -203,27 +246,36 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "rgba(255,255,255,0.88)",
   },
-  selectorRow: { gap: 10, paddingRight: 20 },
-  selectorChip: {
-    minHeight: 40,
-    borderRadius: 999,
-    paddingHorizontal: 14,
+  identityCard: {
+    borderRadius: 22,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  identityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceDeep,
     justifyContent: "center",
     alignItems: "center",
   },
-  selectorChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  selectorText: {
+  identityCopy: { flex: 1, gap: 3 },
+  identityTitle: {
     fontFamily: typography.display,
-    fontSize: 13,
+    fontSize: 15,
     color: colors.primary,
   },
-  selectorTextActive: { color: colors.background },
+  identityText: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+  },
   metricGrid: { flexDirection: "row", gap: 10 },
   metricCard: {
     flex: 1,

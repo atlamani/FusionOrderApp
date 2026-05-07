@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import FadeInView from "./FadeInView";
+import { useAppState } from "./appState";
 import { colors, spacing, typography } from "./theme";
 
 const appIcon = require("../assets/images/icon.png");
@@ -44,6 +45,7 @@ const roleCards = [
 ] as const;
 
 export default function RoleGatewayScreen() {
+  const { beginGuestSession } = useAppState();
   const logoScale = useRef(new Animated.Value(1)).current;
   const ringSpin = useRef(new Animated.Value(0)).current;
 
@@ -148,6 +150,23 @@ export default function RoleGatewayScreen() {
               </Pressable>
             </FadeInView>
           ))}
+          <FadeInView delay={460} style={styles.roleCell}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue as guest"
+              style={({ pressed }) => [
+                styles.guestButton,
+                pressed && styles.roleCardPressed,
+              ]}
+              onPress={() => {
+                beginGuestSession();
+                router.replace("/home");
+              }}
+            >
+              <Feather name="user-check" size={18} color={colors.primary} />
+              <Text style={styles.guestButtonText}>Continue as Guest</Text>
+            </Pressable>
+          </FadeInView>
         </View>
       </View>
     </SafeAreaView>
@@ -287,6 +306,23 @@ const styles = StyleSheet.create({
   roleCopy: {
     flex: 1,
     gap: 4,
+  },
+  guestButton: {
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.76)",
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  guestButtonText: {
+    fontFamily: typography.display,
+    fontSize: 15,
+    color: colors.primary,
   },
   roleTitle: {
     fontFamily: typography.display,

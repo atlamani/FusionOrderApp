@@ -1,30 +1,50 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getSafeHeaderTopPadding,
+  safeHeaderButtonSize,
+} from "./safeHeaderLayout";
+import { getAverageRating } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
 
 export default function AdminFeedbackScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const { adminFeedback } = useAppState();
 
   const metrics = useMemo(() => {
     const flagged = adminFeedback.filter((entry) => entry.flagged).length;
-    const avgRating =
-      adminFeedback.reduce((sum, entry) => sum + entry.rating, 0) / Math.max(adminFeedback.length, 1);
 
     return {
       flagged,
-      avgRating: avgRating.toFixed(1),
+      avgRating: getAverageRating(adminFeedback),
     };
   }, [adminFeedback]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    <StaffAccessGate role="admin">
+      <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/admin-dashboard")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/admin-dashboard")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>FEEDBACK</Text>
@@ -48,7 +68,7 @@ export default function AdminFeedbackScreen() {
               <View style={styles.copy}>
                 <Text style={styles.restaurant}>{entry.restaurant}</Text>
                 <Text style={styles.meta}>
-                  {entry.author} · {entry.category} · {entry.createdAt}
+                  {entry.author} | {entry.category} | {entry.createdAt}
                 </Text>
               </View>
               <View style={styles.ratingPill}>
@@ -65,7 +85,8 @@ export default function AdminFeedbackScreen() {
           </FadeInView>
         ))}
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -73,21 +94,20 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backButton: {
-    width: 40,
-    height: 40,
+    width: safeHeaderButtonSize,
+    height: safeHeaderButtonSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
   },
   headerTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: safeHeaderButtonSize },
   metricsCard: {
     borderRadius: 24,
     backgroundColor: colors.surface,

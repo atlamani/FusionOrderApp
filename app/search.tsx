@@ -8,11 +8,11 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  StatusBar,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import {
   cuisineTags,
@@ -23,8 +23,7 @@ import {
 } from "./appData";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
-import { useRestaurants } from "./services/useRestaurants";
-import { useUserLocation } from "./services/useUserLocation";
+import { getSafeHeaderTopPadding } from "./safeHeaderLayout";
 import { colors, spacing, typography } from "./theme";
 
 const ratingFilters = [
@@ -52,8 +51,6 @@ function parseRestaurantDistance(value: string) {
   const parsed = Number.parseFloat(match[0]);
   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
 }
-
-const headerTopPadding = (StatusBar.currentHeight ?? 0) + 14;
 
 const SEARCH_STOP_WORDS = new Set([
   "a",
@@ -136,13 +133,20 @@ function getRestaurantSearchScore(
   return score;
 }
 
+
 export default function SearchScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const scrollRef = useRef<ScrollView>(null);
   const [resultsOffset, setResultsOffset] = useState(0);
   const {
     applyDiscoveryFilters,
     clearSearch,
     discoveryFilters,
+    restaurantDataLoading,
+    restaurantDataMessage,
+    restaurantDataSource,
+    restaurants,
     recentSearches,
     savedSearches,
     searchQuery,
@@ -151,24 +155,8 @@ export default function SearchScreen() {
     submitSearch,
     toggleSavedSearch,
     resetDiscoveryFilters,
+    refreshRestaurants,
   } = useAppState();
-
-  const {
-    latitude: userLatitude,
-    longitude: userLongitude,
-    error: locationError,
-  } = useUserLocation();
-
-  const {
-    restaurants,
-    isLoading: isLoadingRestaurants,
-    error: restaurantsError,
-    source: restaurantsSource,
-  } = useRestaurants({
-    query: searchQuery.trim() || undefined,
-    latitude: userLatitude ?? undefined,
-    longitude: userLongitude ?? undefined,
-  });
 
   const filteredResults = useMemo(() => {
     const query = searchQuery.trim();
@@ -218,7 +206,11 @@ export default function SearchScreen() {
   const hasActiveFilters = activeFilterCount > 0;
 
   const handleSubmitSearch = (value?: string) => {
+    const submittedValue = (value ?? searchQuery).trim();
     submitSearch(value);
+    if (submittedValue) {
+      void refreshRestaurants(submittedValue);
+    }
     Keyboard.dismiss();
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({
@@ -261,13 +253,16 @@ export default function SearchScreen() {
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
       >
         <FadeInView delay={40} style={styles.header}>
           <Pressable
             accessibilityLabel="Go back"
             accessibilityRole="button"
-            hitSlop={12}
+            hitSlop={16}
             style={styles.backButton}
             onPress={handleBack}
           >
@@ -277,7 +272,7 @@ export default function SearchScreen() {
           <Pressable
             accessibilityLabel="Clear search and filters"
             accessibilityRole="button"
-            hitSlop={12}
+            hitSlop={16}
             style={styles.clearButton}
             onPress={handleClear}
           >
@@ -307,7 +302,9 @@ export default function SearchScreen() {
               <Feather name="arrow-right" size={16} color={colors.background} />
             </Pressable>
           </View>
-          <Text style={styles.helperText}>Use autocomplete, filters, and saved searches to narrow your options.</Text>
+          <Text style={styles.helperText}>
+            {restaurantDataLoading ? "Refreshing nearby restaurants..." : restaurantDataMessage}
+          </Text>
         </FadeInView>
 
         <View onLayout={(event) => setResultsOffset(event.nativeEvent.layout.y)}>
@@ -316,23 +313,13 @@ export default function SearchScreen() {
             <View>
               <Text style={styles.cardTitle}>Top matches</Text>
               <Text style={styles.cardLabel}>
-                {isLoadingRestaurants
+                {restaurantDataLoading
                   ? "Loading restaurants..."
                   : `${filteredResults.length} restaurant${filteredResults.length === 1 ? "" : "s"} found`}
               </Text>
-              {restaurantsError ? (
-                <Text style={styles.statusErrorText}>
-                  Live results unavailable — showing offline list.
-                </Text>
-              ) : restaurantsSource === "google-places" ? (
+              {restaurantDataSource === "google" ? (
                 <Text style={styles.statusInfoText}>
-                  Live · Google Places
-                  {userLatitude != null && userLongitude != null ? " · Near you" : ""}
-                </Text>
-              ) : null}
-              {locationError ? (
-                <Text style={styles.statusErrorText}>
-                  Location unavailable — distance filters may be limited.
+                  Live - Google Places
                 </Text>
               ) : null}
             </View>
@@ -360,7 +347,7 @@ export default function SearchScreen() {
             ) : null}
           </View>
           <View style={styles.resultsList}>
-            {isLoadingRestaurants ? (
+            {restaurantDataLoading ? (
               <View style={styles.loadingState}>
                 <ActivityIndicator size="small" color={colors.surface} />
                 <Text style={styles.loadingStateText}>Fetching nearby restaurants...</Text>
@@ -391,7 +378,7 @@ export default function SearchScreen() {
                 </View>
               </Pressable>
             ))}
-            {!isLoadingRestaurants && filteredResults.length === 0 ? (
+            {!restaurantDataLoading && filteredResults.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateTitle}>No matches yet</Text>
                 <Text style={styles.emptyStateCopy}>
@@ -644,7 +631,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: headerTopPadding,
     paddingBottom: 36,
     gap: spacing.lg,
   },

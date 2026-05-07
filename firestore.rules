@@ -25,36 +25,208 @@ service cloud.firestore {
       return isAdmin() || isRestaurantStaff() || isDriverStaff();
     }
 
+    function isRestaurantOwner(restaurantId) {
+      return isRestaurantStaff() &&
+        request.auth.token.restaurantId == restaurantId;
+    }
+
+    function isDriverOwner(driverId) {
+      return isDriverStaff() &&
+        request.auth.token.driverId == driverId;
+    }
+
+    function ownsOrder(data) {
+      return isSignedIn() &&
+        ("userId" in data) &&
+        data.userId == request.auth.uid;
+    }
+
+    function restaurantOwnsOrder(data) {
+      return isRestaurantStaff() &&
+        ("restaurantId" in data) &&
+        data.restaurantId == request.auth.token.restaurantId;
+    }
+
+    function driverOwnsOrder(data) {
+      return isDriverStaff() &&
+        ("driverId" in data) &&
+        data.driverId == request.auth.token.driverId;
+    }
+
+    function orderIsReadyForDriver(data) {
+      return (
+        (("status" in data) && data.status in ["ready", "Ready for Driver"]) ||
+        (("adminStatus" in data) && data.adminStatus == "Ready for Driver")
+      );
+    }
+
+    function orderIsUnassigned(data) {
+      return !("driverId" in data) ||
+        data.driverId == null ||
+        data.driverId == "" ||
+        (("driver" in data) && data.driver == "Unassigned");
+    }
+
+    function driverCanReadAvailableOrder(data) {
+      return isDriverStaff() &&
+        orderIsReadyForDriver(data) &&
+        orderIsUnassigned(data);
+    }
+
+    function canReadOrder(data) {
+      return isAdmin() ||
+        ownsOrder(data) ||
+        restaurantOwnsOrder(data) ||
+        driverOwnsOrder(data) ||
+        driverCanReadAvailableOrder(data);
+    }
+
+    function isCustomerOrderCreate() {
+      return isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.restaurantId is string &&
+        request.resource.data.keys().hasOnly([
+          "adminStatus",
+          "createdAt",
+          "customer",
+          "deliveryAddress",
+          "deliveryFee",
+          "deliveryNote",
+          "driver",
+          "driverId",
+          "driverName",
+          "eta",
+          "issue",
+          "items",
+          "placedAt",
+          "restaurant",
+          "restaurantId",
+          "restaurantName",
+          "specialInstructions",
+          "status",
+          "subtotal",
+          "taxes",
+          "tip",
+          "total",
+          "totalAmount",
+          "updatedAt",
+          "userId"
+        ]) &&
+        request.resource.data.status == "pending" &&
+        request.resource.data.adminStatus == "Pending" &&
+        (!("driverId" in request.resource.data) ||
+          request.resource.data.driverId == null) &&
+        (!("driverName" in request.resource.data) ||
+          request.resource.data.driverName == null) &&
+        (!("issue" in request.resource.data) ||
+          request.resource.data.issue == null);
+    }
+
+    function isRestaurantOrderStatusUpdate() {
+      return restaurantOwnsOrder(resource.data) &&
+        request.resource.data.restaurantId == resource.data.restaurantId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "adminStatus",
+          "eta",
+          "updatedAt"
+        ]) &&
+        request.resource.data.status in ["preparing", "ready"] &&
+        request.resource.data.adminStatus in ["Preparing", "Ready for Driver"];
+    }
+
+    function isDriverClaimUpdate() {
+      return isDriverStaff() &&
+        orderIsReadyForDriver(resource.data) &&
+        orderIsUnassigned(resource.data) &&
+        request.resource.data.driverId == request.auth.token.driverId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "adminStatus",
+          "driver",
+          "driverId",
+          "driverName",
+          "eta",
+          "issue",
+          "updatedAt"
+        ]) &&
+        request.resource.data.status in ["ready", "Ready for Driver"] &&
+        request.resource.data.adminStatus == "Ready for Driver";
+    }
+
+    function isDriverPickupUpdate() {
+      return driverOwnsOrder(resource.data) &&
+        request.resource.data.driverId == resource.data.driverId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "adminStatus",
+          "eta",
+          "updatedAt"
+        ]) &&
+        request.resource.data.status == "out_for_delivery" &&
+        request.resource.data.adminStatus == "Out for Delivery";
+    }
+
+    function isDriverDeliveryUpdate() {
+      return driverOwnsOrder(resource.data) &&
+        request.resource.data.driverId == resource.data.driverId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "adminStatus",
+          "eta",
+          "issue",
+          "updatedAt"
+        ]) &&
+        request.resource.data.status == "delivered" &&
+        request.resource.data.adminStatus == "Completed";
+    }
+
+    function isDriverOrderUpdate() {
+      return isDriverClaimUpdate() ||
+        isDriverPickupUpdate() ||
+        isDriverDeliveryUpdate();
+    }
+
+    function isRestaurantProfileUpdate(restaurantId) {
+      return isRestaurantOwner(restaurantId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "menuItems",
+          "avgPrepTime",
+          "updatedAt"
+        ]);
+    }
+
+    function isDriverProfileUpdate(driverId) {
+      return isDriverOwner(driverId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "updatedAt"
+        ]) &&
+        request.resource.data.status in [
+          "Available",
+          "Delivering",
+          "Offline"
+        ];
+    }
+
     // Customer orders remain accessible to their owner, while staff workflow
     // access is controlled by Firebase custom claims.
     match /orders/{orderId} {
-      allow create: if isStaff() ||
-        (
-          isSignedIn() &&
-          request.resource.data.userId == request.auth.uid
-        );
-      allow read: if isSignedIn() &&
-        (
-          isStaff() ||
-          resource.data.userId == request.auth.uid
-        );
-      allow update: if isStaff();
+      allow create: if isAdmin() || isCustomerOrderCreate();
+      allow read: if isSignedIn() && canReadOrder(resource.data);
+      allow update: if isAdmin() ||
+        isRestaurantOrderStatusUpdate() ||
+        isDriverOrderUpdate();
       allow delete: if false;
     }
 
     // Backward compatibility for older docs written with capitalized collection name.
     match /Orders/{orderId} {
-      allow create: if isStaff() ||
-        (
-          isSignedIn() &&
-          request.resource.data.userId == request.auth.uid
-        );
-      allow read: if isSignedIn() &&
-        (
-          isStaff() ||
-          resource.data.userId == request.auth.uid
-        );
-      allow update: if isStaff();
+      allow create: if isAdmin() || isCustomerOrderCreate();
+      allow read: if isSignedIn() && canReadOrder(resource.data);
+      allow update: if isAdmin() ||
+        isRestaurantOrderStatusUpdate() ||
+        isDriverOrderUpdate();
       allow delete: if false;
     }
 
@@ -69,38 +241,36 @@ service cloud.firestore {
 
     // Admin prototype collections
     match /adminRestaurants/{restaurantId} {
-      allow read: if isStaff();
-      allow write: if isAdmin() ||
-        (
-          isRestaurantStaff() &&
-          request.auth.token.restaurantId == restaurantId
-        );
+      allow read: if isAdmin() || isRestaurantOwner(restaurantId);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isRestaurantProfileUpdate(restaurantId);
     }
 
     match /adminFeedback/{feedbackId} {
-      allow read: if isStaff();
+      allow read: if isAdmin() || restaurantOwnsOrder(resource.data);
       allow write: if isAdmin();
     }
 
     match /drivers/{driverId} {
-      allow read: if isStaff();
-      allow write: if isAdmin() ||
-        (
-          isDriverStaff() &&
-          request.auth.token.driverId == driverId
-        );
+      allow read: if isAdmin() || isDriverOwner(driverId);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isDriverProfileUpdate(driverId);
     }
 
     // Allow reading restaurants (public data)
     match /restaurants/{restaurantId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin() || isRestaurantOwner(restaurantId);
     }
 
     // Allow reading menu items (public data)
     match /menu/{menuId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin() ||
+        (
+          isRestaurantStaff() &&
+          request.resource.data.restaurantId == request.auth.token.restaurantId
+        );
     }
   }
 }

@@ -1,0 +1,73 @@
+{
+  "users": [
+    {
+      "email": "manager@fusionyum.com",
+      "role": "manager"
+    },
+    {
+      "email": "nypizzaplace@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "featured-1"
+    },
+    {
+      "email": "tacosnumero1@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "featured-2"
+    },
+    {
+      "email": "pillarsofathens@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "featured-3"
+    },
+    {
+      "email": "ouiouidesserts@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "nearby-1"
+    },
+    {
+      "email": "saffronstreet@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "nearby-2"
+    },
+    {
+      "email": "ramenlane@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "nearby-3"
+    },
+    {
+      "email": "burgerpalace@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "nearby-4"
+    },
+    {
+      "email": "tokyosushibar@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "nearby-5"
+    },
+    {
+      "email": "harvestbowlco@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "nearby-6"
+    },
+    {
+      "email": "bamboosushi@fusionyum.com",
+      "role": "restaurant",
+      "restaurantId": "nearby-7"
+    },
+    {
+      "email": "driver1@fusionyum.com",
+      "role": "driver",
+      "driverId": "driver-1"
+    },
+    {
+      "email": "driver2@fusionyum.com",
+      "role": "driver",
+      "driverId": "driver-2"
+    },
+    {
+      "email": "driver3@fusionyum.com",
+      "role": "driver",
+      "driverId": "driver-3"
+    }
+  ]
+}

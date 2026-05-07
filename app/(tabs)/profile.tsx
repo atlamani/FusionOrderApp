@@ -2,10 +2,12 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "../FadeInView";
 import { CustomButton } from "../customButton";
 import { profileShortcuts } from "../appData";
 import { getInitials, useAppState } from "../appState";
+import { getSafeContentTopPadding } from "../safeHeaderLayout";
 import { colors, spacing, typography } from "../theme";
 
 const routeMap: Record<string, string> = {
@@ -16,6 +18,8 @@ const routeMap: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeContentTopPadding(insets.top);
   const { logout, profile, sessionMode } = useAppState();
   const isSignedOut = sessionMode === "signed-out";
   const isAdmin = sessionMode === "admin";
@@ -36,7 +40,13 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{isSignedOut ? "FY" : getInitials(displayName)}</Text>
@@ -46,9 +56,9 @@ export default function ProfileScreen() {
             <Text style={styles.subtitle}>{displaySubtitle}</Text>
           </View>
           <Pressable
-            accessibilityLabel={isSignedOut ? "Open login screen" : "Edit profile"}
+            accessibilityLabel={isSignedOut ? "Log in" : "Edit profile"}
             accessibilityRole="button"
-            hitSlop={10}
+            hitSlop={16}
             style={styles.editButton}
             onPress={() => router.push(isSignedOut ? "/LoginScreen" : "/edit-profile")}
           >
@@ -197,7 +207,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },

@@ -1,42 +1,51 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
+import { unassignedDriverLabel } from "./appData";
+import {
+  getRolePortalTopInset,
+  rolePortalHeaderSidePadding,
+  rolePortalHeaderSize,
+} from "./rolePortalLayout";
+import { getDriverMetrics } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
 
-const headerTopPadding = (StatusBar.currentHeight ?? 0) + 18;
-
 export default function DriverDashboardScreen() {
-  const { adminOrders, driverProfiles, logout, selectedDriverId, setSelectedDriver } = useAppState();
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getRolePortalTopInset(insets.top);
+  const { adminOrders, driverProfiles, logout, selectedDriverId } = useAppState();
 
   const activeDriver = useMemo(
-    () => driverProfiles.find((driver) => driver.id === selectedDriverId) ?? driverProfiles[0],
+    () => driverProfiles.find((driver) => driver.id === selectedDriverId),
     [driverProfiles, selectedDriverId],
   );
 
   const metrics = useMemo(() => {
-    const readyPool = adminOrders.filter(
-      (order) =>
-        order.status === "Ready for Driver" &&
-        (!order.driver || order.driver === "Unassigned"),
-    ).length;
-    const assigned = adminOrders.filter(
-      (order) =>
-        order.driver === activeDriver?.name &&
-        (order.status === "Ready for Driver" ||
-          order.status === "Out for Delivery"),
-    ).length;
-    const completed = adminOrders.filter(
-      (order) => order.driver === activeDriver?.name && order.status === "Completed",
-    ).length;
-
-    return { readyPool, assigned, completed };
+    return getDriverMetrics({
+      orders: adminOrders,
+      driverName: activeDriver?.name,
+      unassignedLabel: unassignedDriverLabel,
+    });
   }, [activeDriver?.name, adminOrders]);
 
   if (!activeDriver) {
-    return null;
+    return (
+      <StaffAccessGate role="driver">
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No driver profile assigned</Text>
+            <Text style={styles.emptyCopy}>
+              This account needs a driverId claim before it can open the courier console.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </StaffAccessGate>
+    );
   }
 
   const handleLogout = () => {
@@ -45,17 +54,28 @@ export default function DriverDashboardScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <StaffAccessGate role="driver">
+      <SafeAreaView style={styles.safeArea}>
       <Pressable
         accessibilityLabel="Exit driver console"
         accessibilityRole="button"
         hitSlop={18}
-        style={({ pressed }) => [styles.floatingExitButton, pressed && styles.pressedButton]}
+        style={({ pressed }) => [
+          styles.floatingExitButton,
+          { top: headerTopPadding },
+          pressed && styles.pressedButton,
+        ]}
         onPress={handleLogout}
       >
         <Feather name="arrow-left" size={20} color={colors.background} />
       </Pressable>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.navRow}>
           <View style={styles.headerSpacer} />
         </FadeInView>
@@ -64,24 +84,21 @@ export default function DriverDashboardScreen() {
           <View style={styles.heroCopy}>
             <Text style={styles.eyebrow}>Driver Console</Text>
             <Text style={styles.title}>{activeDriver.name}</Text>
-            <Text style={styles.subtitle}>{`${activeDriver.vehicle} · ${activeDriver.zone} · ${activeDriver.status}`}</Text>
+            <Text style={styles.subtitle}>{`${activeDriver.vehicle} | ${activeDriver.zone} | ${activeDriver.status}`}</Text>
           </View>
         </FadeInView>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
-          {driverProfiles.map((driver) => {
-            const active = driver.id === activeDriver.id;
-            return (
-              <Pressable
-                key={driver.id}
-                style={[styles.selectorChip, active && styles.selectorChipActive]}
-                onPress={() => setSelectedDriver(driver.id)}
-              >
-                <Text style={[styles.selectorText, active && styles.selectorTextActive]}>{driver.name}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <FadeInView delay={100} style={styles.identityCard}>
+          <View style={styles.identityIcon}>
+            <Feather name="lock" size={16} color={colors.background} />
+          </View>
+          <View style={styles.identityCopy}>
+            <Text style={styles.identityTitle}>Signed-in driver profile</Text>
+            <Text style={styles.identityText}>
+              {activeDriver.name} only. Other driver profiles are visible to managers, not couriers.
+            </Text>
+          </View>
+        </FadeInView>
 
         <View style={styles.metricGrid}>
           <FadeInView delay={90} style={styles.metricCard}>
@@ -131,7 +148,8 @@ export default function DriverDashboardScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -139,10 +157,18 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: headerTopPadding,
     paddingBottom: 36,
     gap: spacing.lg,
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    gap: 10,
+  },
+  emptyTitle: { fontFamily: typography.display, fontSize: 28, color: colors.primary, textAlign: "center" },
+  emptyCopy: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: colors.textMuted, textAlign: "center" },
   navRow: {
     minHeight: 54,
     flexDirection: "row",
@@ -153,10 +179,9 @@ const styles = StyleSheet.create({
   },
   floatingExitButton: {
     position: "absolute",
-    top: headerTopPadding,
-    left: 20,
-    width: 44,
-    height: 44,
+    left: rolePortalHeaderSidePadding,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
     borderRadius: 14,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -165,8 +190,8 @@ const styles = StyleSheet.create({
     elevation: 1000,
   },
   headerSpacer: {
-    width: 44,
-    height: 44,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
   },
   pressedButton: {
     opacity: 0.78,
@@ -182,20 +207,27 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: typography.body, fontSize: 12, color: "rgba(255,255,255,0.78)" },
   title: { fontFamily: typography.display, fontSize: 30, color: colors.white },
   subtitle: { fontFamily: typography.body, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.88)" },
-  selectorRow: { gap: 10, paddingRight: 20 },
-  selectorChip: {
-    minHeight: 40,
-    borderRadius: 999,
-    paddingHorizontal: 14,
+  identityCard: {
+    borderRadius: 22,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  identityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceDeep,
     justifyContent: "center",
     alignItems: "center",
   },
-  selectorChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  selectorText: { fontFamily: typography.display, fontSize: 13, color: colors.primary },
-  selectorTextActive: { color: colors.background },
+  identityCopy: { flex: 1, gap: 3 },
+  identityTitle: { fontFamily: typography.display, fontSize: 15, color: colors.primary },
+  identityText: { fontFamily: typography.body, fontSize: 12, lineHeight: 17, color: colors.textMuted },
   metricGrid: { flexDirection: "row", gap: 10 },
   metricCard: {
     flex: 1,

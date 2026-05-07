@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppStateProvider } from "./appState";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -27,14 +28,16 @@ export default function RootLayout() {
   }
 
   return (
-    <AppStateProvider>
-      <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: "#ECE3CE" },
-        }}
-      />
-    </AppStateProvider>
+    <SafeAreaProvider>
+      <AppStateProvider>
+        <StatusBar style="dark" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "#ECE3CE" },
+          }}
+        />
+      </AppStateProvider>
+    </SafeAreaProvider>
   );
 }

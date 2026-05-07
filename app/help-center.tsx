@@ -2,13 +2,20 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
 import { faqEntries, helpTopics } from "./appData";
 import { goBackOrReplace } from "./navigation";
+import {
+  getSafeHeaderTopPadding,
+  safeHeaderButtonSize,
+} from "./safeHeaderLayout";
 import { colors, spacing, typography } from "./theme";
 
 export default function HelpCenterScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const params = useLocalSearchParams<{ topic?: string }>();
   const initialTopic = useMemo(
     () => helpTopics.find((topic) => topic.id === params.topic)?.id ?? "order",
@@ -19,9 +26,21 @@ export default function HelpCenterScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/profile")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>HELP CENTER</Text>
@@ -70,7 +89,7 @@ export default function HelpCenterScreen() {
           <Text style={styles.cardTitle}>Quick actions</Text>
           <View style={styles.actionRow}>
             <CustomButton title="Start Chat" onPress={() => setRequestSent(true)} />
-            <CustomButton title="View Receipt" variant="surface" onPress={() => router.push("/order-receipt")} />
+            <CustomButton title="Latest Receipt" variant="surface" onPress={() => router.push("/order-receipt")} />
           </View>
           {requestSent ? (
             <View style={styles.confirmationCard}>
@@ -105,7 +124,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
@@ -115,8 +133,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: safeHeaderButtonSize,
+    height: safeHeaderButtonSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -128,7 +146,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   headerSpacer: {
-    width: 40,
+    width: safeHeaderButtonSize,
   },
   heroCard: {
     borderRadius: 24,

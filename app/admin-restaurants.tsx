@@ -9,16 +9,21 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getSafeHeaderTopPadding,
+  safeHeaderButtonSize,
+} from "./safeHeaderLayout";
+import { countMenuItems } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
 
-function formatItemCount(menuItems: { items: { id: string }[] }[]) {
-  return menuItems.reduce((count, section) => count + section.items.length, 0);
-}
-
 export default function AdminRestaurantsScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const { adminRestaurants, approveRestaurant, getRestaurantMenuSections } = useAppState();
 
   const restaurantsWithMenu = useMemo(
@@ -28,20 +33,30 @@ export default function AdminRestaurantsScreen() {
         return {
           ...restaurant,
           menuSections,
-          menuItemCount: formatItemCount(menuSections),
+          menuItemCount: countMenuItems(menuSections),
         };
       }),
     [adminRestaurants, getRestaurantMenuSections],
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <StaffAccessGate role="admin">
+      <SafeAreaView style={styles.safeArea}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/admin-dashboard")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/admin-dashboard")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>RESTAURANTS</Text>
@@ -58,7 +73,7 @@ export default function AdminRestaurantsScreen() {
               <View style={styles.copy}>
                 <Text style={styles.name}>{restaurant.name}</Text>
                 <Text style={styles.detail}>
-                  {restaurant.cuisine} · Prep {restaurant.avgPrepTime} ·{" "}
+                  {restaurant.cuisine} | Prep {restaurant.avgPrepTime} |{" "}
                   {restaurant.manager}
                 </Text>
               </View>
@@ -122,7 +137,8 @@ export default function AdminRestaurantsScreen() {
           </FadeInView>
         ))}
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -130,7 +146,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
@@ -140,8 +155,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: safeHeaderButtonSize,
+    height: safeHeaderButtonSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -152,7 +167,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.primary,
   },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: safeHeaderButtonSize },
   restaurantCard: {
     borderRadius: 22,
     backgroundColor: colors.white,

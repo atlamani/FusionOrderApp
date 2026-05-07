@@ -2,7 +2,9 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import { checkoutPricing } from "./appData";
 import {
   CartItem,
   formatCurrency,
@@ -12,6 +14,12 @@ import {
   useAppState,
 } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import { useAddToCart } from "./services/useAddToCart";
+import {
+  getDeliveryCoordinate,
+  getRestaurantCoordinate,
+} from "./services/mapCoords";
+import { MapPreview } from "../components/MapPreview";
 import { colors, typography } from "./theme";
 
 type CartGroup = {
@@ -20,12 +28,13 @@ type CartGroup = {
 };
 
 export default function CheckoutScreen() {
+  const insets = useSafeAreaInsets();
   const {
-    addMenuItem,
     cartItems,
     clearCart,
     decreaseMenuItem,
     removeCartItem,
+    restaurants,
     selectedTip,
     setSelectedTip,
     customTip,
@@ -33,12 +42,28 @@ export default function CheckoutScreen() {
     profile,
     selectedRestaurantId,
   } = useAppState();
+  const addToCart = useAddToCart();
 
+  const cartRestaurant = useMemo(() => {
+    const cartRestaurantId = cartItems[0]?.restaurantId;
+    if (!cartRestaurantId) return undefined;
+    return restaurants.find((entry) => entry.id === cartRestaurantId);
+  }, [cartItems, restaurants]);
+  const pickupCoord = useMemo(
+    () => getRestaurantCoordinate(cartRestaurant),
+    [cartRestaurant],
+  );
+  const destinationCoord = useMemo(
+    () => getDeliveryCoordinate(pickupCoord),
+    [pickupCoord],
+  );
+
+  const isEmpty = cartItems.length === 0;
   const subtotal = getCartSubtotal(cartItems);
   const taxes = getCartTaxes(cartItems);
   const tipAmount = getTipAmount(cartItems, selectedTip, customTip);
-  const total = subtotal + taxes + 5 + tipAmount;
-  const isEmpty = cartItems.length === 0;
+  const deliveryFee = isEmpty ? 0 : checkoutPricing.deliveryFee;
+  const total = subtotal + taxes + deliveryFee + tipAmount;
   const cartGroups = useMemo<CartGroup[]>(() => {
     const groups = new Map<string, CartItem[]>();
     cartItems.forEach((item) => {
@@ -51,6 +76,11 @@ export default function CheckoutScreen() {
   const addItemsRestaurantId = cartItems[0]?.restaurantId ?? selectedRestaurantId;
 
   const openAddItems = () => {
+    if (addItemsRestaurantId.startsWith("reorder-")) {
+      router.push("/search");
+      return;
+    }
+
     router.push({
       pathname: "/restaurant-menu",
       params: { restaurantId: addItemsRestaurantId },
@@ -83,10 +113,23 @@ export default function CheckoutScreen() {
               <Feather name="edit-2" size={16} color={colors.surfaceDeep} />
             </Pressable>
           </View>
-          <View style={styles.mapPlaceholder}>
-            <View style={styles.mapPin}>
-              <Feather name="navigation" size={18} color={colors.background} />
-            </View>
+          <View style={styles.mapWrapper}>
+            <MapPreview
+              height={180}
+              interactive={false}
+              markers={[
+                {
+                  coordinate: pickupCoord,
+                  kind: "pickup",
+                  label: cartGroups[0]?.restaurantName ?? "Restaurant",
+                },
+                {
+                  coordinate: destinationCoord,
+                  kind: "destination",
+                  label: "Delivery",
+                },
+              ]}
+            />
           </View>
         </FadeInView>
 
@@ -94,7 +137,7 @@ export default function CheckoutScreen() {
           <Pressable
             accessibilityLabel="Go back"
             accessibilityRole="button"
-            hitSlop={12}
+            hitSlop={16}
             style={styles.backButton}
             onPress={() => goBackOrReplace("/home")}
           >
@@ -152,7 +195,7 @@ export default function CheckoutScreen() {
                             hitSlop={10}
                             style={styles.quantityButton}
                             onPress={() =>
-                              addMenuItem({
+                              addToCart({
                                 id: item.id,
                                 name: item.name,
                                 price: formatCurrency(item.price),
@@ -190,7 +233,7 @@ export default function CheckoutScreen() {
           <FadeInView delay={200} style={styles.card}>
             <Text style={styles.cardTitle}>Tip Your Driver</Text>
             <View style={styles.tipRow}>
-              {["10%", "15%", "20%", "25%"].map((tip) => {
+              {checkoutPricing.tipOptions.map((tip) => {
                 const isActive = tip === selectedTip && Number.parseFloat(customTip) === 0;
                 return (
                   <Pressable
@@ -235,7 +278,7 @@ export default function CheckoutScreen() {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryValue}>$5.00</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(deliveryFee)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Taxes</Text>
@@ -253,7 +296,12 @@ export default function CheckoutScreen() {
         </FadeInView>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(insets.bottom + 12, 20) },
+        ]}
+      >
         <Pressable
           style={[styles.footerButton, isEmpty && styles.footerButtonDisabled]}
           onPress={() => {
@@ -337,20 +385,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  mapPlaceholder: {
-    height: 192,
+  mapWrapper: {
     borderRadius: 16,
-    backgroundColor: colors.background,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  mapPin: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
+    overflow: "hidden",
   },
   sectionHeader: {
     marginHorizontal: -16,

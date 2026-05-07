@@ -37,6 +37,10 @@ export const CustomInput = ({
   const [showSecureText, setShowSecureText] = useState(false);
   const [focused, setFocused] = useState(false);
   const isSecure = Boolean(inputProps?.secureTextEntry);
+  const resolvedAccessibilityLabel =
+    inputProps?.accessibilityLabel ?? label ?? inputProps?.placeholder;
+  const resolvedAccessibilityHint =
+    inputProps?.accessibilityHint ?? errorText ?? helperText;
 
   return (
     <View style={styles.wrapper}>
@@ -55,6 +59,8 @@ export const CustomInput = ({
           </View>
         ) : null}
         <TextInput
+          accessibilityLabel={resolvedAccessibilityLabel}
+          accessibilityHint={resolvedAccessibilityHint}
           placeholderTextColor="rgba(31, 42, 31, 0.44)"
           selectionColor={colors.surface}
           style={[styles.input, inputStyle]}

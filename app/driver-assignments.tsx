@@ -9,12 +9,21 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
+import { unassignedDriverLabel } from "./appData";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getRolePortalTopInset,
+  rolePortalHeaderSize,
+} from "./rolePortalLayout";
 import { colors, spacing, typography } from "./theme";
 
 export default function DriverAssignmentsScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getRolePortalTopInset(insets.top);
   const {
     adminOrders,
     claimDriverAssignment,
@@ -24,8 +33,7 @@ export default function DriverAssignmentsScreen() {
 
   const activeDriver = useMemo(
     () =>
-      driverProfiles.find((driver) => driver.id === selectedDriverId) ??
-      driverProfiles[0],
+      driverProfiles.find((driver) => driver.id === selectedDriverId),
     [driverProfiles, selectedDriverId],
   );
 
@@ -34,7 +42,9 @@ export default function DriverAssignmentsScreen() {
       adminOrders.filter(
         (order) =>
           order.status === "Ready for Driver" &&
-          (!order.driver || order.driver === "Unassigned"),
+          (order.driverId == null ||
+            !order.driver ||
+            order.driver === unassignedDriverLabel),
       ),
     [adminOrders],
   );
@@ -44,19 +54,45 @@ export default function DriverAssignmentsScreen() {
         (order) =>
           (order.status === "Ready for Driver" ||
             order.status === "Out for Delivery") &&
-          order.driver === activeDriver?.name,
+          (order.driverId === selectedDriverId ||
+            order.driver === activeDriver?.name),
       ),
-    [activeDriver?.name, adminOrders],
+    [activeDriver?.name, adminOrders, selectedDriverId],
   );
 
+  if (!activeDriver) {
+    return (
+      <StaffAccessGate role="driver">
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No driver profile assigned</Text>
+            <Text style={styles.emptyText}>
+              This account needs a driverId claim before it can claim assignments.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </StaffAccessGate>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <StaffAccessGate role="driver">
+      <SafeAreaView style={styles.safeArea}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/driver-dashboard")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/driver-dashboard")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>ASSIGNMENTS</Text>
@@ -82,7 +118,7 @@ export default function DriverAssignmentsScreen() {
                   <View style={styles.copy}>
                     <Text style={styles.restaurant}>{order.restaurant}</Text>
                     <Text style={styles.meta}>
-                      {order.customer} · {order.total} · ETA {order.eta}
+                      {order.customer} | {order.total} | ETA {order.eta}
                     </Text>
                   </View>
                   <View style={styles.statusPill}>
@@ -93,7 +129,10 @@ export default function DriverAssignmentsScreen() {
                   style={styles.primaryAction}
                   onPress={async () => {
                     await claimDriverAssignment(order.id);
-                    router.push("/driver-route");
+                    router.push({
+                      pathname: "/driver-route",
+                      params: { orderId: order.id },
+                    });
                   }}
                 >
                   <Text style={styles.primaryActionText}>Claim Delivery</Text>
@@ -123,7 +162,7 @@ export default function DriverAssignmentsScreen() {
                   <View style={styles.copy}>
                     <Text style={styles.restaurant}>{order.restaurant}</Text>
                     <Text style={styles.meta}>
-                      {order.customer} · {order.total} · ETA {order.eta}
+                      {order.customer} | {order.total} | ETA {order.eta}
                     </Text>
                   </View>
                   <View style={styles.statusPill}>
@@ -136,7 +175,12 @@ export default function DriverAssignmentsScreen() {
                 </View>
                 <Pressable
                   style={styles.secondaryAction}
-                  onPress={() => router.push("/driver-route")}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/driver-route",
+                      params: { orderId: order.id },
+                    })
+                  }
                 >
                   <Text style={styles.secondaryActionText}>
                     {order.status === "Ready for Driver"
@@ -149,7 +193,8 @@ export default function DriverAssignmentsScreen() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -157,9 +202,15 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    gap: 10,
   },
   header: {
     flexDirection: "row",
@@ -167,8 +218,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -179,7 +230,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.primary,
   },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: rolePortalHeaderSize },
   section: { gap: 12 },
   sectionTitle: {
     fontFamily: typography.display,
@@ -197,6 +248,12 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 14,
     color: colors.textMuted,
+  },
+  emptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 24,
+    color: colors.primary,
+    textAlign: "center",
   },
   orderCard: {
     borderRadius: 22,

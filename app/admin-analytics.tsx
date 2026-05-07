@@ -1,12 +1,21 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getSafeHeaderTopPadding,
+  safeHeaderButtonSize,
+} from "./safeHeaderLayout";
+import { getAdminMetrics, getRestaurantBreakdown } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
 
 export default function AdminAnalyticsScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const { adminFeedback, adminOrders, adminRestaurants, driverProfiles } = useAppState();
 
   const handleBack = () => {
@@ -14,41 +23,42 @@ export default function AdminAnalyticsScreen() {
   };
 
   const metrics = useMemo(() => {
-    const completed = adminOrders.filter((order) => order.status === "Completed").length;
-    const live = adminOrders.filter((order) => order.status !== "Completed").length;
-    const avgRating =
-      adminFeedback.reduce((sum, entry) => sum + entry.rating, 0) / Math.max(adminFeedback.length, 1);
-    const availableDrivers = driverProfiles.filter((driver) => driver.status === "Available").length;
-    const approvalBacklog = adminRestaurants.filter((restaurant) => restaurant.status === "Needs Approval").length;
+    const adminMetrics = getAdminMetrics({
+      feedback: adminFeedback,
+      orders: adminOrders,
+      restaurants: adminRestaurants,
+      drivers: driverProfiles,
+    });
 
     return {
-      completed,
-      live,
-      avgRating: avgRating.toFixed(1),
-      availableDrivers,
-      approvalBacklog,
+      completed: adminMetrics.completedOrders,
+      live: adminMetrics.liveOrders,
+      avgRating: adminMetrics.averageRating,
+      availableDrivers: adminMetrics.availableDrivers,
+      approvalBacklog: adminMetrics.needsApproval,
     };
   }, [adminFeedback, adminOrders, adminRestaurants, driverProfiles]);
 
   const restaurantBreakdown = useMemo(
-    () =>
-      adminRestaurants.map((restaurant) => ({
-        id: restaurant.id,
-        name: restaurant.name,
-        orders: adminOrders.filter((order) => order.restaurantId === restaurant.id).length,
-        pausedItems: restaurant.menuItems.filter((item) => !item.available).length,
-      })),
+    () => getRestaurantBreakdown({ orders: adminOrders, restaurants: adminRestaurants }),
     [adminOrders, adminRestaurants],
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    <StaffAccessGate role="admin">
+      <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.header}>
           <Pressable
             accessibilityLabel="Go back"
             accessibilityRole="button"
-            hitSlop={10}
+            hitSlop={16}
             style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
             onPress={handleBack}
           >
@@ -105,7 +115,8 @@ export default function AdminAnalyticsScreen() {
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -113,14 +124,13 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backButton: {
-    width: 40,
-    height: 40,
+    width: safeHeaderButtonSize,
+    height: safeHeaderButtonSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -128,7 +138,7 @@ const styles = StyleSheet.create({
   },
   backButtonPressed: { opacity: 0.78, transform: [{ scale: 0.97 }] },
   headerTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: safeHeaderButtonSize },
   hero: {
     borderRadius: 24,
     backgroundColor: colors.surface,

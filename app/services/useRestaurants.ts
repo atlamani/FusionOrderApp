@@ -1,22 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { allRestaurants, type Restaurant } from "../appData";
 import { fetchRestaurants, type RestaurantQuery } from "./restaurants";
+import { getGooglePlacesApiKey } from "./restaurantService";
 
 export type UseRestaurantsState = {
   restaurants: Restaurant[];
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
-  source: "mock" | "google-places";
+  source: "mock" | "google";
   refetch: () => Promise<void>;
 };
 
-const HAS_API_KEY = (process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ?? "").length > 0;
+const HAS_API_KEY = getGooglePlacesApiKey().length > 0;
 
 /**
  * Returns the restaurant list with loading/error state.
  *
- * - If `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` is set, fetches live results from Places API.
+ * - If a Places key is configured, fetches live results from the shared Places service.
  * - Otherwise, returns the bundled mock data immediately and never enters a loading state,
  *   so screens render the same content they always did when the key is absent.
  */
@@ -25,7 +26,7 @@ export function useRestaurants(query: RestaurantQuery = {}): UseRestaurantsState
   const [isLoading, setIsLoading] = useState<boolean>(HAS_API_KEY);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [source, setSource] = useState<"mock" | "google-places">("mock");
+  const [source, setSource] = useState<"mock" | "google">("mock");
   const isMountedRef = useRef(true);
 
   const queryKey = JSON.stringify(query);

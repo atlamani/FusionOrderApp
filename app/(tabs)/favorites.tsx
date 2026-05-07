@@ -2,17 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "../FadeInView";
-import { allRestaurants, favoriteSpots } from "../appData";
+import { favoriteSpots, type Restaurant } from "../appData";
 import { useAppState } from "../appState";
+import { getSafeContentTopPadding } from "../safeHeaderLayout";
 import { colors, spacing, typography } from "../theme";
 
-const restaurantLookup = allRestaurants.reduce<
-  Record<string, (typeof allRestaurants)[number]>
->((accumulator, restaurant) => {
-  accumulator[restaurant.id] = restaurant;
-  return accumulator;
-}, {});
 const favoriteNotes = favoriteSpots.reduce<
   Record<string, (typeof favoriteSpots)[number]>
 >((accumulator, favorite) => {
@@ -21,16 +17,30 @@ const favoriteNotes = favoriteSpots.reduce<
 }, {});
 
 export default function FavoritesScreen() {
-  const { favoriteIds, setSelectedRestaurant, toggleFavorite } = useAppState();
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeContentTopPadding(insets.top);
+  const { favoriteIds, restaurants, setSelectedRestaurant, toggleFavorite } =
+    useAppState();
+  const restaurantLookup = restaurants.reduce<Record<string, Restaurant>>(
+    (accumulator, restaurant) => {
+      accumulator[restaurant.id] = restaurant;
+      return accumulator;
+    },
+    {},
+  );
   const visibleFavorites = favoriteIds
     .map((restaurantId) => restaurantLookup[restaurantId])
-    .filter((restaurant): restaurant is (typeof allRestaurants)[number] =>
-      Boolean(restaurant),
-    );
+    .filter((restaurant): restaurant is Restaurant => Boolean(restaurant));
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.heroCard}>
           <View style={styles.heroBadge}>
             <Feather name="heart" size={18} color={colors.background} />
@@ -82,7 +92,7 @@ export default function FavoritesScreen() {
                   </View>
                 </View>
                 <Text style={styles.favoriteMeta}>
-                  {`${restaurant.cuisine} · ${restaurant.eta} · ${restaurant.price}`}
+                  {`${restaurant.cuisine} | ${restaurant.eta} | ${restaurant.price}`}
                 </Text>
                 <Text style={styles.favoriteCopy}>
                   {favorite?.note ??
@@ -123,7 +133,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
