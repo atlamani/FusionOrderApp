@@ -361,6 +361,12 @@ type AppStateValue = {
   loginAsMember: (identifier?: string) => void;
   beginAdminSession: () => void;
   beginRestaurantSession: (restaurantId?: string) => void;
+  /**
+   * Activates the Google aggregator session. The aggregator uses the same
+   * restaurant-facing screens as a partner login but pulls in every order
+   * placed against a Google-Places-sourced restaurant.
+   */
+  beginGoogleAggregatorSession: () => void;
   beginDriverSession: (driverId?: string) => void;
   logout: () => void;
   updateProfile: (patch: Partial<UserProfile>) => void;
@@ -1352,6 +1358,10 @@ export function AppStateProvider({
         if (restaurantId) {
           setSelectedPartnerRestaurantId(restaurantId);
         }
+      },
+      beginGoogleAggregatorSession: () => {
+        setSessionMode("googleAggregator");
+        // The aggregator doesn't bind to a single partner restaurant.
       },
       beginDriverSession: (driverId?: string) => {
         setSessionMode("driver");

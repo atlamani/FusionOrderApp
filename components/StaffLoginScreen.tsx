@@ -61,8 +61,12 @@ const roleConfigs: Record<StaffRole, RoleConfig> = {
 
 export default function StaffLoginScreen({ role }: { role: StaffRole }) {
   const config = roleConfigs[role];
-  const { beginAdminSession, beginDriverSession, beginRestaurantSession } =
-    useAppState();
+  const {
+    beginAdminSession,
+    beginDriverSession,
+    beginGoogleAggregatorSession,
+    beginRestaurantSession,
+  } = useAppState();
   const [email, setEmail] = useState("");
   const [accessCode, setAccessCode] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -116,6 +120,7 @@ export default function StaffLoginScreen({ role }: { role: StaffRole }) {
         admin?: boolean;
         restaurantId?: string;
         driverId?: string;
+        googleAggregator?: boolean;
       };
 
       if (role === "manager") {
@@ -129,6 +134,16 @@ export default function StaffLoginScreen({ role }: { role: StaffRole }) {
       }
 
       if (role === "restaurant") {
+        // The Google aggregator account fulfills orders for every Google-
+        // Places-sourced restaurant. It signs in through the same restaurant
+        // login flow but goes straight to the order queue (the partner
+        // dashboard cards depend on a single restaurantId we don't have).
+        if (claims.googleAggregator === true) {
+          beginGoogleAggregatorSession();
+          router.replace("/restaurant-orders");
+          return;
+        }
+
         if (typeof claims.restaurantId !== "string") {
           throw new Error(
             "This account is not assigned to a restaurant location yet.",

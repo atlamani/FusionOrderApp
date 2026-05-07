@@ -30,7 +30,9 @@ export default function RestaurantDashboardScreen() {
     getRestaurantMenuSections,
     logout,
     selectedPartnerRestaurantId,
+    sessionMode,
   } = useAppState();
+  const isGoogleAggregator = sessionMode === "googleAggregator";
 
   const restaurant = useMemo(
     () => adminRestaurants.find((entry) => entry.id === selectedPartnerRestaurantId),
@@ -49,6 +51,47 @@ export default function RestaurantDashboardScreen() {
       menuItems: liveMenuItems,
     });
   }, [adminOrders, liveMenuItems, restaurant]);
+
+  if (isGoogleAggregator) {
+    // The aggregator account doesn't bind to a single partner restaurant
+    // and the dashboard's metric widgets all require one. Send them to the
+    // Google Queue (their actual workspace) when they hit this screen.
+    return (
+      <StaffAccessGate role="restaurant">
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>Google Places workspace</Text>
+            <Text style={styles.emptyCopy}>
+              You&apos;re signed in as the Google Places aggregator. Open the
+              order queue to see every order placed against a Google-sourced
+              restaurant.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={12}
+              style={styles.aggregatorButton}
+              onPress={() => router.replace("/restaurant-orders")}
+            >
+              <Text style={styles.aggregatorButtonText}>
+                Open Google Queue
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={12}
+              style={styles.aggregatorSecondary}
+              onPress={() => {
+                logout();
+                router.dismissTo("/");
+              }}
+            >
+              <Text style={styles.aggregatorSecondaryText}>Sign out</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </StaffAccessGate>
+    );
+  }
 
   if (!restaurant) {
     return (
@@ -198,6 +241,33 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.textMuted,
     textAlign: "center",
+  },
+  aggregatorButton: {
+    marginTop: 16,
+    minHeight: 48,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  aggregatorButtonText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.background,
+  },
+  aggregatorSecondary: {
+    marginTop: 6,
+    minHeight: 40,
+    paddingHorizontal: 22,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  aggregatorSecondaryText: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
   },
   navRow: {
     minHeight: 54,

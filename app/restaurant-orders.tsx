@@ -55,7 +55,9 @@ export default function RestaurantOrdersScreen() {
             accessibilityRole="button"
             hitSlop={16}
             style={styles.backButton}
-            onPress={() => goBackOrReplace("/restaurant-dashboard")}
+            onPress={() =>
+              goBackOrReplace(isGoogleAggregator ? "/" : "/restaurant-dashboard")
+            }
           >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
