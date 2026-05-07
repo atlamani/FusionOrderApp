@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
+import FusionYumLogo from "../components/FusionYumLogo";
 import { getSafeContentTopPadding } from "./safeHeaderLayout";
 import { colors, radii, spacing, typography } from "./theme";
 
@@ -61,6 +62,7 @@ export default function AuthScreenLayout({
           </FadeInView>
 
           <FadeInView delay={100} style={styles.hero}>
+            <FusionYumLogo size={68} variant="solid" containerStyle={styles.heroLogo} />
             <Text style={styles.brand}>{eyebrow}</Text>
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
@@ -124,8 +126,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   hero: {
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 6,
+  },
+  heroLogo: {
+    alignSelf: "flex-start",
+    marginBottom: 4,
   },
   brand: {
     fontFamily: typography.display,

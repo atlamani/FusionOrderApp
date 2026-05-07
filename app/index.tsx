@@ -4,7 +4,6 @@ import React, { useEffect, useRef } from "react";
 import {
   Animated,
   Easing,
-  Image,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -14,8 +13,7 @@ import {
 import FadeInView from "./FadeInView";
 import { useAppState } from "./appState";
 import { colors, spacing, typography } from "./theme";
-
-const appIcon = require("../assets/images/icon.png");
+import FusionYumLogo from "../components/FusionYumLogo";
 
 const roleCards = [
   {
@@ -116,8 +114,8 @@ export default function RoleGatewayScreen() {
             <View style={styles.orbitDashTop} />
             <View style={styles.orbitDashBottom} />
           </Animated.View>
-          <Animated.View style={[styles.logoShell, { transform: [{ scale: logoScale }] }]}>
-            <Image source={appIcon} style={styles.logoImage} />
+          <Animated.View style={{ transform: [{ scale: logoScale }] }}>
+            <FusionYumLogo size={110} variant="solid" />
           </Animated.View>
           <Text style={styles.brand}>FusionYum</Text>
           <Text style={styles.tagline}>Choose your workspace</Text>
@@ -215,26 +213,6 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: colors.surfaceDeep,
-  },
-  logoShell: {
-    width: 110,
-    height: 110,
-    borderRadius: 34,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 4,
-  },
-  logoImage: {
-    width: 74,
-    height: 74,
-    borderRadius: 20,
   },
   brand: {
     marginTop: 8,
