@@ -67,10 +67,16 @@ service cloud.firestore {
     }
 
     function googleAggregatorOwnsOrder(data) {
+      // Use a string-range check (matching the aggregator's range query in
+      // app/Firebase/admin.ts) instead of `matches()`. Firestore's rule
+      // analyzer pre-validates queries against rules and cannot prove that
+      // a range constraint implies a regex match, so a regex here causes
+      // the aggregator's collection query to be rejected upfront.
       return isGoogleAggregator() &&
         ("restaurantId" in data) &&
         data.restaurantId is string &&
-        data.restaurantId.matches("^google-.*");
+        data.restaurantId >= "google-" &&
+        data.restaurantId < "google.";
     }
 
     function orderIsReadyForDriver(data) {
