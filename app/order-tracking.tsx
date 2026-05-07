@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
@@ -53,6 +53,8 @@ type TrackingOrder = {
   total: number | string;
   deliveryAddress?: string;
   deliveryNote?: string;
+  issueStatus?: "open" | "in_progress" | "resolved";
+  issueResolutionMessage?: string;
 };
 
 const adminStatusToTrackingStatus = (status?: string): OrderStatus => {
@@ -121,6 +123,10 @@ const fromFirebaseOrder = (order: Order): TrackingOrder => ({
   total: order.total ?? order.totalAmount,
   deliveryAddress: order.deliveryAddress,
   deliveryNote: order.deliveryNote,
+  issueStatus: order.issueReport?.status,
+  issueResolutionMessage:
+    order.issueReport?.resolution?.customerMessage ??
+    order.issueReport?.resolution?.notes,
 });
 
 const fromCustomerOrder = (
@@ -535,26 +541,84 @@ export default function OrderTrackingScreen() {
 
         {displayOrder.status !== "pending" &&
         displayOrder.status !== "cancelled" ? (
-          <FadeInView delay={200} style={styles.issueCard}>
-            <View style={styles.issueRow}>
-              <Feather name="alert-circle" size={18} color={colors.warning} />
-              <View style={styles.issueCopy}>
-                <Text style={styles.issueTitle}>Something wrong?</Text>
-                <Text style={styles.issueSubtitle}>
-                  Let us know and a team member will follow up.
-                </Text>
+          displayOrder.issueStatus === "resolved" ? (
+            <FadeInView delay={200} style={styles.issueCard}>
+              <View style={styles.issueRow}>
+                <Feather
+                  name="check-circle"
+                  size={18}
+                  color={colors.success}
+                />
+                <View style={styles.issueCopy}>
+                  <Text style={styles.issueTitle}>Manager resolved your issue</Text>
+                  <Text style={styles.issueSubtitle}>
+                    {displayOrder.issueResolutionMessage ??
+                      "Thanks for the feedback — tap below for details."}
+                  </Text>
+                </View>
               </View>
-            </View>
-            <Pressable
-              accessibilityLabel="Report an issue with this order"
-              accessibilityRole="button"
-              hitSlop={10}
-              style={styles.issueButton}
-              onPress={() => setIssueModalVisible(true)}
-            >
-              <Text style={styles.issueButtonText}>Report Issue</Text>
-            </Pressable>
-          </FadeInView>
+              <Pressable
+                accessibilityLabel="View resolution details"
+                accessibilityRole="button"
+                hitSlop={10}
+                style={styles.issueButton}
+                onPress={() =>
+                  router.push(
+                    `/order-issue-status?orderId=${encodeURIComponent(displayOrder.id)}`,
+                  )
+                }
+              >
+                <Text style={styles.issueButtonText}>View details</Text>
+              </Pressable>
+            </FadeInView>
+          ) : displayOrder.issueStatus ? (
+            <FadeInView delay={200} style={styles.issueCard}>
+              <View style={styles.issueRow}>
+                <Feather name="clock" size={18} color={colors.warning} />
+                <View style={styles.issueCopy}>
+                  <Text style={styles.issueTitle}>Issue reported</Text>
+                  <Text style={styles.issueSubtitle}>
+                    A manager is reviewing your order. We&apos;ll send a
+                    resolution shortly.
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                accessibilityLabel="View issue status"
+                accessibilityRole="button"
+                hitSlop={10}
+                style={styles.issueButton}
+                onPress={() =>
+                  router.push(
+                    `/order-issue-status?orderId=${encodeURIComponent(displayOrder.id)}`,
+                  )
+                }
+              >
+                <Text style={styles.issueButtonText}>View status</Text>
+              </Pressable>
+            </FadeInView>
+          ) : (
+            <FadeInView delay={200} style={styles.issueCard}>
+              <View style={styles.issueRow}>
+                <Feather name="alert-circle" size={18} color={colors.warning} />
+                <View style={styles.issueCopy}>
+                  <Text style={styles.issueTitle}>Something wrong?</Text>
+                  <Text style={styles.issueSubtitle}>
+                    Let us know and a team member will follow up.
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                accessibilityLabel="Report an issue with this order"
+                accessibilityRole="button"
+                hitSlop={10}
+                style={styles.issueButton}
+                onPress={() => setIssueModalVisible(true)}
+              >
+                <Text style={styles.issueButtonText}>Report Issue</Text>
+              </Pressable>
+            </FadeInView>
+          )
         ) : null}
       </ScrollView>
 

@@ -374,7 +374,19 @@ function sanitizeAdminOrder(
       baseFallback?.deliveryAddress ?? "",
     ),
     issue: resolvedIssue,
+    issueReport: sanitizeIssueReport(orderData.issueReport),
   };
+}
+
+function sanitizeIssueReport(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const data = value as Record<string, unknown>;
+  if (typeof data.type !== "string" || typeof data.description !== "string") {
+    return undefined;
+  }
+  return data as unknown as AdminOrder["issueReport"];
 }
 
 function sanitizeRestaurant(

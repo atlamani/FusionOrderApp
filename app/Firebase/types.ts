@@ -134,11 +134,23 @@ export type OrderIssueResolutionAction =
   | "redelivery"
   | "no_action";
 
+export type OrderIssueRefundDestination = "card" | "credit";
+
 export interface OrderIssueResolution {
   action: OrderIssueResolutionAction;
   notes: string;
   resolvedAt: FirebaseFirestoreTypes.FieldValue | Date | string | number | null;
   resolvedBy: string;
+  /** Where a refund was sent. Only meaningful when `action` is "refund". */
+  refundDestination?: OrderIssueRefundDestination;
+  /** Dollar amount refunded or credited. Stored as a number for clarity. */
+  refundAmount?: number;
+  /**
+   * Customer-facing one-liner shown on the order help screen. Composed
+   * by the resolution service from the action + destination + amount so
+   * the wording stays consistent across roles.
+   */
+  customerMessage?: string;
 }
 
 export interface OrderIssueReport {

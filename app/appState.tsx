@@ -533,6 +533,8 @@ type AppStateValue = {
     orderId: string;
     action: import("./Firebase/types").OrderIssueResolutionAction;
     notes: string;
+    refundDestination?: import("./Firebase/types").OrderIssueRefundDestination;
+    refundAmount?: number;
   }) => Promise<void>;
   /** Admin cancels an order outright. */
   cancelAdminOrder: (orderId: string, reason: string) => Promise<void>;
@@ -1987,7 +1989,13 @@ export function AppStateProvider({
           throw error;
         }
       },
-      resolveOrderIssue: async ({ orderId, action, notes }) => {
+      resolveOrderIssue: async ({
+        orderId,
+        action,
+        notes,
+        refundDestination,
+        refundAmount,
+      }) => {
         if (!currentUser) {
           throw new Error("Sign in is required to resolve an issue.");
         }
@@ -2024,6 +2032,8 @@ export function AppStateProvider({
             resolvedBy: currentUser.uid,
             action,
             notes,
+            refundDestination,
+            refundAmount,
           });
         } catch (error) {
           setAdminOrders(previous);

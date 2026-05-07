@@ -136,6 +136,21 @@ export default function RestaurantOrdersScreen() {
               </View>
             ) : null}
 
+            {order.issueReport?.status === "resolved" &&
+            order.issueReport.resolution ? (
+              <View style={styles.resolutionBanner}>
+                <Feather
+                  name="check-circle"
+                  size={14}
+                  color={colors.success}
+                />
+                <Text style={styles.resolutionText}>
+                  {order.issueReport.resolution.customerMessage ??
+                    "Manager resolved customer issue."}
+                </Text>
+              </View>
+            ) : null}
+
             <View style={styles.actionRow}>
               {order.status === "Pending" ? (
                 <Pressable style={styles.primaryAction} onPress={() => updateAdminOrderStatus(order.id, "Preparing")}>
@@ -261,6 +276,21 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   issueText: { fontFamily: typography.body, fontSize: 12, color: colors.warning },
+  resolutionBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 10,
+    borderRadius: 14,
+    backgroundColor: "#ECFDF3",
+  },
+  resolutionText: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.success,
+  },
   actionRow: { flexDirection: "row", justifyContent: "flex-end" },
   primaryAction: {
     minHeight: 42,

@@ -18,8 +18,12 @@ import { goBackOrReplace } from "./navigation";
 import {
   ORDER_ISSUE_RESOLUTION_LABELS,
   ORDER_ISSUE_TYPE_LABELS,
+  REFUND_DESTINATION_LABELS,
 } from "./Firebase/orderIssues";
-import type { OrderIssueResolutionAction } from "./Firebase/types";
+import type {
+  OrderIssueRefundDestination,
+  OrderIssueResolutionAction,
+} from "./Firebase/types";
 import {
   getSafeHeaderTopPadding,
   safeHeaderButtonSize,
@@ -46,6 +50,13 @@ const RESOLUTION_OPTIONS: OrderIssueResolutionAction[] = [
   "no_action",
 ];
 
+const DESTINATION_OPTIONS: OrderIssueRefundDestination[] = ["card", "credit"];
+
+function parseOrderTotalToNumber(total: string): number | null {
+  const parsed = Number.parseFloat(total.replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export default function AdminOrdersScreen() {
   const insets = useSafeAreaInsets();
   const headerTopPadding = getSafeHeaderTopPadding(insets.top);
@@ -56,20 +67,48 @@ export default function AdminOrdersScreen() {
   const [resolutionAction, setResolutionAction] =
     useState<OrderIssueResolutionAction>("refund");
   const [resolutionNotes, setResolutionNotes] = useState("");
+  const [resolutionDestination, setResolutionDestination] =
+    useState<OrderIssueRefundDestination>("card");
+  const [resolutionAmount, setResolutionAmount] = useState("");
   const [submittingResolution, setSubmittingResolution] = useState(false);
 
   const handleSubmitResolution = async () => {
     if (!resolvingOrderId) return;
     setSubmittingResolution(true);
     try {
+      const movesMoney =
+        resolutionAction === "refund" || resolutionAction === "credit";
+      const parsedAmount = movesMoney
+        ? Number.parseFloat(resolutionAmount)
+        : undefined;
+      if (
+        movesMoney &&
+        (parsedAmount === undefined || !Number.isFinite(parsedAmount) || parsedAmount <= 0)
+      ) {
+        Alert.alert(
+          "Enter an amount",
+          "Refunds and credits need a dollar amount greater than $0.",
+        );
+        setSubmittingResolution(false);
+        return;
+      }
+
       await resolveOrderIssue({
         orderId: resolvingOrderId,
         action: resolutionAction,
         notes: resolutionNotes,
+        refundDestination: movesMoney
+          ? resolutionAction === "credit"
+            ? "credit"
+            : resolutionDestination
+          : undefined,
+        refundAmount: parsedAmount,
       });
       setResolvingOrderId(null);
       setResolutionNotes("");
       setResolutionAction("refund");
+      setResolutionAmount("");
+      setResolutionDestination("card");
     } catch (error) {
       Alert.alert(
         "Couldn't resolve issue",
@@ -217,6 +256,9 @@ export default function AdminOrdersScreen() {
                       setResolvingOrderId(order.id);
                       setResolutionAction("refund");
                       setResolutionNotes("");
+                      setResolutionDestination("card");
+                      const total = parseOrderTotalToNumber(order.total);
+                      setResolutionAmount(total ? total.toFixed(2) : "");
                     }}
                   >
                     <Text style={styles.issueResolveText}>Resolve Issue</Text>
@@ -230,10 +272,12 @@ export default function AdminOrdersScreen() {
               <View style={styles.resolutionBanner}>
                 <Feather name="check-circle" size={14} color={colors.success} />
                 <Text style={styles.resolutionText}>
-                  Resolved · {ORDER_ISSUE_RESOLUTION_LABELS[order.issueReport.resolution.action]}
-                  {order.issueReport.resolution.notes
-                    ? ` — ${order.issueReport.resolution.notes}`
-                    : ""}
+                  {order.issueReport.resolution.customerMessage ??
+                    `${ORDER_ISSUE_RESOLUTION_LABELS[order.issueReport.resolution.action]}${
+                      order.issueReport.resolution.notes
+                        ? ` — ${order.issueReport.resolution.notes}`
+                        : ""
+                    }`}
                 </Text>
               </View>
             ) : null}
@@ -265,6 +309,61 @@ export default function AdminOrdersScreen() {
                     );
                   })}
                 </View>
+
+                {resolutionAction === "refund" ? (
+                  <>
+                    <Text style={styles.resolveSubLabel}>Send refund to</Text>
+                    <View style={styles.resolveOptions}>
+                      {DESTINATION_OPTIONS.map((option) => {
+                        const active = option === resolutionDestination;
+                        return (
+                          <Pressable
+                            key={option}
+                            style={[
+                              styles.resolveOption,
+                              active && styles.resolveOptionActive,
+                            ]}
+                            onPress={() => setResolutionDestination(option)}
+                          >
+                            <Text
+                              style={[
+                                styles.resolveOptionText,
+                                active && styles.resolveOptionTextActive,
+                              ]}
+                            >
+                              {option === "card"
+                                ? "Original card"
+                                : "FusionYum credit"}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </>
+                ) : null}
+
+                {resolutionAction === "refund" ||
+                resolutionAction === "credit" ? (
+                  <>
+                    <Text style={styles.resolveSubLabel}>Amount</Text>
+                    <View style={styles.resolveAmountRow}>
+                      <Text style={styles.resolveAmountSymbol}>$</Text>
+                      <TextInput
+                        accessibilityLabel="Resolution amount in dollars"
+                        keyboardType="decimal-pad"
+                        placeholder="0.00"
+                        placeholderTextColor="rgba(31, 42, 31, 0.44)"
+                        style={styles.resolveAmountInput}
+                        value={resolutionAmount}
+                        onChangeText={setResolutionAmount}
+                      />
+                      <Text style={styles.resolveAmountHint}>
+                        of {order.total}
+                      </Text>
+                    </View>
+                  </>
+                ) : null}
+
                 <TextInput
                   accessibilityLabel="Resolution notes"
                   multiline
@@ -513,6 +612,39 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 14,
     color: colors.primary,
+  },
+  resolveSubLabel: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  resolveAmountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    minHeight: 44,
+  },
+  resolveAmountSymbol: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.primary,
+  },
+  resolveAmountInput: {
+    flex: 1,
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+  },
+  resolveAmountHint: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.textMuted,
   },
   resolveOptions: {
     flexDirection: "row",
