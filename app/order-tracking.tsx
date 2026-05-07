@@ -22,6 +22,7 @@ import { colors, typography } from "./theme";
 import { MapPreview } from "../components/MapPreview";
 import { ReportIssueModal } from "../components/ReportIssueModal";
 import { ReviewSubmitModal } from "../components/ReviewSubmitModal";
+import { Skeleton } from "../components/Skeleton";
 
 const statusSteps = [
   { key: "pending", label: "Order Placed", icon: "clock" },
@@ -265,9 +266,25 @@ export default function OrderTrackingScreen() {
   if (loading && !displayOrder) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading order details...</Text>
-        </View>
+        <ScrollView contentContainerStyle={styles.skeletonContent}>
+          <View style={styles.skeletonCard}>
+            <Skeleton width="50%" height={20} />
+            <Skeleton width="80%" height={14} />
+            <Skeleton width="40%" height={12} />
+          </View>
+          <View style={styles.skeletonCard}>
+            <Skeleton width="40%" height={18} />
+            {[0, 1, 2, 3, 4].map((row) => (
+              <View key={row} style={styles.skeletonStepRow}>
+                <Skeleton width={32} height={32} borderRadius={16} />
+                <View style={styles.skeletonStepCopy}>
+                  <Skeleton width="60%" height={14} />
+                  <Skeleton width="80%" height={11} />
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -561,6 +578,27 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  skeletonContent: {
+    padding: 16,
+    gap: 16,
+  },
+  skeletonCard: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    gap: 12,
+  },
+  skeletonStepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  skeletonStepCopy: {
+    flex: 1,
+    gap: 6,
   },
   loadingContainer: {
     flex: 1,

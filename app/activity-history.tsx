@@ -40,6 +40,25 @@ export default function ActivityHistoryScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {orderHistory.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Feather name="clock" size={28} color={colors.surface} />
+            <Text style={styles.emptyTitle}>No orders yet</Text>
+            <Text style={styles.emptyCopy}>
+              When you place your first order it will appear here so you can
+              track it, view the receipt, or leave a review.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Browse restaurants"
+              hitSlop={8}
+              style={styles.emptyButton}
+              onPress={() => router.push("/home")}
+            >
+              <Text style={styles.emptyButtonText}>Browse Restaurants</Text>
+            </Pressable>
+          </View>
+        ) : null}
         {orderHistory.map((order, index) => {
           const delivered = order.status === "Delivered";
           const cancelled = order.status === "Cancelled";
@@ -185,6 +204,42 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 32,
     gap: 16,
+  },
+  emptyCard: {
+    backgroundColor: colors.white,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 24,
+    gap: 10,
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 22,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  emptyCopy: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  emptyButton: {
+    marginTop: 6,
+    minHeight: 44,
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyButtonText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.background,
   },
   orderCard: {
     backgroundColor: colors.white,

@@ -2,7 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -22,6 +21,7 @@ import {
 import { useAppState } from "../appState";
 import { getSafeContentTopPadding } from "../safeHeaderLayout";
 import { colors, spacing, typography } from "../theme";
+import { RestaurantCardSkeleton } from "../../components/Skeleton";
 
 function RestaurantCard({
   item,
@@ -257,11 +257,11 @@ export default function DiscoverScreen() {
               <Text style={styles.sectionLink}>See all</Text>
             </Pressable>
           </View>
-          {restaurantDataLoading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={colors.surface} />
-              <Text style={styles.loadingRowText}>Loading restaurants...</Text>
-            </View>
+          {restaurantDataLoading && recommendedRestaurants.length === 0 ? (
+            <>
+              <RestaurantCardSkeleton />
+              <RestaurantCardSkeleton />
+            </>
           ) : null}
           {recommendedRestaurants.map((restaurant) => (
             <RestaurantCard key={restaurant.id} item={restaurant} />

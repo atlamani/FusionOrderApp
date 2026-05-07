@@ -2,7 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Keyboard,
   Pressable,
   SafeAreaView,
@@ -30,6 +29,7 @@ import {
   type PlaceAutocompleteSuggestion,
 } from "./services/restaurantService";
 import { colors, spacing, typography } from "./theme";
+import { SearchResultSkeleton } from "../components/Skeleton";
 
 const ratingFilters = [
   { id: 0, label: "Any rating" },
@@ -565,11 +565,12 @@ export default function SearchScreen() {
             </View>
           </View>
           <View style={styles.resultsList}>
-            {restaurantDataLoading ? (
-              <View style={styles.loadingState}>
-                <ActivityIndicator size="small" color={colors.surface} />
-                <Text style={styles.loadingStateText}>Fetching nearby restaurants...</Text>
-              </View>
+            {restaurantDataLoading && filteredResults.length === 0 ? (
+              <>
+                <SearchResultSkeleton />
+                <SearchResultSkeleton />
+                <SearchResultSkeleton />
+              </>
             ) : null}
             {filteredResults.map((restaurant) => (
               <Pressable
