@@ -1153,6 +1153,12 @@ export function AppStateProvider({
               rewardsTier: firestoreProfile.rewardsTier || "Bronze Member",
             });
             setSavedLocationOptions(firestoreProfile.savedAddresses ?? []);
+            if (Array.isArray(firestoreProfile.recentSearches)) {
+              setRecentSearches(firestoreProfile.recentSearches);
+            }
+            if (Array.isArray(firestoreProfile.savedSearches)) {
+              setSavedSearches(firestoreProfile.savedSearches);
+            }
           } else {
             const resolvedFullName = resolveProfileName(
               user.displayName,
@@ -1202,6 +1208,8 @@ export function AppStateProvider({
         // Clear personal data so a new sign-in starts clean.
         setProfile(defaultProfile);
         setSavedLocationOptions([]);
+        setRecentSearches(defaultRecentSearches);
+        setSavedSearches(defaultSavedSearches);
       }
     });
 
@@ -1556,20 +1564,36 @@ export function AppStateProvider({
           return;
         }
         setSearchQuery(trimmed);
-        setRecentSearches((current) =>
-          [trimmed, ...current.filter((entry) => entry !== trimmed)].slice(
-            0,
-            6,
-          ),
-        );
+        setRecentSearches((current) => {
+          const next = [
+            trimmed,
+            ...current.filter((entry) => entry !== trimmed),
+          ].slice(0, 6);
+          if (currentUser) {
+            void saveUserProfile(currentUser.uid, {
+              recentSearches: next,
+            }).catch((error) => {
+              console.error("Error persisting recent searches:", error);
+            });
+          }
+          return next;
+        });
       },
       clearSearch: () => setSearchQuery(""),
       toggleSavedSearch: (value: string) =>
-        setSavedSearches((current) =>
-          current.includes(value)
+        setSavedSearches((current) => {
+          const next = current.includes(value)
             ? current.filter((entry) => entry !== value)
-            : [value, ...current].slice(0, 6),
-        ),
+            : [value, ...current].slice(0, 6);
+          if (currentUser) {
+            void saveUserProfile(currentUser.uid, {
+              savedSearches: next,
+            }).catch((error) => {
+              console.error("Error persisting saved searches:", error);
+            });
+          }
+          return next;
+        }),
       applyDiscoveryFilters: (patch: Partial<DiscoveryFilters>) =>
         setDiscoveryFilters((current) => ({
           ...current,

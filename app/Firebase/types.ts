@@ -13,6 +13,17 @@ export interface UserProfile {
    * delivery address is `address` above; this list is the picker source.
    */
   savedAddresses?: string[];
+  /**
+   * Most recent search queries the user has submitted. Capped at 6 entries
+   * (most recent first) and persisted so the search screen can hydrate
+   * across sessions.
+   */
+  recentSearches?: string[];
+  /**
+   * Search queries the user has explicitly bookmarked from the search
+   * screen. Capped at 6 entries.
+   */
+  savedSearches?: string[];
   rewardsPoints?: number;
   rewardsTier?: string;
   createdAt?: FirebaseFirestoreTypes.FieldValue | Date | string | null;
