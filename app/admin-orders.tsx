@@ -1,11 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +15,11 @@ import FadeInView from "./FadeInView";
 import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  ORDER_ISSUE_RESOLUTION_LABELS,
+  ORDER_ISSUE_TYPE_LABELS,
+} from "./Firebase/orderIssues";
+import type { OrderIssueResolutionAction } from "./Firebase/types";
 import {
   getSafeHeaderTopPadding,
   safeHeaderButtonSize,
@@ -35,12 +42,72 @@ const nextManagerStatus: Record<
   "Ready for Driver": null,
 };
 
+const RESOLUTION_OPTIONS: OrderIssueResolutionAction[] = [
+  "refund",
+  "credit",
+  "redelivery",
+  "no_action",
+];
+
 export default function AdminOrdersScreen() {
   const insets = useSafeAreaInsets();
   const headerTopPadding = getSafeHeaderTopPadding(insets.top);
-  const { adminOrders, updateAdminOrderStatus } = useAppState();
+  const {
+    adminOrders,
+    updateAdminOrderStatus,
+    resolveOrderIssue,
+    cancelAdminOrder,
+  } = useAppState();
   const [activeFilter, setActiveFilter] =
     useState<(typeof orderFilters)[number]>("All");
+  const [resolvingOrderId, setResolvingOrderId] = useState<string | null>(null);
+  const [resolutionAction, setResolutionAction] =
+    useState<OrderIssueResolutionAction>("refund");
+  const [resolutionNotes, setResolutionNotes] = useState("");
+  const [submittingResolution, setSubmittingResolution] = useState(false);
+
+  const handleSubmitResolution = async () => {
+    if (!resolvingOrderId) return;
+    setSubmittingResolution(true);
+    try {
+      await resolveOrderIssue({
+        orderId: resolvingOrderId,
+        action: resolutionAction,
+        notes: resolutionNotes,
+      });
+      setResolvingOrderId(null);
+      setResolutionNotes("");
+      setResolutionAction("refund");
+    } catch (error) {
+      Alert.alert(
+        "Couldn't resolve issue",
+        "Something went wrong saving the resolution. Please try again.",
+      );
+    } finally {
+      setSubmittingResolution(false);
+    }
+  };
+
+  const handleCancelOrder = (orderId: string) => {
+    Alert.alert(
+      "Cancel this order?",
+      "The customer will be notified and the order will move to Completed.",
+      [
+        { text: "Keep order", style: "cancel" },
+        {
+          text: "Cancel order",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await cancelAdminOrder(orderId, "Cancelled by admin");
+            } catch (error) {
+              Alert.alert("Couldn't cancel", "Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const visibleOrders = useMemo(
     () =>
@@ -137,8 +204,105 @@ export default function AdminOrdersScreen() {
 
             {order.issue ? (
               <View style={styles.issueBanner}>
-                <Feather name="alert-circle" size={16} color={colors.warning} />
-                <Text style={styles.issueText}>{order.issue}</Text>
+                <View style={styles.issueRow}>
+                  <Feather name="alert-circle" size={16} color={colors.warning} />
+                  <View style={styles.issueCopy}>
+                    {order.issueReport ? (
+                      <Text style={styles.issueCategory}>
+                        {ORDER_ISSUE_TYPE_LABELS[order.issueReport.type] ?? "Reported"}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.issueText}>{order.issue}</Text>
+                  </View>
+                </View>
+                {order.issueReport &&
+                order.issueReport.status !== "resolved" ? (
+                  <Pressable
+                    accessibilityLabel={`Resolve issue on order ${order.id}`}
+                    accessibilityRole="button"
+                    style={styles.issueResolveButton}
+                    onPress={() => {
+                      setResolvingOrderId(order.id);
+                      setResolutionAction("refund");
+                      setResolutionNotes("");
+                    }}
+                  >
+                    <Text style={styles.issueResolveText}>Resolve Issue</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {order.issueReport?.status === "resolved" &&
+            order.issueReport.resolution ? (
+              <View style={styles.resolutionBanner}>
+                <Feather name="check-circle" size={14} color={colors.success} />
+                <Text style={styles.resolutionText}>
+                  Resolved · {ORDER_ISSUE_RESOLUTION_LABELS[order.issueReport.resolution.action]}
+                  {order.issueReport.resolution.notes
+                    ? ` — ${order.issueReport.resolution.notes}`
+                    : ""}
+                </Text>
+              </View>
+            ) : null}
+
+            {resolvingOrderId === order.id ? (
+              <View style={styles.resolveCard}>
+                <Text style={styles.resolveTitle}>Resolution action</Text>
+                <View style={styles.resolveOptions}>
+                  {RESOLUTION_OPTIONS.map((option) => {
+                    const active = option === resolutionAction;
+                    return (
+                      <Pressable
+                        key={option}
+                        style={[
+                          styles.resolveOption,
+                          active && styles.resolveOptionActive,
+                        ]}
+                        onPress={() => setResolutionAction(option)}
+                      >
+                        <Text
+                          style={[
+                            styles.resolveOptionText,
+                            active && styles.resolveOptionTextActive,
+                          ]}
+                        >
+                          {ORDER_ISSUE_RESOLUTION_LABELS[option]}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <TextInput
+                  accessibilityLabel="Resolution notes"
+                  multiline
+                  placeholder="Add notes for the customer record (optional)"
+                  placeholderTextColor="rgba(31, 42, 31, 0.44)"
+                  style={styles.resolveInput}
+                  value={resolutionNotes}
+                  onChangeText={setResolutionNotes}
+                />
+                <View style={styles.resolveActions}>
+                  <Pressable
+                    style={[styles.resolveActionButton, styles.resolveCancel]}
+                    disabled={submittingResolution}
+                    onPress={() => {
+                      setResolvingOrderId(null);
+                      setResolutionNotes("");
+                    }}
+                  >
+                    <Text style={styles.resolveCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.resolveActionButton, styles.resolveConfirm]}
+                    disabled={submittingResolution}
+                    onPress={handleSubmitResolution}
+                  >
+                    <Text style={styles.resolveConfirmText}>
+                      {submittingResolution ? "Saving..." : "Save Resolution"}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
             ) : null}
 
@@ -150,25 +314,37 @@ export default function AdminOrdersScreen() {
                     const currentStatus = order.status;
                     const nextStatus = nextManagerStatus[currentStatus];
 
-                    return nextStatus ? (
-                      <Pressable
-                        style={styles.primaryAction}
-                        onPress={() => {
-                          updateAdminOrderStatus(order.id, nextStatus);
-                        }}
-                      >
-                        <Text style={styles.primaryActionText}>
-                          {currentStatus === "Pending"
-                            ? "Start Preparing"
-                            : "Mark Ready for Driver"}
-                        </Text>
-                      </Pressable>
-                    ) : (
-                      <View style={styles.completedPill}>
-                        <Text style={styles.completedPillText}>
-                          Waiting for Driver
-                        </Text>
-                      </View>
+                    return (
+                      <>
+                        <Pressable
+                          accessibilityLabel={`Cancel order ${order.id}`}
+                          accessibilityRole="button"
+                          style={styles.cancelOrderButton}
+                          onPress={() => handleCancelOrder(order.id)}
+                        >
+                          <Text style={styles.cancelOrderText}>Cancel</Text>
+                        </Pressable>
+                        {nextStatus ? (
+                          <Pressable
+                            style={styles.primaryAction}
+                            onPress={() => {
+                              updateAdminOrderStatus(order.id, nextStatus);
+                            }}
+                          >
+                            <Text style={styles.primaryActionText}>
+                              {currentStatus === "Pending"
+                                ? "Start Preparing"
+                                : "Mark Ready for Driver"}
+                            </Text>
+                          </Pressable>
+                        ) : (
+                          <View style={styles.completedPill}>
+                            <Text style={styles.completedPillText}>
+                              Waiting for Driver
+                            </Text>
+                          </View>
+                        )}
+                      </>
                     );
                   })()
                 : null}
@@ -294,17 +470,150 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: "#FFF4E6",
     padding: 12,
+    gap: 10,
+  },
+  issueRow: {
     flexDirection: "row",
     gap: 8,
-    alignItems: "center",
+    alignItems: "flex-start",
+  },
+  issueCopy: { flex: 1, gap: 2 },
+  issueCategory: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.warning,
+    letterSpacing: 0.5,
   },
   issueText: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text,
+  },
+  issueResolveButton: {
+    alignSelf: "flex-start",
+    minHeight: 34,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: colors.warning,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  issueResolveText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.background,
+  },
+  resolutionBanner: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "#ECFDF3",
+  },
+  resolutionText: {
     flex: 1,
     fontFamily: typography.body,
     fontSize: 12,
-    color: colors.warning,
+    lineHeight: 16,
+    color: colors.success,
   },
-  actionRow: { flexDirection: "row", justifyContent: "flex-end" },
+  resolveCard: {
+    borderRadius: 16,
+    backgroundColor: colors.background,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  resolveTitle: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.primary,
+  },
+  resolveOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  resolveOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  resolveOptionActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  resolveOptionText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  resolveOptionTextActive: {
+    color: colors.background,
+  },
+  resolveInput: {
+    minHeight: 64,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.text,
+    textAlignVertical: "top",
+  },
+  resolveActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  resolveActionButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  resolveCancel: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  resolveCancelText: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    color: colors.primary,
+  },
+  resolveConfirm: {
+    backgroundColor: colors.primary,
+  },
+  resolveConfirmText: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    color: colors.background,
+  },
+  actionRow: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
+  cancelOrderButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cancelOrderText: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    color: colors.danger,
+  },
   primaryAction: {
     minHeight: 42,
     borderRadius: 14,

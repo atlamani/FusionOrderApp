@@ -20,6 +20,7 @@ import {
 } from "./services/mapCoords";
 import { colors, typography } from "./theme";
 import { MapPreview } from "../components/MapPreview";
+import { ReportIssueModal } from "../components/ReportIssueModal";
 
 const statusSteps = [
   { key: "pending", label: "Order Placed", icon: "clock" },
@@ -139,6 +140,7 @@ export default function OrderTrackingScreen() {
   const [order, setOrder] = useState<TrackingOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [issueModalVisible, setIssueModalVisible] = useState(false);
 
   const localOrder = useMemo(() => {
     if (!resolvedOrderId || !currentOrder || currentOrder.id !== resolvedOrderId) {
@@ -485,7 +487,37 @@ export default function OrderTrackingScreen() {
             )}
           </FadeInView>
         )}
+
+        {displayOrder.status !== "pending" &&
+        displayOrder.status !== "cancelled" ? (
+          <FadeInView delay={200} style={styles.issueCard}>
+            <View style={styles.issueRow}>
+              <Feather name="alert-circle" size={18} color={colors.warning} />
+              <View style={styles.issueCopy}>
+                <Text style={styles.issueTitle}>Something wrong?</Text>
+                <Text style={styles.issueSubtitle}>
+                  Let us know and a team member will follow up.
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityLabel="Report an issue with this order"
+              accessibilityRole="button"
+              hitSlop={10}
+              style={styles.issueButton}
+              onPress={() => setIssueModalVisible(true)}
+            >
+              <Text style={styles.issueButtonText}>Report Issue</Text>
+            </Pressable>
+          </FadeInView>
+        ) : null}
       </ScrollView>
+
+      <ReportIssueModal
+        visible={issueModalVisible}
+        orderId={displayOrder.id}
+        onClose={() => setIssueModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -769,5 +801,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
     fontStyle: "italic",
+  },
+  issueCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 18,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  issueRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  issueCopy: { flex: 1, gap: 2 },
+  issueTitle: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.text,
+  },
+  issueSubtitle: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  issueButton: {
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  issueButtonText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.background,
   },
 });

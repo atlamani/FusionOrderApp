@@ -74,6 +74,12 @@ export interface Order {
   driverId?: string | null;
   driverName?: string | null;
   issue?: string | null;
+  /**
+   * Structured issue report — populated when a customer reports a problem.
+   * The `issue` string above remains a short summary used by existing UI
+   * banners; this field carries the full state for admin resolution flows.
+   */
+  issueReport?: OrderIssueReport | null;
   customer?: string;
   driver?: string;
   restaurant?: string;
@@ -96,6 +102,38 @@ export type AdminFeedbackCategory =
   | "Packaging"
   | "Support";
 
+export type OrderIssueType =
+  | "wrong_order"
+  | "missing_items"
+  | "late_delivery"
+  | "food_quality"
+  | "damaged"
+  | "other";
+
+export type OrderIssueStatus = "open" | "in_progress" | "resolved";
+
+export type OrderIssueResolutionAction =
+  | "refund"
+  | "credit"
+  | "redelivery"
+  | "no_action";
+
+export interface OrderIssueResolution {
+  action: OrderIssueResolutionAction;
+  notes: string;
+  resolvedAt: FirebaseFirestoreTypes.FieldValue | Date | string | number | null;
+  resolvedBy: string;
+}
+
+export interface OrderIssueReport {
+  type: OrderIssueType;
+  description: string;
+  reportedAt: FirebaseFirestoreTypes.FieldValue | Date | string | number | null;
+  reportedBy: string;
+  status: OrderIssueStatus;
+  resolution?: OrderIssueResolution | null;
+}
+
 export type DriverStatus = "Available" | "Delivering" | "Offline";
 
 export interface AdminOrder {
@@ -112,6 +150,7 @@ export interface AdminOrder {
   driverName?: string | null;
   deliveryAddress?: string;
   issue: string | null;
+  issueReport?: OrderIssueReport | null;
 }
 
 export interface AdminRestaurantMenuItem {

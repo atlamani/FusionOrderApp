@@ -52,7 +52,9 @@ type AdminOrderStatus =
   | "Out for Delivery"
   | "Completed";
 
-type AdminOrder = (typeof initialAdminOrders)[number];
+type AdminOrder = (typeof initialAdminOrders)[number] & {
+  issueReport?: import("./Firebase/types").OrderIssueReport | null;
+};
 type AdminRestaurant = (typeof initialAdminRestaurants)[number];
 type AdminRestaurantMenuItem = AdminRestaurant["menuItems"][number];
 type AdminFeedback = (typeof initialAdminFeedback)[number];
@@ -314,7 +316,7 @@ type AppStateValue = {
   restaurantDataMessage: string;
   restaurantDataLoading: boolean;
   orderHistory: typeof initialOrderHistory;
-  adminOrders: typeof initialAdminOrders;
+  adminOrders: AdminOrder[];
   adminRestaurants: typeof initialAdminRestaurants;
   adminFeedback: typeof initialAdminFeedback;
   driverProfiles: typeof initialDriverProfiles;
@@ -385,6 +387,27 @@ type AppStateValue = {
     orderId: string,
     status: AdminOrderStatus,
   ) => Promise<void>;
+  /**
+   * Customer reports an issue with one of their orders. Writes a structured
+   * report to Firestore and surfaces the legacy `issue` summary so existing
+   * admin/restaurant order banners pick it up immediately.
+   */
+  reportOrderIssue: (params: {
+    orderId: string;
+    type: import("./Firebase/types").OrderIssueType;
+    description: string;
+  }) => Promise<void>;
+  /**
+   * Admin resolves a reported order issue with one of the supported actions.
+   * Clears the legacy `issue` summary and records who resolved it.
+   */
+  resolveOrderIssue: (params: {
+    orderId: string;
+    action: import("./Firebase/types").OrderIssueResolutionAction;
+    notes: string;
+  }) => Promise<void>;
+  /** Admin cancels an order outright. */
+  cancelAdminOrder: (orderId: string, reason: string) => Promise<void>;
   toggleAdminMenuItemAvailability: (
     restaurantId: string,
     itemId: string,
@@ -812,7 +835,7 @@ export function AppStateProvider({
     useState<DiscoveryFilters>(defaultFilters);
   const [currentOrder, setCurrentOrder] = useState<CustomerOrder | null>(null);
   const [orderHistory, setOrderHistory] = useState(initialOrderHistory);
-  const [adminOrders, setAdminOrders] = useState(initialAdminOrders);
+  const [adminOrders, setAdminOrders] = useState<AdminOrder[]>(initialAdminOrders);
   const [adminRestaurants, setAdminRestaurants] = useState(
     initialAdminRestaurants,
   );
@@ -1714,6 +1737,124 @@ export function AppStateProvider({
           }
 
           console.error("Failed to update admin order status:", error);
+        }
+      },
+      reportOrderIssue: async ({ orderId, type, description }) => {
+        if (!currentUser) {
+          throw new Error("Sign in is required to report an issue.");
+        }
+        const { reportOrderIssue, summarizeIssueForBanner } = await import(
+          "./Firebase/orderIssues"
+        );
+        const summary = summarizeIssueForBanner(type, description);
+
+        // Optimistic local update so the customer sees the issue reflected
+        // immediately on their order.
+        setAdminOrders((current) =>
+          current.map((order) =>
+            order.id === orderId
+              ? {
+                  ...order,
+                  issue: summary,
+                  issueReport: {
+                    type,
+                    description: description.trim(),
+                    reportedAt: new Date().toISOString(),
+                    reportedBy: currentUser.uid,
+                    status: "open",
+                    resolution: null,
+                  },
+                }
+              : order,
+          ),
+        );
+
+        try {
+          await reportOrderIssue({
+            orderId,
+            reportedBy: currentUser.uid,
+            type,
+            description,
+          });
+        } catch (error) {
+          console.error("Failed to report order issue:", error);
+          throw error;
+        }
+      },
+      resolveOrderIssue: async ({ orderId, action, notes }) => {
+        if (!currentUser) {
+          throw new Error("Sign in is required to resolve an issue.");
+        }
+        const { resolveOrderIssue } = await import("./Firebase/orderIssues");
+        const previous = adminOrders;
+
+        // Optimistically clear the issue banner.
+        setAdminOrders((current) =>
+          current.map((order) =>
+            order.id === orderId
+              ? {
+                  ...order,
+                  issue: null,
+                  issueReport: order.issueReport
+                    ? {
+                        ...order.issueReport,
+                        status: "resolved" as const,
+                        resolution: {
+                          action,
+                          notes: notes.trim(),
+                          resolvedAt: new Date().toISOString(),
+                          resolvedBy: currentUser.uid,
+                        },
+                      }
+                    : order.issueReport,
+                }
+              : order,
+          ),
+        );
+
+        try {
+          await resolveOrderIssue({
+            orderId,
+            resolvedBy: currentUser.uid,
+            action,
+            notes,
+          });
+        } catch (error) {
+          setAdminOrders(previous);
+          console.error("Failed to resolve order issue:", error);
+          throw error;
+        }
+      },
+      cancelAdminOrder: async (orderId, reason) => {
+        const previous = adminOrders;
+        const trimmedReason = reason.trim() || "Cancelled by admin";
+
+        setAdminOrders((current) =>
+          current.map((order) =>
+            order.id === orderId
+              ? { ...order, status: "Completed", issue: trimmedReason }
+              : order,
+          ),
+        );
+
+        try {
+          const firestoreModule = await import(
+            "@react-native-firebase/firestore"
+          );
+          await firestoreModule
+            .default()
+            .collection("orders")
+            .doc(orderId)
+            .update({
+              status: "cancelled",
+              adminStatus: "Completed",
+              issue: trimmedReason,
+              updatedAt: firestoreModule.default.FieldValue.serverTimestamp(),
+            });
+        } catch (error) {
+          setAdminOrders(previous);
+          console.error("Failed to cancel order:", error);
+          throw error;
         }
       },
       toggleAdminMenuItemAvailability: async (
