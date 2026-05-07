@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import StaffAccessGate from "./StaffAccessGate";
@@ -49,26 +49,26 @@ export default function DriverDashboardScreen() {
   }
 
   const handleLogout = () => {
-    logout();
-    router.dismissTo("/");
+    Alert.alert(
+      "Log out?",
+      "You'll need to sign back in to continue your shift.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log out",
+          style: "destructive",
+          onPress: () => {
+            logout();
+            router.dismissTo("/");
+          },
+        },
+      ],
+    );
   };
 
   return (
     <StaffAccessGate role="driver">
       <SafeAreaView style={styles.safeArea}>
-      <Pressable
-        accessibilityLabel="Exit driver console"
-        accessibilityRole="button"
-        hitSlop={18}
-        style={({ pressed }) => [
-          styles.floatingExitButton,
-          { top: headerTopPadding },
-          pressed && styles.pressedButton,
-        ]}
-        onPress={handleLogout}
-      >
-        <Feather name="arrow-left" size={20} color={colors.background} />
-      </Pressable>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -147,6 +147,17 @@ export default function DriverDashboardScreen() {
             <Feather name="arrow-right" size={18} color={colors.primary} />
           </Pressable>
         </View>
+
+        <Pressable
+          accessibilityLabel="Log out of driver account"
+          accessibilityRole="button"
+          hitSlop={10}
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <Feather name="log-out" size={16} color={colors.danger} />
+          <Text style={styles.logoutButtonText}>Log out</Text>
+        </Pressable>
       </ScrollView>
       </SafeAreaView>
     </StaffAccessGate>
@@ -272,4 +283,21 @@ const styles = StyleSheet.create({
   linkCopy: { flex: 1, gap: 4 },
   linkTitle: { fontFamily: typography.display, fontSize: 18, color: colors.primary },
   linkDetail: { fontFamily: typography.body, fontSize: 13, lineHeight: 18, color: colors.textMuted },
+  logoutButton: {
+    marginTop: spacing.md,
+    minHeight: 50,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  logoutButtonText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.danger,
+  },
 });

@@ -97,9 +97,15 @@ export default function ActivityHistoryScreen() {
                 </Pressable>
                 <Pressable
                   style={styles.receiptButton}
-                  onPress={() => router.push(`/order-receipt?orderId=${order.id}`)}
+                  onPress={() =>
+                    router.push(
+                      `/order-tracking?orderId=${encodeURIComponent(order.id)}`,
+                    )
+                  }
                 >
-                  <Text style={styles.receiptButtonText}>View Receipt</Text>
+                  <Text style={styles.receiptButtonText}>
+                    {delivered ? "Leave a Review" : "Track Order"}
+                  </Text>
                 </Pressable>
               </View>
             </FadeInView>

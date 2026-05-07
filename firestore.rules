@@ -67,14 +67,12 @@ service cloud.firestore {
     }
 
     function googleAggregatorOwnsOrder(data) {
-      // Use a string-range check (matching the aggregator's range query in
-      // app/Firebase/admin.ts) instead of `matches()`. Firestore's rule
-      // analyzer pre-validates queries against rules and cannot prove that
-      // a range constraint implies a regex match, so a regex here causes
-      // the aggregator's collection query to be rejected upfront.
+      // String-range check matching the aggregator's range query in
+      // app/Firebase/admin.ts. Range comparisons on a field already
+      // imply the field exists and is a string, so the redundant
+      // `in` / `is string` checks were dropped — they can confuse the
+      // rule analyzer when validating the collection query upfront.
       return isGoogleAggregator() &&
-        ("restaurantId" in data) &&
-        data.restaurantId is string &&
         data.restaurantId >= "google-" &&
         data.restaurantId < "google.";
     }
@@ -331,6 +329,51 @@ service cloud.firestore {
           isRestaurantStaff() &&
           request.resource.data.restaurantId == request.auth.token.restaurantId
         );
+    }
+
+    // Customer-submitted restaurant reviews. Reads are public so any
+    // signed-in user can see them on a restaurant detail page. Creates are
+    // gated to the customer who owns the referenced order, and only when
+    // that order has reached a delivered state — this is the verified-
+    // review gate (no review possible without a real, completed delivery).
+    function isVerifiedReviewCreate() {
+      return isSignedIn() &&
+        request.resource.data.keys().hasOnly([
+          "orderId",
+          "customerId",
+          "customerName",
+          "restaurantId",
+          "rating",
+          "text",
+          "createdAt"
+        ]) &&
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() >= 5 &&
+        request.resource.data.restaurantId is string &&
+        request.resource.data.orderId is string &&
+        // The referenced order must exist, be owned by the caller, share
+        // the same restaurantId, and have completed delivery.
+        exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
+        get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.userId == request.auth.uid &&
+        get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.restaurantId == request.resource.data.restaurantId &&
+        (
+          get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.status == "delivered" ||
+          get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.adminStatus == "Completed"
+        );
+    }
+
+    match /reviews/{reviewId} {
+      // Reviews are public — anyone (signed-in or guest) can read them on
+      // a restaurant detail page, matching the typical food-delivery UX.
+      allow read: if true;
+      allow create: if isAdmin() || isVerifiedReviewCreate();
+      // Reviews are immutable once published — admins can clean up if
+      // needed, but customers can't edit their own posts.
+      allow update, delete: if isAdmin();
     }
   }
 }

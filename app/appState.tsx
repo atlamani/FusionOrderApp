@@ -9,6 +9,8 @@ import React, {
 } from "react";
 import { onAuthStateChanged, signOutUser } from "./Firebase/auth";
 import { getUserProfile, saveUserProfile } from "./Firebase/firestore";
+import { subscribeToCustomerOrders } from "./Firebase/orders";
+import type { Order, OrderStatus } from "./Firebase/types";
 import {
   allRestaurants as fallbackAllRestaurants,
   adminFeedback as initialAdminFeedback,
@@ -187,6 +189,92 @@ function isPermissionDenied(error: unknown) {
     (error as { code?: string } | undefined)?.code ===
     "firestore/permission-denied"
   );
+}
+
+function timestampToMs(value: Order["createdAt"] | Order["updatedAt"]): number {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  const stamp = value as { toMillis?: () => number; toDate?: () => Date };
+  if (typeof stamp.toMillis === "function") return stamp.toMillis();
+  if (typeof stamp.toDate === "function") return stamp.toDate().getTime();
+  return 0;
+}
+
+function formatHistoryDate(ms: number): string {
+  if (!ms) return "Recently";
+  return new Date(ms).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatHistoryTime(ms: number): string {
+  if (!ms) return "";
+  return new Date(ms).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function statusLabel(
+  status: OrderStatus,
+): "Delivered" | "Cancelled" | "In Progress" {
+  if (status === "delivered") return "Delivered";
+  if (status === "cancelled") return "Cancelled";
+  return "In Progress";
+}
+
+function statusAccent(status: OrderStatus): string {
+  if (status === "delivered") return "#016630";
+  if (status === "cancelled") return "#9f0712";
+  return "#b45309";
+}
+
+function mapOrderToHistoryEntry(order: Order) {
+  const createdMs = timestampToMs(order.createdAt);
+  const updatedMs = timestampToMs(order.updatedAt) || createdMs;
+  const label = statusLabel(order.status);
+  const datePart = formatHistoryDate(updatedMs || createdMs);
+  const timePart = formatHistoryTime(updatedMs || createdMs);
+
+  let date: string;
+  if (label === "Delivered") {
+    date = timePart
+      ? `${datePart} | Delivered at ${timePart}`
+      : `${datePart} | Delivered`;
+  } else if (label === "Cancelled") {
+    date = `${datePart} | Cancelled`;
+  } else {
+    date = `${datePart} | Order in progress`;
+  }
+
+  const totalNum =
+    typeof order.total === "number"
+      ? order.total
+      : typeof order.totalAmount === "number"
+        ? order.totalAmount
+        : null;
+  const total = totalNum !== null ? `$${totalNum.toFixed(2)}` : "";
+
+  const items = order.items.map(
+    (item) => `${item.name} x${item.quantity}`,
+  );
+
+  return {
+    id: order.id,
+    restaurant: order.restaurantName ?? "FusionYum order",
+    status: label,
+    date,
+    total,
+    items,
+    accent: statusAccent(order.status),
+  };
 }
 
 function isDevSeedingEnabled() {
@@ -1109,6 +1197,33 @@ export function AppStateProvider({
     return nextMenuItems;
   };
 
+  // Subscribe to the signed-in customer's orders so the Activity tab
+  // reflects every past order rather than just the placeholder seed plus
+  // whatever was placed in the current React session.
+  // Only runs for actual customer sessions — staff (admin / restaurant /
+  // driver / aggregator) don't have customer order history and the
+  // Firestore rule analyzer doesn't permit a userId-equality query when
+  // the rule's OR chain can't be reduced for non-customer roles.
+  useEffect(() => {
+    if (!currentUser?.uid || sessionMode !== "member") {
+      return undefined;
+    }
+    const unsubscribe = subscribeToCustomerOrders(
+      currentUser.uid,
+      (orders) => {
+        if (orders.length === 0) {
+          setOrderHistory(initialOrderHistory);
+          return;
+        }
+        setOrderHistory(orders.map(mapOrderToHistoryEntry));
+      },
+      (error) => {
+        console.error("Customer order history subscription failed:", error);
+      },
+    );
+    return () => unsubscribe();
+  }, [currentUser?.uid, sessionMode]);
+
   // Listen to Firebase authentication state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(async (user) => {
@@ -1214,6 +1329,7 @@ export function AppStateProvider({
         setRecentSearches(defaultRecentSearches);
         setSavedSearches(defaultSavedSearches);
         setFavoriteIds(defaultFavoriteRestaurantIds);
+        setOrderHistory(initialOrderHistory);
       }
     });
 

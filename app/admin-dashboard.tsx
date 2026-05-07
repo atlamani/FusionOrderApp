@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -73,8 +74,21 @@ export default function AdminDashboardScreen() {
   } = useAppState();
 
   const handleLogout = () => {
-    logout();
-    router.dismissTo("/");
+    Alert.alert(
+      "Log out?",
+      "You'll need to sign back in to continue managing the platform.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log out",
+          style: "destructive",
+          onPress: () => {
+            logout();
+            router.dismissTo("/");
+          },
+        },
+      ],
+    );
   };
 
   const metrics = useMemo(() => {
@@ -111,19 +125,6 @@ export default function AdminDashboardScreen() {
   return (
     <StaffAccessGate role="admin">
       <SafeAreaView style={styles.safeArea}>
-      <Pressable
-        accessibilityLabel="Exit admin dashboard"
-        accessibilityRole="button"
-        hitSlop={18}
-        style={({ pressed }) => [
-          styles.floatingExitButton,
-          { top: headerTopPadding },
-          pressed && styles.pressedButton,
-        ]}
-        onPress={handleLogout}
-      >
-        <Feather name="arrow-left" size={20} color={colors.background} />
-      </Pressable>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[

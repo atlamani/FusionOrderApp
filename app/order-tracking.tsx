@@ -21,6 +21,7 @@ import {
 import { colors, typography } from "./theme";
 import { MapPreview } from "../components/MapPreview";
 import { ReportIssueModal } from "../components/ReportIssueModal";
+import { ReviewSubmitModal } from "../components/ReviewSubmitModal";
 
 const statusSteps = [
   { key: "pending", label: "Order Placed", icon: "clock" },
@@ -40,6 +41,7 @@ type TrackingItem = {
 type TrackingOrder = {
   id: string;
   status: OrderStatus;
+  restaurantId?: string;
   restaurantName: string;
   orderedAt: string;
   items: TrackingItem[];
@@ -103,6 +105,7 @@ const formatOrderTime = (value: Order["createdAt"]) => {
 const fromFirebaseOrder = (order: Order): TrackingOrder => ({
   id: order.id,
   status: order.status,
+  restaurantId: order.restaurantId,
   restaurantName: order.restaurantName,
   orderedAt: formatOrderTime(order.createdAt),
   items: order.items.map((item) => ({
@@ -121,11 +124,12 @@ const fromFirebaseOrder = (order: Order): TrackingOrder => ({
 
 const fromCustomerOrder = (
   order: CustomerOrder,
-  adminOrder: { status?: string } | undefined,
+  adminOrder: { status?: string; restaurantId?: string } | undefined,
   fallbackAddress: string,
 ): TrackingOrder => ({
   id: order.id,
   status: adminStatusToTrackingStatus(adminOrder?.status),
+  restaurantId: adminOrder?.restaurantId,
   restaurantName: order.restaurant,
   orderedAt: order.placedAt,
   items: order.items.map(parseCustomerItem),
@@ -141,6 +145,7 @@ export default function OrderTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [issueModalVisible, setIssueModalVisible] = useState(false);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
 
   const localOrder = useMemo(() => {
     if (!resolvedOrderId || !currentOrder || currentOrder.id !== resolvedOrderId) {
@@ -488,6 +493,29 @@ export default function OrderTrackingScreen() {
           </FadeInView>
         )}
 
+        {displayOrder.status === "delivered" ? (
+          <FadeInView delay={180} style={styles.reviewCard}>
+            <View style={styles.reviewRow}>
+              <Feather name="star" size={18} color="#F4B400" />
+              <View style={styles.reviewCopy}>
+                <Text style={styles.reviewTitle}>How was your order?</Text>
+                <Text style={styles.reviewSubtitle}>
+                  Leave a review to help other customers pick their next meal.
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityLabel="Leave a review for this order"
+              accessibilityRole="button"
+              hitSlop={10}
+              style={styles.reviewButton}
+              onPress={() => setReviewModalVisible(true)}
+            >
+              <Text style={styles.reviewButtonText}>Leave a Review</Text>
+            </Pressable>
+          </FadeInView>
+        ) : null}
+
         {displayOrder.status !== "pending" &&
         displayOrder.status !== "cancelled" ? (
           <FadeInView delay={200} style={styles.issueCard}>
@@ -517,6 +545,13 @@ export default function OrderTrackingScreen() {
         visible={issueModalVisible}
         orderId={displayOrder.id}
         onClose={() => setIssueModalVisible(false)}
+      />
+      <ReviewSubmitModal
+        visible={reviewModalVisible}
+        orderId={displayOrder.id}
+        restaurantId={displayOrder.restaurantId ?? orderRestaurant?.id ?? null}
+        restaurantName={displayOrder.restaurantName}
+        onClose={() => setReviewModalVisible(false)}
       />
     </SafeAreaView>
   );
@@ -835,6 +870,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   issueButtonText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.background,
+  },
+  reviewCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 18,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  reviewRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  reviewCopy: { flex: 1, gap: 2 },
+  reviewTitle: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.text,
+  },
+  reviewSubtitle: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  reviewButton: {
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  reviewButtonText: {
     fontFamily: typography.display,
     fontSize: 14,
     color: colors.background,

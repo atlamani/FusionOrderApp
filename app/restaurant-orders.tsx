@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import StaffAccessGate from "./StaffAccessGate";
@@ -17,10 +18,29 @@ export default function RestaurantOrdersScreen() {
   const headerTopPadding = getRolePortalTopInset(insets.top);
   const {
     adminOrders,
+    logout,
     selectedPartnerRestaurantId,
     sessionMode,
     updateAdminOrderStatus,
   } = useAppState();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Log out?",
+      "You'll need to sign back in to continue managing orders.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log out",
+          style: "destructive",
+          onPress: () => {
+            logout();
+            router.replace("/");
+          },
+        },
+      ],
+    );
+  };
 
   // The Google aggregator account fulfills orders for any restaurant
   // discovered via the Google Places API. Match every order whose
@@ -50,17 +70,19 @@ export default function RestaurantOrdersScreen() {
         ]}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={16}
-            style={styles.backButton}
-            onPress={() =>
-              goBackOrReplace(isGoogleAggregator ? "/" : "/restaurant-dashboard")
-            }
-          >
-            <Feather name="arrow-left" size={18} color={colors.background} />
-          </Pressable>
+          {isGoogleAggregator ? (
+            <View style={styles.headerSpacer} />
+          ) : (
+            <Pressable
+              accessibilityLabel="Back to restaurant dashboard"
+              accessibilityRole="button"
+              hitSlop={16}
+              style={styles.backButton}
+              onPress={() => goBackOrReplace("/restaurant-dashboard")}
+            >
+              <Feather name="arrow-left" size={18} color={colors.background} />
+            </Pressable>
+          )}
           <Text style={styles.headerTitle}>
             {isGoogleAggregator ? "GOOGLE QUEUE" : "KITCHEN QUEUE"}
           </Text>
@@ -136,6 +158,17 @@ export default function RestaurantOrdersScreen() {
             </View>
           </FadeInView>
         ))}
+
+        <Pressable
+          accessibilityLabel="Log out of staff account"
+          accessibilityRole="button"
+          hitSlop={10}
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <Feather name="log-out" size={16} color={colors.danger} />
+          <Text style={styles.logoutButtonText}>Log out</Text>
+        </Pressable>
       </ScrollView>
       </SafeAreaView>
     </StaffAccessGate>
@@ -247,4 +280,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   doneText: { fontFamily: typography.display, fontSize: 14, color: colors.success },
+  logoutButton: {
+    marginTop: spacing.md,
+    minHeight: 50,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  logoutButtonText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.danger,
+  },
 });

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Image,
   Linking,
@@ -13,6 +13,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import {
+  type OrderReview,
+  subscribeToRestaurantReviews,
+} from "./Firebase/reviews";
+import type { RestaurantReview } from "./appData";
 import { checkoutPricing } from "./appData";
 import {
   formatCurrency,
@@ -24,6 +29,32 @@ import { goBackOrReplace } from "./navigation";
 import { getSafeHeaderTopPadding } from "./safeHeaderLayout";
 import { useAddToCart } from "./services/useAddToCart";
 import { colors, spacing, typography } from "./theme";
+
+function formatReviewDate(value: OrderReview["createdAt"]): string {
+  let ms = 0;
+  if (!value) return "Just now";
+  if (value instanceof Date) ms = value.getTime();
+  else if (typeof value === "number") ms = value;
+  else if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    ms = Number.isFinite(parsed) ? parsed : 0;
+  } else {
+    const stamp = value as { toMillis?: () => number; toDate?: () => Date };
+    if (typeof stamp.toMillis === "function") ms = stamp.toMillis();
+    else if (typeof stamp.toDate === "function") ms = stamp.toDate().getTime();
+  }
+  if (!ms) return "Just now";
+
+  const diffMs = Date.now() - ms;
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(ms).toLocaleDateString();
+}
 
 export default function RestaurantMenuScreen() {
   const insets = useSafeAreaInsets();
@@ -90,6 +121,34 @@ export default function RestaurantMenuScreen() {
     : undefined;
 
   const [hoursExpanded, setHoursExpanded] = useState(false);
+  const [liveReviews, setLiveReviews] = useState<OrderReview[]>([]);
+
+  useEffect(() => {
+    if (!restaurant?.id) return undefined;
+    const unsubscribe = subscribeToRestaurantReviews(
+      restaurant.id,
+      setLiveReviews,
+      () => setLiveReviews([]),
+    );
+    return () => {
+      unsubscribe();
+      setLiveReviews([]);
+    };
+  }, [restaurant?.id]);
+
+  const displayReviews = useMemo<RestaurantReview[]>(() => {
+    if (!restaurant) return [];
+    const liveAsRestaurantReviews: RestaurantReview[] = liveReviews.map(
+      (review) => ({
+        id: review.id,
+        author: review.customerName,
+        rating: review.rating,
+        date: formatReviewDate(review.createdAt),
+        text: review.text,
+      }),
+    );
+    return [...liveAsRestaurantReviews, ...(restaurant.reviews ?? [])];
+  }, [liveReviews, restaurant]);
 
   const hasInfoCard = Boolean(
     restaurant &&
@@ -423,17 +482,23 @@ export default function RestaurantMenuScreen() {
             </Pressable>
           </View>
           <View style={styles.reviewList}>
-            {restaurant.reviews.map((review) => (
-              <View key={review.id} style={styles.reviewCard}>
-                <View style={styles.reviewHeader}>
-                  <Text style={styles.reviewAuthor}>{review.author}</Text>
-                  <Text style={styles.reviewMeta}>
-                    {review.rating}/5 | {review.date}
-                  </Text>
+            {displayReviews.length === 0 ? (
+              <Text style={styles.reviewEmptyText}>
+                No reviews yet — be the first after your next order arrives.
+              </Text>
+            ) : (
+              displayReviews.map((review) => (
+                <View key={review.id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <Text style={styles.reviewAuthor}>{review.author}</Text>
+                    <Text style={styles.reviewMeta}>
+                      {review.rating}/5 | {review.date}
+                    </Text>
+                  </View>
+                  <Text style={styles.reviewText}>{review.text}</Text>
                 </View>
-                <Text style={styles.reviewText}>{review.text}</Text>
-              </View>
-            ))}
+              ))
+            )}
           </View>
         </FadeInView>
 
@@ -828,6 +893,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     color: colors.text,
+  },
+  reviewEmptyText: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
   recommendationRow: {
     minHeight: 58,
