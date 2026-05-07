@@ -1,39 +1,75 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
 import { getInitials, useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getSafeHeaderTopPadding,
+  safeHeaderButtonSize,
+} from "./safeHeaderLayout";
 import { colors, spacing, typography } from "./theme";
 
 export default function EditProfileScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const { profile, updateProfile } = useAppState();
   const [fullName, setFullName] = useState(profile.fullName);
   const [email, setEmail] = useState(profile.email);
   const [phone, setPhone] = useState(profile.phone);
-  const canSave = fullName.trim().length > 1 && email.trim().length > 3 && phone.trim().length > 6;
+  const [address, setAddress] = useState(profile.address);
+  const [deliveryNote, setDeliveryNote] = useState(profile.deliveryNote);
+  const canSave =
+    fullName.trim().length > 1 &&
+    email.trim().length > 3 &&
+    phone.trim().length > 6;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!canSave) {
-      Alert.alert("Complete your profile", "Add your name, email, and phone number to save changes.");
+      Alert.alert(
+        "Complete your profile",
+        "Add your name, email, and phone number to save changes.",
+      );
       return;
     }
 
-    updateProfile({
-      fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-    });
-    goBackOrReplace("/profile");
+    try {
+      await updateProfile({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        deliveryNote: deliveryNote.trim(),
+      });
+      goBackOrReplace("/profile");
+    } catch (error) {
+      Alert.alert(
+        "Couldn't save",
+        "We hit an issue saving your profile. Please try again.",
+      );
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/profile")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>EDIT PROFILE</Text>
@@ -81,6 +117,25 @@ export default function EditProfileScreen() {
               onChangeText: setPhone,
             }}
           />
+          <CustomInput
+            label="Default delivery address"
+            leadingIcon="map-pin"
+            inputProps={{
+              placeholder: "123 Main St, City, State ZIP",
+              value: address,
+              onChangeText: setAddress,
+            }}
+          />
+          <CustomInput
+            label="Delivery note (optional)"
+            leadingIcon="message-square"
+            inputProps={{
+              placeholder: "Buzz code, gate instructions, etc.",
+              value: deliveryNote,
+              onChangeText: setDeliveryNote,
+              multiline: true,
+            }}
+          />
         </FadeInView>
 
         <FadeInView delay={220} style={styles.actions}>
@@ -99,7 +154,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
@@ -109,8 +163,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: safeHeaderButtonSize,
+    height: safeHeaderButtonSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -122,7 +176,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   headerSpacer: {
-    width: 40,
+    width: safeHeaderButtonSize,
   },
   heroCard: {
     borderRadius: 24,

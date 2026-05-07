@@ -8,6 +8,8 @@ export type RestaurantReview = {
 
 export type Restaurant = {
   id: string;
+  source?: "mock" | "google";
+  placeId?: string;
   name: string;
   cuisine: string;
   rating: string;
@@ -15,8 +17,15 @@ export type Restaurant = {
   eta: string;
   price: string;
   badge: string;
-  image: number;
+  image: number | { uri: string };
   distance: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  businessStatus?: string;
+  mapUri?: string;
+  websiteUri?: string;
+  phone?: string;
   description: string;
   dietaryTags: string[];
   popularDishes: string[];
@@ -104,6 +113,9 @@ export type AdminOrder = {
   placedAt: string;
   eta: string;
   driver: string;
+  driverId?: string | null;
+  driverName?: string | null;
+  deliveryAddress?: string;
   issue: string | null;
 };
 
@@ -145,6 +157,49 @@ export type DriverProfile = {
   zone: string;
   status: "Available" | "Delivering" | "Offline";
 };
+
+export const campusLocation = {
+  label: "Campus Center",
+  latitude: 40.7712,
+  longitude: -73.9829,
+  radiusMeters: 2500,
+};
+
+export const checkoutPricing = {
+  deliveryFee: 5,
+  taxRate: 0.082,
+  defaultTip: "15%",
+  customTipDefault: "0.00",
+  tipOptions: ["10%", "15%", "20%", "25%"],
+};
+
+export const unassignedDriverLabel = "Unassigned";
+
+export const defaultFavoriteRestaurantIds = [
+  "featured-1",
+  "featured-2",
+  "nearby-1",
+];
+
+export const defaultRecentSearches = [
+  "Tacos",
+  "Dessert delivery",
+  "Healthy bowls",
+];
+
+export const defaultSavedSearches = ["Pizza near campus"];
+
+export const defaultSelectedPartnerRestaurantId = "featured-2";
+
+export const defaultSelectedDriverId = "driver-1";
+
+export const restaurantPrepOptions = [
+  "12 min",
+  "16 min",
+  "20 min",
+  "25 min",
+  "30 min",
+];
 
 const tacoReviews: RestaurantReview[] = [
   {
@@ -1405,51 +1460,26 @@ export const menuByRestaurantId: Record<
   ],
 } satisfies Record<string, { id: string; title: string; items: MenuItem[] }[]>;
 
-export const menuSections = menuByRestaurantId["featured-2"];
+function buildAdminMenuItems(restaurantId: string): AdminRestaurant["menuItems"] {
+  return (menuByRestaurantId[restaurantId] ?? []).flatMap((section) =>
+    section.items.map((item) => {
+      const adminItem: AdminRestaurant["menuItems"][number] = {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        available: item.available ?? true,
+        description: item.description,
+        category: section.title,
+      };
 
-export const currentOrder = {
-  id: "ORD-2026-001",
-  restaurant: "Taqueria La Mexicana",
-  placedAt: "Today, 2:30 PM",
-  eta: "Estimated: 15-20 min",
-  address: "1855 Broadway, New York, NY 10023",
-  total: "$32.97",
-  items: ["Tacos Numero 1 x2", "Burrito Bowl x1", "Churros x1"],
-  statuses: [
-    {
-      id: "confirmed",
-      title: "Order Confirmed",
-      detail: "Your order has been received",
-    },
-    {
-      id: "preparing",
-      title: "Preparing Food",
-      detail: "Restaurant is preparing your order",
-    },
-    {
-      id: "out_for_delivery",
-      title: "Out for Delivery",
-      detail: "Driver is on the way",
-    },
-    {
-      id: "delivered",
-      title: "Delivered",
-      detail: "Waiting for delivery",
-    },
-  ] satisfies OrderTimelineStatus[],
-};
+      if (item.popular !== undefined) {
+        adminItem.popular = item.popular;
+      }
 
-export const checkoutOrder = {
-  restaurant: "Taqueria La Mexicana",
-  address: "1855 Broadway, New York, NY 10023",
-  eta: "ETA: 25 - 35 minutes",
-  item: {
-    name: "Carne Asada Tacos",
-    priceEach: "$8.99 each",
-    quantity: 1,
-  },
-  tipOptions: ["10%", "15%", "20%", "25%"],
-};
+      return adminItem;
+    }),
+  );
+}
 
 export const savedCards = [
   {
@@ -1627,6 +1657,7 @@ export const adminOrders: AdminOrder[] = [
     placedAt: "2:12 PM",
     eta: "12 min",
     driver: "Luis M.",
+    driverId: "driver-1",
     issue: null,
   },
   {
@@ -1638,8 +1669,9 @@ export const adminOrders: AdminOrder[] = [
     status: "Ready for Driver",
     placedAt: "2:06 PM",
     eta: "8 min",
-    driver: "Priya S.",
-    issue: "Late prep risk",
+    driver: "Unassigned",
+    driverId: null,
+    issue: null,
   },
   {
     id: "ADM-003",
@@ -1651,6 +1683,7 @@ export const adminOrders: AdminOrder[] = [
     placedAt: "2:20 PM",
     eta: "18 min",
     driver: "Unassigned",
+    driverId: null,
     issue: null,
   },
   {
@@ -1663,6 +1696,7 @@ export const adminOrders: AdminOrder[] = [
     placedAt: "1:55 PM",
     eta: "5 min",
     driver: "Elena K.",
+    driverId: "driver-3",
     issue: null,
   },
   {
@@ -1675,6 +1709,7 @@ export const adminOrders: AdminOrder[] = [
     placedAt: "2:24 PM",
     eta: "18 min",
     driver: "Unassigned",
+    driverId: null,
     issue: null,
   },
   {
@@ -1687,6 +1722,7 @@ export const adminOrders: AdminOrder[] = [
     placedAt: "2:18 PM",
     eta: "14 min",
     driver: "Unassigned",
+    driverId: null,
     issue: null,
   },
 ];
@@ -2057,6 +2093,24 @@ export const adminRestaurants: AdminRestaurant[] = [
         available: true,
       },
     ],
+  },
+  {
+    id: "nearby-4",
+    name: "Burger Palace",
+    cuisine: "Burgers",
+    status: "Live",
+    avgPrepTime: "17 min",
+    manager: "Dylan Harper",
+    menuItems: buildAdminMenuItems("nearby-4"),
+  },
+  {
+    id: "nearby-5",
+    name: "Tokyo Sushi Bar",
+    cuisine: "Sushi",
+    status: "Live",
+    avgPrepTime: "23 min",
+    manager: "Kenji Aoki",
+    menuItems: buildAdminMenuItems("nearby-5"),
   },
   {
     id: "nearby-6",

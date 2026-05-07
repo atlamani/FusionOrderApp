@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -11,14 +12,15 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "../FadeInView";
 import {
-  Restaurant,
-  allRestaurants,
   cuisineTags,
   recommendationMoments,
+  type Restaurant,
 } from "../appData";
 import { useAppState } from "../appState";
+import { getSafeContentTopPadding } from "../safeHeaderLayout";
 import { colors, spacing, typography } from "../theme";
 
 function RestaurantCard({
@@ -49,11 +51,20 @@ function RestaurantCard({
           style={[styles.restaurantImage, compact && styles.compactImage]}
         />
         <Pressable
+          accessibilityLabel={
+            isFavorite ? `Remove ${item.name} from favorites` : `Save ${item.name} to favorites`
+          }
+          accessibilityRole="button"
+          accessibilityState={{ selected: isFavorite }}
+          hitSlop={10}
           style={[
             styles.favoriteButton,
             isFavorite && styles.favoriteButtonActive,
           ]}
-          onPress={() => toggleFavorite(item.id)}
+          onPress={(event) => {
+            event.stopPropagation();
+            toggleFavorite(item.id);
+          }}
         >
           <Feather
             name="heart"
@@ -73,7 +84,7 @@ function RestaurantCard({
           <Text style={styles.restaurantRating}>{item.rating}/5</Text>
         </View>
         <Text style={styles.restaurantCuisine}>
-          {`${item.cuisine} · ${item.distance} · ${item.price}`}
+          {`${item.cuisine} | ${item.distance} | ${item.price}`}
         </Text>
         {!compact ? (
           <Text style={styles.restaurantDescription}>{item.description}</Text>
@@ -84,12 +95,19 @@ function RestaurantCard({
 }
 
 export default function DiscoverScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeContentTopPadding(insets.top);
   const {
     applyDiscoveryFilters,
     cartQuantity,
     discoveryFilters,
     favoriteIds,
+    featuredRestaurants,
     recentSearches,
+    resetDiscoveryFilters,
+    restaurants,
+    restaurantDataLoading,
+    restaurantDataMessage,
     setSelectedRestaurant,
     submitSearch,
   } = useAppState();
@@ -98,26 +116,29 @@ export default function DiscoverScreen() {
     cuisineTags.find((tag) => tag.id === discoveryFilters.cuisineId)?.label ??
     "All";
 
-  const recommendedRestaurants = useMemo(
-    () =>
+  const recommendedRestaurants = useMemo(() => {
+    const curatedRestaurants =
       recommendationMoments[0]?.restaurantIds
         .map((restaurantId) =>
-          allRestaurants.find((restaurant) => restaurant.id === restaurantId),
+          restaurants.find((restaurant) => restaurant.id === restaurantId),
         )
         .filter((restaurant): restaurant is Restaurant =>
           Boolean(restaurant),
-        ) ?? [],
-    [],
-  );
+        ) ?? [];
+
+    return curatedRestaurants.length > 0
+      ? curatedRestaurants
+      : featuredRestaurants;
+  }, [featuredRestaurants, restaurants]);
 
   const browseRestaurants = useMemo(() => {
     if (discoveryFilters.cuisineId === "all") {
-      return allRestaurants.slice(0, 6);
+      return restaurants.slice(0, 6);
     }
 
     const selectedCuisine = discoveryFilters.cuisineId.toLowerCase();
 
-    return allRestaurants.filter(
+    return restaurants.filter(
       (restaurant) =>
         restaurant.cuisine.toLowerCase().includes(selectedCuisine) ||
         restaurant.dietaryTags.some((tag) =>
@@ -127,7 +148,7 @@ export default function DiscoverScreen() {
           dish.toLowerCase().includes(selectedCuisine),
         ),
     );
-  }, [discoveryFilters.cuisineId]);
+  }, [discoveryFilters.cuisineId, restaurants]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -135,7 +156,10 @@ export default function DiscoverScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <FadeInView delay={40} style={styles.header}>
+        <FadeInView
+          delay={40}
+          style={[styles.header, { paddingTop: headerTopPadding }]}
+        >
           <View>
             <Text style={styles.headerTitle}>FusionYum</Text>
             <Text style={styles.headerSubtitle}>
@@ -144,6 +168,9 @@ export default function DiscoverScreen() {
             </Text>
           </View>
           <Pressable
+            accessibilityLabel="Open activity"
+            accessibilityRole="button"
+            hitSlop={16}
             style={styles.headerAction}
             onPress={() => router.push("/activity")}
           >
@@ -166,6 +193,11 @@ export default function DiscoverScreen() {
 
         <FadeInView delay={140} style={styles.recentSearchCard}>
           <Text style={styles.sectionTitle}>Recent search energy</Text>
+          <Text style={styles.discoveryStatus}>
+            {restaurantDataLoading
+              ? "Refreshing nearby options..."
+              : restaurantDataMessage}
+          </Text>
           <View style={styles.recentSearchList}>
             {recentSearches.slice(0, 3).map((term) => (
               <Pressable
@@ -193,6 +225,10 @@ export default function DiscoverScreen() {
 
             return (
               <Pressable
+                accessibilityLabel={`Filter results by ${item.label}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
+                hitSlop={6}
                 style={[styles.tagChip, isActive && styles.tagChipActive]}
                 onPress={() => {
                   applyDiscoveryFilters({ cuisineId: item.id });
@@ -212,10 +248,21 @@ export default function DiscoverScreen() {
         <FadeInView delay={180} style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recommended for you</Text>
-            <Pressable onPress={() => router.push("/search")}>
+            <Pressable
+              accessibilityLabel="See all recommended restaurants"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => router.push("/search")}
+            >
               <Text style={styles.sectionLink}>See all</Text>
             </Pressable>
           </View>
+          {restaurantDataLoading ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={colors.surface} />
+              <Text style={styles.loadingRowText}>Loading restaurants...</Text>
+            </View>
+          ) : null}
           {recommendedRestaurants.map((restaurant) => (
             <RestaurantCard key={restaurant.id} item={restaurant} />
           ))}
@@ -229,7 +276,11 @@ export default function DiscoverScreen() {
             filters, and open richer restaurant details.
           </Text>
           <Pressable
-            style={styles.recommendationButton}
+            style={[
+              styles.recommendationButton,
+              browseRestaurants.length === 0 && styles.recommendationButtonDisabled,
+            ]}
+            disabled={browseRestaurants.length === 0}
             onPress={() => {
               const restaurant = browseRestaurants[0];
               if (restaurant) {
@@ -241,17 +292,41 @@ export default function DiscoverScreen() {
               }
             }}
           >
-            <Text style={styles.recommendationButtonText}>Open Top Match</Text>
+            <Text style={styles.recommendationButtonText}>
+              {browseRestaurants.length > 0
+                ? "Open Top Match"
+                : "No Match Available"}
+            </Text>
           </Pressable>
         </FadeInView>
 
         <FadeInView delay={300} style={styles.section}>
           <Text style={styles.sectionTitle}>Browse nearby</Text>
-          <View style={styles.grid}>
-            {browseRestaurants.map((restaurant) => (
-              <RestaurantCard key={restaurant.id} item={restaurant} compact />
-            ))}
-          </View>
+          {browseRestaurants.length === 0 && !restaurantDataLoading ? (
+            <View style={styles.browseEmpty}>
+              <Text style={styles.browseEmptyTitle}>
+                No matches for {selectedCuisineLabel}
+              </Text>
+              <Text style={styles.browseEmptyCopy}>
+                Try a different category or reset filters to see all nearby spots.
+              </Text>
+              <Pressable
+                accessibilityLabel="Reset cuisine filter"
+                accessibilityRole="button"
+                hitSlop={10}
+                style={styles.browseEmptyButton}
+                onPress={resetDiscoveryFilters}
+              >
+                <Text style={styles.browseEmptyButtonText}>Reset Filters</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.grid}>
+              {browseRestaurants.map((restaurant) => (
+                <RestaurantCard key={restaurant.id} item={restaurant} compact />
+              ))}
+            </View>
+          )}
         </FadeInView>
       </ScrollView>
     </SafeAreaView>
@@ -270,7 +345,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: colors.surface,
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 16,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -327,6 +401,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  discoveryStatus: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
   },
   recentSearchPill: {
     paddingHorizontal: 12,
@@ -501,6 +581,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  recommendationButtonDisabled: {
+    opacity: 0.5,
+  },
   recommendationButtonText: {
     fontFamily: typography.display,
     fontSize: 13,
@@ -511,5 +594,66 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     rowGap: 14,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  loadingRowText: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  notice: {
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  noticeText: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  browseEmpty: {
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    gap: 8,
+    alignItems: "center",
+  },
+  browseEmptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.primary,
+  },
+  browseEmptyCopy: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  browseEmptyButton: {
+    marginTop: 4,
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  browseEmptyButtonText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.background,
   },
 });

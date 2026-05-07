@@ -31,7 +31,14 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+.env
+.env.*
+!.env.example
+serviceAccount*.json
+*service-account*.json
+firebase-admin-key*.json
+staff-claims.local.json
+tools/staff-claims.local.json
 
 # typescript
 *.tsbuildinfo
@@ -41,3 +48,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Claude Code worktrees (local-only, not for the remote)
+.claude/
+
+# JetBrains IDE config
+.idea/

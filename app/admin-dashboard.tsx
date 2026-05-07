@@ -5,16 +5,21 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
+import {
+  getRolePortalTopInset,
+  rolePortalHeaderSidePadding,
+  rolePortalHeaderSize,
+} from "./rolePortalLayout";
+import { countMenuItems, getAdminMetrics } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
-
-const headerTopPadding = (StatusBar.currentHeight ?? 0) + 18;
 
 const adminActions = [
   {
@@ -49,17 +54,15 @@ const adminActions = [
   },
   {
     id: "drivers",
-    title: "Driver Status",
+    title: "Fleet Snapshot",
     icon: "navigation",
-    route: "/driver-dashboard",
+    route: "/admin-analytics",
   },
 ] as const;
 
-function countMenuItems(menuSections: { items: { id: string }[] }[]) {
-  return menuSections.reduce((total, section) => total + section.items.length, 0);
-}
-
 export default function AdminDashboardScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getRolePortalTopInset(insets.top);
   const {
     adminFeedback,
     adminOrders,
@@ -75,22 +78,12 @@ export default function AdminDashboardScreen() {
   };
 
   const metrics = useMemo(() => {
-    const liveOrders = adminOrders.filter((order) => order.status !== "Completed").length;
-    const completedOrders = adminOrders.filter((order) => order.status === "Completed").length;
-    const flaggedFeedback = adminFeedback.filter((entry) => entry.flagged).length;
-    const needsApproval = adminRestaurants.filter((restaurant) => restaurant.status === "Needs Approval").length;
-    const availableDrivers = driverProfiles.filter((driver) => driver.status === "Available").length;
-    const averageRating =
-      adminFeedback.reduce((sum, entry) => sum + entry.rating, 0) / Math.max(adminFeedback.length, 1);
-
-    return {
-      availableDrivers,
-      completedOrders,
-      flaggedFeedback,
-      liveOrders,
-      needsApproval,
-      averageRating: averageRating.toFixed(1),
-    };
+    return getAdminMetrics({
+      feedback: adminFeedback,
+      orders: adminOrders,
+      restaurants: adminRestaurants,
+      drivers: driverProfiles,
+    });
   }, [adminFeedback, adminOrders, adminRestaurants, driverProfiles]);
 
   const restaurantsWithMenu = useMemo(
@@ -116,24 +109,35 @@ export default function AdminDashboardScreen() {
   const maxBarValue = Math.max(...chartBars.map((bar) => bar.value), 1);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <StaffAccessGate role="admin">
+      <SafeAreaView style={styles.safeArea}>
       <Pressable
         accessibilityLabel="Exit admin dashboard"
         accessibilityRole="button"
         hitSlop={18}
-        style={({ pressed }) => [styles.floatingExitButton, pressed && styles.pressedButton]}
+        style={({ pressed }) => [
+          styles.floatingExitButton,
+          { top: headerTopPadding },
+          pressed && styles.pressedButton,
+        ]}
         onPress={handleLogout}
       >
         <Feather name="arrow-left" size={20} color={colors.background} />
       </Pressable>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.navRow}>
           <View style={styles.headerSpacer} />
         </FadeInView>
 
         <FadeInView delay={80} style={styles.titleBlock}>
           <Text style={styles.title}>Admin Dashboard</Text>
-          <Text style={styles.subtitle}>Manage operations, partners, reports, and service health.</Text>
+          <Text style={styles.subtitle}>Manage platform operations, partner approvals, fleet health, and service quality.</Text>
         </FadeInView>
 
         <View style={styles.actionGrid}>
@@ -207,7 +211,7 @@ export default function AdminDashboardScreen() {
         </FadeInView>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Restaurant Management</Text>
+          <Text style={styles.sectionTitle}>Partner Oversight</Text>
         </View>
 
         {restaurantsWithMenu.map((restaurant, index) => (
@@ -254,7 +258,8 @@ export default function AdminDashboardScreen() {
           </Pressable>
         </FadeInView>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -262,7 +267,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: headerTopPadding,
     paddingBottom: 40,
     gap: spacing.lg,
   },
@@ -276,10 +280,9 @@ const styles = StyleSheet.create({
   },
   floatingExitButton: {
     position: "absolute",
-    top: headerTopPadding,
-    left: 20,
-    width: 44,
-    height: 44,
+    left: rolePortalHeaderSidePadding,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
     borderRadius: 14,
     backgroundColor: colors.surface,
     alignItems: "center",
@@ -288,8 +291,8 @@ const styles = StyleSheet.create({
     elevation: 1000,
   },
   headerSpacer: {
-    width: 44,
-    height: 44,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
   },
   titleBlock: {
     alignItems: "center",

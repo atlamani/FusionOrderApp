@@ -1,9 +1,13 @@
-import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
+import firestore, {
+  FirebaseFirestoreTypes,
+} from "@react-native-firebase/firestore";
 import {
   adminFeedback as seedAdminFeedback,
   adminOrders as seedAdminOrders,
   adminRestaurants as seedAdminRestaurants,
   driverProfiles as seedDriverProfiles,
+  unassignedDriverLabel,
 } from "../appData";
 import type {
   AdminFeedback,
@@ -17,6 +21,18 @@ import type {
 } from "./types";
 
 type Unsubscribe = () => void;
+type FirestoreQuery =
+  FirebaseFirestoreTypes.Query<FirebaseFirestoreTypes.DocumentData>;
+type StaffScope =
+  | { mode: "admin" }
+  | { mode: "restaurant"; restaurantId: string }
+  | { mode: "driver"; driverId: string }
+  | { mode: "member" };
+type StaffClaims = {
+  admin?: unknown;
+  restaurantId?: unknown;
+  driverId?: unknown;
+};
 
 const ORDERS_COLLECTION = "orders";
 const RESTAURANTS_COLLECTION = "adminRestaurants";
@@ -47,6 +63,136 @@ const ORDER_STATUS_TO_ADMIN_STATUS: Record<OrderStatus, AdminOrderStatus> = {
 function isPermissionDenied(error: unknown) {
   const code = (error as { code?: string } | undefined)?.code;
   return code === "firestore/permission-denied";
+}
+
+async function getStaffScope(): Promise<StaffScope> {
+  const user = auth().currentUser;
+  if (!user) {
+    return { mode: "member" };
+  }
+
+  const tokenResult = await user.getIdTokenResult();
+  const claims = tokenResult.claims as StaffClaims;
+
+  if (claims.admin === true) {
+    return { mode: "admin" };
+  }
+
+  if (
+    typeof claims.restaurantId === "string" &&
+    claims.restaurantId.trim().length > 0
+  ) {
+    return { mode: "restaurant", restaurantId: claims.restaurantId.trim() };
+  }
+
+  if (
+    typeof claims.driverId === "string" &&
+    claims.driverId.trim().length > 0
+  ) {
+    return { mode: "driver", driverId: claims.driverId.trim() };
+  }
+
+  return { mode: "member" };
+}
+
+function subscribeWithScope(
+  setup: () => Promise<Unsubscribe | undefined>,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  let unsubscribe: Unsubscribe | undefined;
+  let cancelled = false;
+
+  setup()
+    .then((nextUnsubscribe) => {
+      if (cancelled) {
+        nextUnsubscribe?.();
+        return;
+      }
+
+      unsubscribe = nextUnsubscribe;
+    })
+    .catch((error) => {
+      if (!isPermissionDenied(error)) {
+        onError?.(error);
+      }
+    });
+
+  return () => {
+    cancelled = true;
+    unsubscribe?.();
+  };
+}
+
+function getDriverName(driverId: string) {
+  return (
+    seedDriverProfiles.find((driver) => driver.id === driverId)?.name ?? ""
+  );
+}
+
+function getSeedOrdersForScope(scope: StaffScope) {
+  if (scope.mode === "admin") {
+    return seedAdminOrders;
+  }
+
+  if (scope.mode === "restaurant") {
+    return seedAdminOrders.filter(
+      (order) => order.restaurantId === scope.restaurantId,
+    );
+  }
+
+  if (scope.mode === "driver") {
+    const driverName = getDriverName(scope.driverId);
+
+    return seedAdminOrders.filter(
+      (order) =>
+        order.driverId === scope.driverId ||
+        order.driver === driverName ||
+        (order.status === "Ready for Driver" &&
+          (order.driverId == null || order.driver === unassignedDriverLabel)),
+    );
+  }
+
+  return [];
+}
+
+function getSeedRestaurantsForScope(scope: StaffScope) {
+  if (scope.mode === "admin") {
+    return seedAdminRestaurants;
+  }
+
+  if (scope.mode === "restaurant") {
+    return seedAdminRestaurants.filter(
+      (restaurant) => restaurant.id === scope.restaurantId,
+    );
+  }
+
+  return [];
+}
+
+function getSeedFeedbackForScope(scope: StaffScope) {
+  if (scope.mode === "admin") {
+    return seedAdminFeedback;
+  }
+
+  if (scope.mode === "restaurant") {
+    return seedAdminFeedback.filter(
+      (feedback) => feedback.restaurantId === scope.restaurantId,
+    );
+  }
+
+  return [];
+}
+
+function getSeedDriversForScope(scope: StaffScope) {
+  if (scope.mode === "admin") {
+    return seedDriverProfiles;
+  }
+
+  if (scope.mode === "driver") {
+    return seedDriverProfiles.filter((driver) => driver.id === scope.driverId);
+  }
+
+  return [];
 }
 
 function formatCurrency(value: number) {
@@ -181,8 +327,24 @@ function sanitizeAdminOrder(
       orderData.driver,
       sanitizeString(
         orderData.driverName,
-        baseFallback?.driver ?? "Unassigned",
+        baseFallback?.driver ?? unassignedDriverLabel,
       ),
+    ),
+    driverId:
+      orderData.driverId === null
+        ? null
+        : sanitizeString(orderData.driverId, baseFallback?.driverId ?? "") ||
+          null,
+    driverName:
+      orderData.driverName === null
+        ? null
+        : sanitizeString(
+            orderData.driverName,
+            baseFallback?.driverName ?? baseFallback?.driver ?? "",
+          ) || null,
+    deliveryAddress: sanitizeString(
+      orderData.deliveryAddress,
+      baseFallback?.deliveryAddress ?? "",
     ),
     issue: resolvedIssue,
   };
@@ -372,124 +534,373 @@ export async function ensureAdminSeedData(): Promise<AdminSeedResult> {
   }
 }
 
+function subscribeToOrdersQuery(
+  query: FirestoreQuery,
+  fallbackOrders: AdminOrder[],
+  onData: (orders: AdminOrder[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const fallbackMap = new Map(fallbackOrders.map((item) => [item.id, item]));
+
+  return query.onSnapshot(
+    (snapshot) => {
+      const orders = snapshot.docs.map((doc) =>
+        sanitizeAdminOrder(
+          doc.id,
+          doc.data() as Record<string, unknown>,
+          fallbackMap.get(doc.id),
+        ),
+      );
+
+      onData(orders.length > 0 ? orders : fallbackOrders);
+    },
+    (error) => {
+      onData(fallbackOrders);
+      if (!isPermissionDenied(error)) {
+        onError?.(error);
+      }
+    },
+  );
+}
+
+function subscribeToDriverOrders(
+  driverId: string,
+  onData: (orders: AdminOrder[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const fallbackOrders = getSeedOrdersForScope({ mode: "driver", driverId });
+  const fallbackMap = new Map(fallbackOrders.map((item) => [item.id, item]));
+  const readyOrders = new Map<string, AdminOrder>();
+  const assignedOrders = new Map<string, AdminOrder>();
+  let readyLoaded = false;
+  let assignedLoaded = false;
+
+  const emit = () => {
+    if (!readyLoaded || !assignedLoaded) {
+      return;
+    }
+
+    const merged = new Map<string, AdminOrder>();
+    readyOrders.forEach((order, id) => merged.set(id, order));
+    assignedOrders.forEach((order, id) => merged.set(id, order));
+    const orders = [...merged.values()];
+    onData(orders.length > 0 ? orders : fallbackOrders);
+  };
+
+  const applySnapshot = (
+    target: Map<string, AdminOrder>,
+    snapshot: FirebaseFirestoreTypes.QuerySnapshot<FirebaseFirestoreTypes.DocumentData>,
+  ) => {
+    target.clear();
+    snapshot.docs.forEach((doc) => {
+      target.set(
+        doc.id,
+        sanitizeAdminOrder(
+          doc.id,
+          doc.data() as Record<string, unknown>,
+          fallbackMap.get(doc.id),
+        ),
+      );
+    });
+  };
+
+  const handleError = (error: unknown) => {
+    onData(fallbackOrders);
+    if (!isPermissionDenied(error)) {
+      onError?.(error);
+    }
+  };
+
+  const readyUnsubscribe = firestore()
+    .collection(ORDERS_COLLECTION)
+    .where("driverId", "==", null)
+    .where("status", "in", ["ready", "Ready for Driver"])
+    .onSnapshot(
+      (snapshot) => {
+        readyLoaded = true;
+        applySnapshot(readyOrders, snapshot);
+        emit();
+      },
+      handleError,
+    );
+
+  const assignedUnsubscribe = firestore()
+    .collection(ORDERS_COLLECTION)
+    .where("driverId", "==", driverId)
+    .onSnapshot(
+      (snapshot) => {
+        assignedLoaded = true;
+        applySnapshot(assignedOrders, snapshot);
+        emit();
+      },
+      handleError,
+    );
+
+  return () => {
+    readyUnsubscribe();
+    assignedUnsubscribe();
+  };
+}
+
+function subscribeToRestaurantsQuery(
+  query: FirestoreQuery,
+  fallbackRestaurants: AdminRestaurant[],
+  onData: (restaurants: AdminRestaurant[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const fallbackMap = new Map(
+    fallbackRestaurants.map((item) => [item.id, item]),
+  );
+
+  return query.onSnapshot(
+    (snapshot) => {
+      const restaurants = snapshot.docs.map((doc) =>
+        sanitizeRestaurant(
+          doc.id,
+          doc.data() as Partial<AdminRestaurant>,
+          fallbackMap.get(doc.id),
+        ),
+      );
+
+      onData(restaurants.length > 0 ? restaurants : fallbackRestaurants);
+    },
+    (error) => {
+      onData(fallbackRestaurants);
+      if (!isPermissionDenied(error)) {
+        onError?.(error);
+      }
+    },
+  );
+}
+
+function subscribeToFeedbackQuery(
+  query: FirestoreQuery,
+  fallbackFeedback: AdminFeedback[],
+  onData: (feedback: AdminFeedback[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const fallbackMap = new Map(fallbackFeedback.map((item) => [item.id, item]));
+
+  return query.onSnapshot(
+    (snapshot) => {
+      const feedback = snapshot.docs.map((doc) =>
+        sanitizeFeedback(
+          doc.id,
+          doc.data() as Partial<AdminFeedback>,
+          fallbackMap.get(doc.id),
+        ),
+      );
+
+      onData(feedback.length > 0 ? feedback : fallbackFeedback);
+    },
+    (error) => {
+      onData(fallbackFeedback);
+      if (!isPermissionDenied(error)) {
+        onError?.(error);
+      }
+    },
+  );
+}
+
+function subscribeToDriversQuery(
+  query: FirestoreQuery,
+  fallbackDrivers: DriverProfile[],
+  onData: (drivers: DriverProfile[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const fallbackMap = new Map(fallbackDrivers.map((item) => [item.id, item]));
+
+  return query.onSnapshot(
+    (snapshot) => {
+      const drivers = snapshot.docs.map((doc) =>
+        sanitizeDriver(
+          doc.id,
+          doc.data() as Partial<DriverProfile>,
+          fallbackMap.get(doc.id),
+        ),
+      );
+
+      onData(drivers.length > 0 ? drivers : fallbackDrivers);
+    },
+    (error) => {
+      onData(fallbackDrivers);
+      if (!isPermissionDenied(error)) {
+        onError?.(error);
+      }
+    },
+  );
+}
+
 export function subscribeToAdminOrders(
   onData: (orders: AdminOrder[]) => void,
   onError?: (error: unknown) => void,
 ): Unsubscribe {
-  const fallbackMap = new Map(seedAdminOrders.map((item) => [item.id, item]));
+  return subscribeWithScope(async () => {
+    const scope = await getStaffScope();
+    const fallbackOrders = getSeedOrdersForScope(scope);
 
-  return firestore()
-    .collection(ORDERS_COLLECTION)
-    .onSnapshot(
-      (snapshot) => {
-        const orders = snapshot.docs.map((doc) =>
-          sanitizeAdminOrder(
-            doc.id,
-            doc.data() as Record<string, unknown>,
-            fallbackMap.get(doc.id),
-          ),
-        );
+    if (scope.mode === "admin") {
+      return subscribeToOrdersQuery(
+        firestore().collection(ORDERS_COLLECTION),
+        fallbackOrders,
+        onData,
+        onError,
+      );
+    }
 
-        onData(orders.length > 0 ? orders : seedAdminOrders);
-      },
-      (error) => {
-        onData(seedAdminOrders);
-        if (!isPermissionDenied(error)) {
-          onError?.(error);
-        }
-      },
-    );
+    if (scope.mode === "restaurant") {
+      return subscribeToOrdersQuery(
+        firestore()
+          .collection(ORDERS_COLLECTION)
+          .where("restaurantId", "==", scope.restaurantId),
+        fallbackOrders,
+        onData,
+        onError,
+      );
+    }
+
+    if (scope.mode === "driver") {
+      return subscribeToDriverOrders(scope.driverId, onData, onError);
+    }
+
+    onData(fallbackOrders);
+    return undefined;
+  }, onError);
 }
 
 export function subscribeToAdminRestaurants(
   onData: (restaurants: AdminRestaurant[]) => void,
   onError?: (error: unknown) => void,
 ): Unsubscribe {
-  const fallbackMap = new Map(
-    seedAdminRestaurants.map((item) => [item.id, item]),
-  );
+  return subscribeWithScope(async () => {
+    const scope = await getStaffScope();
+    const fallbackRestaurants = getSeedRestaurantsForScope(scope);
 
-  return firestore()
-    .collection(RESTAURANTS_COLLECTION)
-    .onSnapshot(
-      (snapshot) => {
-        const restaurants = snapshot.docs.map((doc) =>
-          sanitizeRestaurant(
-            doc.id,
-            doc.data() as Partial<AdminRestaurant>,
-            fallbackMap.get(doc.id),
-          ),
+    if (scope.mode === "admin") {
+      return subscribeToRestaurantsQuery(
+        firestore().collection(RESTAURANTS_COLLECTION),
+        fallbackRestaurants,
+        onData,
+        onError,
+      );
+    }
+
+    if (scope.mode === "restaurant") {
+      const fallback = fallbackRestaurants[0];
+
+      return firestore()
+        .collection(RESTAURANTS_COLLECTION)
+        .doc(scope.restaurantId)
+        .onSnapshot(
+          (snapshot) => {
+            onData(
+              snapshot.exists()
+                ? [
+                    sanitizeRestaurant(
+                      snapshot.id,
+                      snapshot.data() as Partial<AdminRestaurant>,
+                      fallback,
+                    ),
+                  ]
+                : fallbackRestaurants,
+            );
+          },
+          (error) => {
+            onData(fallbackRestaurants);
+            if (!isPermissionDenied(error)) {
+              onError?.(error);
+            }
+          },
         );
+    }
 
-        onData(restaurants.length > 0 ? restaurants : seedAdminRestaurants);
-      },
-      (error) => {
-        onData(seedAdminRestaurants);
-        if (!isPermissionDenied(error)) {
-          onError?.(error);
-        }
-      },
-    );
+    onData(fallbackRestaurants);
+    return undefined;
+  }, onError);
 }
 
 export function subscribeToAdminFeedback(
   onData: (feedback: AdminFeedback[]) => void,
   onError?: (error: unknown) => void,
 ): Unsubscribe {
-  const fallbackMap = new Map(seedAdminFeedback.map((item) => [item.id, item]));
+  return subscribeWithScope(async () => {
+    const scope = await getStaffScope();
+    const fallbackFeedback = getSeedFeedbackForScope(scope);
 
-  return firestore()
-    .collection(FEEDBACK_COLLECTION)
-    .onSnapshot(
-      (snapshot) => {
-        const feedback = snapshot.docs.map((doc) =>
-          sanitizeFeedback(
-            doc.id,
-            doc.data() as Partial<AdminFeedback>,
-            fallbackMap.get(doc.id),
-          ),
-        );
+    if (scope.mode === "admin") {
+      return subscribeToFeedbackQuery(
+        firestore().collection(FEEDBACK_COLLECTION),
+        fallbackFeedback,
+        onData,
+        onError,
+      );
+    }
 
-        onData(feedback.length > 0 ? feedback : seedAdminFeedback);
-      },
-      (error) => {
-        onData(seedAdminFeedback);
-        if (!isPermissionDenied(error)) {
-          onError?.(error);
-        }
-      },
-    );
+    if (scope.mode === "restaurant") {
+      return subscribeToFeedbackQuery(
+        firestore()
+          .collection(FEEDBACK_COLLECTION)
+          .where("restaurantId", "==", scope.restaurantId),
+        fallbackFeedback,
+        onData,
+        onError,
+      );
+    }
+
+    onData(fallbackFeedback);
+    return undefined;
+  }, onError);
 }
 
 export function subscribeToDriverProfiles(
   onData: (drivers: DriverProfile[]) => void,
   onError?: (error: unknown) => void,
 ): Unsubscribe {
-  const fallbackMap = new Map(
-    seedDriverProfiles.map((item) => [item.id, item]),
-  );
+  return subscribeWithScope(async () => {
+    const scope = await getStaffScope();
+    const fallbackDrivers = getSeedDriversForScope(scope);
 
-  return firestore()
-    .collection(DRIVERS_COLLECTION)
-    .onSnapshot(
-      (snapshot) => {
-        const drivers = snapshot.docs.map((doc) =>
-          sanitizeDriver(
-            doc.id,
-            doc.data() as Partial<DriverProfile>,
-            fallbackMap.get(doc.id),
-          ),
+    if (scope.mode === "admin") {
+      return subscribeToDriversQuery(
+        firestore().collection(DRIVERS_COLLECTION),
+        fallbackDrivers,
+        onData,
+        onError,
+      );
+    }
+
+    if (scope.mode === "driver") {
+      const fallback = fallbackDrivers[0];
+
+      return firestore()
+        .collection(DRIVERS_COLLECTION)
+        .doc(scope.driverId)
+        .onSnapshot(
+          (snapshot) => {
+            onData(
+              snapshot.exists()
+                ? [
+                    sanitizeDriver(
+                      snapshot.id,
+                      snapshot.data() as Partial<DriverProfile>,
+                      fallback,
+                    ),
+                  ]
+                : fallbackDrivers,
+            );
+          },
+          (error) => {
+            onData(fallbackDrivers);
+            if (!isPermissionDenied(error)) {
+              onError?.(error);
+            }
+          },
         );
+    }
 
-        onData(drivers.length > 0 ? drivers : seedDriverProfiles);
-      },
-      (error) => {
-        onData(seedDriverProfiles);
-        if (!isPermissionDenied(error)) {
-          onError?.(error);
-        }
-      },
-    );
+    onData(fallbackDrivers);
+    return undefined;
+  }, onError);
 }
 
 export async function updateAdminOrderStatus(

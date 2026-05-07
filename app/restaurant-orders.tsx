@@ -1,12 +1,20 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getRolePortalTopInset,
+  rolePortalHeaderSize,
+} from "./rolePortalLayout";
 import { colors, spacing, typography } from "./theme";
 
 export default function RestaurantOrdersScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getRolePortalTopInset(insets.top);
   const { adminOrders, selectedPartnerRestaurantId, updateAdminOrderStatus } = useAppState();
 
   const orders = useMemo(
@@ -15,22 +23,44 @@ export default function RestaurantOrdersScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    <StaffAccessGate role="restaurant">
+      <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/restaurant-dashboard")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/restaurant-dashboard")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>KITCHEN QUEUE</Text>
           <View style={styles.headerSpacer} />
         </FadeInView>
 
+        {orders.length === 0 ? (
+          <FadeInView delay={90} style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No kitchen orders</Text>
+            <Text style={styles.emptyCopy}>
+              New orders for this restaurant will appear here when customers check out.
+            </Text>
+          </FadeInView>
+        ) : null}
+
         {orders.map((order, index) => (
           <FadeInView key={order.id} delay={90 + index * 50} style={styles.orderCard}>
             <View style={styles.cardTop}>
               <View style={styles.copy}>
                 <Text style={styles.customer}>{order.customer}</Text>
-                <Text style={styles.meta}>{`${order.id} · ${order.placedAt} · ${order.total}`}</Text>
+                <Text style={styles.meta}>{`${order.id} | ${order.placedAt} | ${order.total}`}</Text>
               </View>
               <View style={styles.statusPill}>
                 <Text style={styles.statusText}>{order.status}</Text>
@@ -71,7 +101,8 @@ export default function RestaurantOrdersScreen() {
           </FadeInView>
         ))}
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -79,21 +110,20 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backButton: {
-    width: 40,
-    height: 40,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
   },
   headerTitle: { fontFamily: typography.display, fontSize: 22, color: colors.primary },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: rolePortalHeaderSize },
   orderCard: {
     borderRadius: 22,
     backgroundColor: colors.white,
@@ -101,6 +131,25 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 16,
     gap: 12,
+  },
+  emptyCard: {
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 18,
+    gap: 6,
+  },
+  emptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 20,
+    color: colors.primary,
+  },
+  emptyCopy: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
   cardTop: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   copy: { flex: 1, gap: 4 },

@@ -2,19 +2,30 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
 import React, { useMemo } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import { savedCards } from "./appData";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getSafeHeaderTopPadding,
+  safeHeaderButtonSize,
+} from "./safeHeaderLayout";
 import { colors, spacing, typography } from "./theme";
 
 export default function OrderReceiptScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const params = useLocalSearchParams<{ orderId?: string }>();
   const { currentOrder, orderHistory, profile, selectedCardId } = useAppState();
   const order = useMemo(
     () => {
       const entries = currentOrder ? [currentOrder, ...orderHistory] : orderHistory;
-      return entries.find((entry) => entry.id === params.orderId) ?? currentOrder ?? orderHistory[0];
+      if (params.orderId) {
+        return entries.find((entry) => entry.id === params.orderId) ?? null;
+      }
+
+      return currentOrder ?? orderHistory[0];
     },
     [currentOrder, orderHistory, params.orderId],
   );
@@ -36,9 +47,21 @@ export default function OrderReceiptScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/activity-history")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/activity-history")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>RECEIPT</Text>
@@ -121,7 +144,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
@@ -131,8 +153,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: safeHeaderButtonSize,
+    height: safeHeaderButtonSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -144,7 +166,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   headerSpacer: {
-    width: 40,
+    width: safeHeaderButtonSize,
   },
   card: {
     borderRadius: 24,

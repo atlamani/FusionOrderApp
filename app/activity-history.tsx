@@ -2,19 +2,29 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import { getSafeHeaderTopPadding } from "./safeHeaderLayout";
 import { colors, typography } from "./theme";
 
 export default function ActivityHistoryScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const { orderHistory, reorderFromHistory } = useAppState();
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTopPadding }]}>
         <View style={styles.headerTop}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/profile")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/profile")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>ACTIVITY</Text>
@@ -107,7 +117,6 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: colors.surface,
-    paddingTop: 24,
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 16,

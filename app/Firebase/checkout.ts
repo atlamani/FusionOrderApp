@@ -3,6 +3,8 @@ import firestore from "@react-native-firebase/firestore";
 import { createOrder } from "./orders";
 import { Order } from "./types";
 
+const UNASSIGNED_DRIVER_LABEL = "Unassigned";
+
 /**
  * Process a checkout transaction
  * @param orderData - The order data to process
@@ -52,6 +54,7 @@ export async function processCheckout(orderData: {
         specialInstructions: item.specialInstructions,
       })),
       status: "pending",
+      adminStatus: "Pending",
       subtotal: orderData.subtotal,
       taxes: orderData.taxes,
       deliveryFee: orderData.deliveryFee,
@@ -63,6 +66,15 @@ export async function processCheckout(orderData: {
       deliveryAddress: orderData.deliveryAddress,
       deliveryNote: orderData.deliveryNote,
       specialInstructions: orderData.specialInstructions,
+      customer:
+        currentUser.displayName ?? currentUser.email ?? "FusionYum Customer",
+      restaurant: orderData.restaurantName,
+      placedAt: "Just now",
+      eta: "18-25 min",
+      driver: UNASSIGNED_DRIVER_LABEL,
+      driverId: null,
+      driverName: null,
+      issue: null,
     };
 
     // Create the order in Firestore

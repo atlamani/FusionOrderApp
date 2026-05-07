@@ -8,9 +8,15 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getSafeHeaderTopPadding,
+  safeHeaderButtonSize,
+} from "./safeHeaderLayout";
 import { colors, spacing, typography } from "./theme";
 
 const orderFilters = [
@@ -30,6 +36,8 @@ const nextManagerStatus: Record<
 };
 
 export default function AdminOrdersScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const { adminOrders, updateAdminOrderStatus } = useAppState();
   const [activeFilter, setActiveFilter] =
     useState<(typeof orderFilters)[number]>("All");
@@ -43,13 +51,23 @@ export default function AdminOrdersScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <StaffAccessGate role="admin">
+      <SafeAreaView style={styles.safeArea}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
       >
         <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/admin-dashboard")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/admin-dashboard")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>LIVE ORDERS</Text>
@@ -79,6 +97,15 @@ export default function AdminOrdersScreen() {
           })}
         </ScrollView>
 
+        {visibleOrders.length === 0 ? (
+          <FadeInView delay={100} style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No orders in this view</Text>
+            <Text style={styles.emptyCopy}>
+              Change the filter or wait for new customer checkouts to enter the live queue.
+            </Text>
+          </FadeInView>
+        ) : null}
+
         {visibleOrders.map((order, index) => (
           <FadeInView
             key={order.id}
@@ -90,7 +117,7 @@ export default function AdminOrdersScreen() {
                 <Text style={styles.orderRestaurant}>{order.restaurant}</Text>
                 <Text
                   style={styles.orderMeta}
-                >{`${order.customer} · ${order.placedAt} · ETA ${order.eta}`}</Text>
+                >{`${order.customer} | ${order.placedAt} | ETA ${order.eta}`}</Text>
               </View>
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{order.status}</Text>
@@ -149,7 +176,8 @@ export default function AdminOrdersScreen() {
           </FadeInView>
         ))}
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -157,7 +185,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
@@ -167,8 +194,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: safeHeaderButtonSize,
+    height: safeHeaderButtonSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -179,7 +206,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.primary,
   },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: safeHeaderButtonSize },
   filterRow: { gap: 10, paddingRight: 20 },
   filterChip: {
     minHeight: 38,
@@ -208,6 +235,25 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 16,
     gap: 12,
+  },
+  emptyCard: {
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 18,
+    gap: 6,
+  },
+  emptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 20,
+    color: colors.primary,
+  },
+  emptyCopy: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
   orderTop: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   orderCopy: { flex: 1, gap: 4 },

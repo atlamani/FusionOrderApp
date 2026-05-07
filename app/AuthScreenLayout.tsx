@@ -3,13 +3,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
+import { getSafeContentTopPadding } from "./safeHeaderLayout";
 import { colors, radii, spacing, typography } from "./theme";
 
 type AuthScreenLayoutProps = {
@@ -29,6 +32,9 @@ export default function AuthScreenLayout({
   children,
   footer,
 }: AuthScreenLayoutProps) {
+  const insets = useSafeAreaInsets();
+  const topPadding = getSafeContentTopPadding(insets.top);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -38,7 +44,11 @@ export default function AuthScreenLayout({
         <View style={styles.backgroundOrbTop} />
         <View style={styles.backgroundOrbBottom} />
 
-        <View style={styles.container}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.container, { paddingTop: topPadding }]}
+        >
           <FadeInView delay={40} style={styles.backRow}>
             <CustomButton
               title="Back"
@@ -60,7 +70,7 @@ export default function AuthScreenLayout({
             <View style={styles.body}>{children}</View>
             {footer ? <View style={styles.footer}>{footer}</View> : null}
           </FadeInView>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -93,9 +103,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(79, 111, 82, 0.10)",
   },
   container: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 18,
     paddingBottom: 24,
     gap: spacing.lg,
     justifyContent: "center",

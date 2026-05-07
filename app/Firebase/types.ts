@@ -8,6 +8,11 @@ export interface UserProfile {
   phone?: string;
   address?: string;
   deliveryNote?: string;
+  /**
+   * User's collection of saved delivery addresses. The currently active
+   * delivery address is `address` above; this list is the picker source.
+   */
+  savedAddresses?: string[];
   rewardsPoints?: number;
   rewardsTier?: string;
   createdAt?: FirebaseFirestoreTypes.FieldValue | Date | string | null;
@@ -103,6 +108,9 @@ export interface AdminOrder {
   placedAt: string;
   eta: string;
   driver: string;
+  driverId?: string | null;
+  driverName?: string | null;
+  deliveryAddress?: string;
   issue: string | null;
 }
 

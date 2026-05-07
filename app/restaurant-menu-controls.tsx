@@ -10,13 +10,20 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
+import { restaurantPrepOptions } from "./appData";
+import {
+  getRolePortalTopInset,
+  rolePortalHeaderSize,
+} from "./rolePortalLayout";
 import { colors, spacing, typography } from "./theme";
 
-const prepOptions = ["12 min", "16 min", "20 min", "25 min", "30 min"];
-
 export default function RestaurantMenuControlsScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getRolePortalTopInset(insets.top);
   const [draftName, setDraftName] = useState("");
   const [draftPrice, setDraftPrice] = useState("");
   const [draftCategory, setDraftCategory] = useState("New & featured");
@@ -27,7 +34,6 @@ export default function RestaurantMenuControlsScreen() {
     getRestaurantMenuSections,
     removeRestaurantMenuItem,
     selectedPartnerRestaurantId,
-    setSelectedPartnerRestaurant,
     toggleAdminMenuItemAvailability,
     toggleRestaurantMenuItemFeatured,
     updateRestaurantPrepTime,
@@ -35,8 +41,7 @@ export default function RestaurantMenuControlsScreen() {
 
   const restaurant = useMemo(
     () =>
-      adminRestaurants.find((entry) => entry.id === selectedPartnerRestaurantId) ??
-      adminRestaurants[0],
+      adminRestaurants.find((entry) => entry.id === selectedPartnerRestaurantId),
     [adminRestaurants, selectedPartnerRestaurantId],
   );
   const liveMenuSections = useMemo(
@@ -72,30 +77,36 @@ export default function RestaurantMenuControlsScreen() {
 
   if (!restaurant) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>No restaurant selected</Text>
-          <Text style={styles.emptyCopy}>
-            Open the restaurant dashboard first to choose a partner location.
-          </Text>
-        </View>
-      </SafeAreaView>
+      <StaffAccessGate role="restaurant">
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No restaurant selected</Text>
+            <Text style={styles.emptyCopy}>
+              This account needs a restaurantId claim before it can manage menu controls.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </StaffAccessGate>
     );
   }
 
   const pausedCount = liveMenuItems.filter((item) => !item.available).length;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <StaffAccessGate role="restaurant">
+      <SafeAreaView style={styles.safeArea}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
       >
         <FadeInView delay={40} style={styles.header}>
           <Pressable
             accessibilityLabel="Go back"
             accessibilityRole="button"
-            hitSlop={10}
+            hitSlop={16}
             style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
             onPress={handleBack}
           >
@@ -123,26 +134,12 @@ export default function RestaurantMenuControlsScreen() {
           </View>
         </FadeInView>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.selectorRow}
-        >
-          {adminRestaurants.map((entry) => {
-            const active = entry.id === restaurant.id;
-            return (
-              <Pressable
-                key={entry.id}
-                style={[styles.selectorChip, active && styles.selectorChipActive]}
-                onPress={() => setSelectedPartnerRestaurant(entry.id)}
-              >
-                <Text style={[styles.selectorText, active && styles.selectorTextActive]}>
-                  {entry.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <FadeInView delay={120} style={styles.identityCard}>
+          <Feather name="lock" size={16} color={colors.surfaceDeep} />
+          <Text style={styles.identityText}>
+            Menu changes apply only to {restaurant.name}.
+          </Text>
+        </FadeInView>
 
         <FadeInView delay={130} style={styles.card}>
           <Text style={styles.cardTitle}>Prep time</Text>
@@ -150,7 +147,7 @@ export default function RestaurantMenuControlsScreen() {
             This updates the ETA shown across manager and restaurant screens.
           </Text>
           <View style={styles.prepGrid}>
-            {prepOptions.map((option) => {
+            {restaurantPrepOptions.map((option) => {
               const active = option === restaurant.avgPrepTime;
               return (
                 <Pressable
@@ -322,7 +319,8 @@ export default function RestaurantMenuControlsScreen() {
           </View>
         </FadeInView>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -330,7 +328,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
@@ -359,8 +356,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: rolePortalHeaderSize,
+    height: rolePortalHeaderSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -372,7 +369,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.primary,
   },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: rolePortalHeaderSize },
   hero: {
     borderRadius: 28,
     backgroundColor: colors.surface,
@@ -417,27 +414,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,255,255,0.78)",
   },
-  selectorRow: { gap: 10, paddingRight: 20 },
-  selectorChip: {
-    minHeight: 40,
-    borderRadius: 999,
-    paddingHorizontal: 14,
+  identityCard: {
+    minHeight: 48,
+    borderRadius: 18,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
-    justifyContent: "center",
+    paddingHorizontal: 14,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 10,
   },
-  selectorChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  selectorText: {
-    fontFamily: typography.display,
+  identityText: {
+    flex: 1,
+    fontFamily: typography.body,
     fontSize: 13,
-    color: colors.primary,
+    color: colors.textMuted,
   },
-  selectorTextActive: { color: colors.background },
   card: {
     borderRadius: 24,
     backgroundColor: colors.white,

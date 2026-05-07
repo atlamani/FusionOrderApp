@@ -14,7 +14,12 @@ import { getOrder, subscribeToOrderUpdates } from "./Firebase/orders";
 import { Order, OrderStatus } from "./Firebase/types";
 import { useAppState, type CustomerOrder } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getDeliveryCoordinate,
+  getRestaurantCoordinate,
+} from "./services/mapCoords";
 import { colors, typography } from "./theme";
+import { MapPreview } from "../components/MapPreview";
 
 const statusSteps = [
   { key: "pending", label: "Order Placed", icon: "clock" },
@@ -130,7 +135,7 @@ const fromCustomerOrder = (
 export default function OrderTrackingScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const resolvedOrderId = Array.isArray(orderId) ? orderId[0] : orderId;
-  const { adminOrders, currentOrder, profile } = useAppState();
+  const { adminOrders, currentOrder, profile, restaurants } = useAppState();
   const [order, setOrder] = useState<TrackingOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -233,6 +238,23 @@ export default function OrderTrackingScreen() {
 
   const displayOrder = order ?? localOrder;
 
+  const orderRestaurant = useMemo(() => {
+    if (!displayOrder?.restaurantName) return undefined;
+    return restaurants.find(
+      (entry) =>
+        entry.name === displayOrder.restaurantName ||
+        entry.id === displayOrder.restaurantName,
+    );
+  }, [displayOrder?.restaurantName, restaurants]);
+  const pickupCoord = useMemo(
+    () => getRestaurantCoordinate(orderRestaurant),
+    [orderRestaurant],
+  );
+  const destinationCoord = useMemo(
+    () => getDeliveryCoordinate(pickupCoord),
+    [pickupCoord],
+  );
+
   if (loading && !displayOrder) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -267,7 +289,13 @@ export default function OrderTrackingScreen() {
         contentContainerStyle={styles.content}
       >
         <FadeInView delay={0} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/activity")}>
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/activity")}
+          >
             <Feather name="arrow-left" size={24} color={colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Order Tracking</Text>
@@ -423,6 +451,31 @@ export default function OrderTrackingScreen() {
             <View style={styles.addressHeader}>
               <Feather name="map-pin" size={20} color={colors.primary} />
               <Text style={styles.addressTitle}>Delivery Address</Text>
+            </View>
+            <View style={styles.mapWrapper}>
+              <MapPreview
+                height={180}
+                interactive={false}
+                badge={
+                  displayOrder.status === "out_for_delivery"
+                    ? "On the way"
+                    : displayOrder.status === "delivered"
+                      ? "Delivered"
+                      : "Tracking"
+                }
+                markers={[
+                  {
+                    coordinate: pickupCoord,
+                    kind: "pickup",
+                    label: displayOrder.restaurantName ?? "Restaurant",
+                  },
+                  {
+                    coordinate: destinationCoord,
+                    kind: "destination",
+                    label: "You",
+                  },
+                ]}
+              />
             </View>
             <Text style={styles.addressText}>{displayOrder.deliveryAddress}</Text>
             {displayOrder.deliveryNote && (
@@ -699,6 +752,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.text,
     marginLeft: 8,
+  },
+  mapWrapper: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 12,
   },
   addressText: {
     fontFamily: typography.body,

@@ -129,20 +129,22 @@ export default function StaffLoginScreen({ role }: { role: StaffRole }) {
       }
 
       if (role === "restaurant") {
-        if (claims.admin !== true && typeof claims.restaurantId !== "string") {
-          throw new Error("This account is not authorized for restaurant access.");
+        if (typeof claims.restaurantId !== "string") {
+          throw new Error(
+            "This account is not assigned to a restaurant location yet.",
+          );
         }
 
-        beginRestaurantSession(claims.restaurantId ?? "featured-2");
+        beginRestaurantSession(claims.restaurantId);
         router.replace("/restaurant-dashboard");
         return;
       }
 
-      if (claims.admin !== true && typeof claims.driverId !== "string") {
-        throw new Error("This account is not authorized for driver access.");
+      if (typeof claims.driverId !== "string") {
+        throw new Error("This account is not assigned to a driver profile yet.");
       }
 
-      beginDriverSession(claims.driverId ?? "driver-1");
+      beginDriverSession(claims.driverId);
       router.replace("/driver-dashboard");
     } catch (error) {
       if (signedIn) {

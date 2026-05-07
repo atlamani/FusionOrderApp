@@ -10,9 +10,15 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
+import StaffAccessGate from "./StaffAccessGate";
 import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import {
+  getSafeHeaderTopPadding,
+  safeHeaderButtonSize,
+} from "./safeHeaderLayout";
 import { colors, spacing, typography } from "./theme";
 
 type EditableMenuItem = {
@@ -100,6 +106,8 @@ function MenuItemRow({
 }
 
 export default function AdminRestaurantDetailScreen() {
+  const insets = useSafeAreaInsets();
+  const headerTopPadding = getSafeHeaderTopPadding(insets.top);
   const params = useLocalSearchParams<{ id?: string }>();
   const {
     adminRestaurants,
@@ -111,7 +119,7 @@ export default function AdminRestaurantDetailScreen() {
   } = useAppState();
 
   const restaurant = useMemo(
-    () => adminRestaurants.find((entry) => entry.id === params.id) ?? adminRestaurants[0],
+    () => adminRestaurants.find((entry) => entry.id === params.id),
     [adminRestaurants, params.id],
   );
 
@@ -125,22 +133,49 @@ export default function AdminRestaurantDetailScreen() {
   );
 
   if (!restaurant) {
-    return null;
+    return (
+      <StaffAccessGate role="admin">
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>Restaurant not found</Text>
+            <Text style={styles.emptyCopy}>
+              Choose a valid partner from the restaurant list before editing menu controls.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back to restaurants"
+              style={styles.emptyButton}
+              onPress={() => goBackOrReplace("/admin-restaurants")}
+            >
+              <Text style={styles.emptyButtonText}>Back to Restaurants</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </StaffAccessGate>
+    );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    <StaffAccessGate role="admin">
+      <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerTopPadding },
+        ]}
+      >
         <FadeInView delay={40} style={styles.header}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Back to restaurants"
+            hitSlop={16}
             style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
             onPress={() => goBackOrReplace("/admin-restaurants")}
           >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
-          <Text style={styles.headerTitle}>MENU CONTROLS</Text>
+          <Text style={styles.headerTitle}>PARTNER REVIEW</Text>
           <View style={styles.headerSpacer} />
         </FadeInView>
 
@@ -172,7 +207,7 @@ export default function AdminRestaurantDetailScreen() {
 
         <FadeInView delay={130} style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Menu controls</Text>
+          <Text style={styles.sectionTitle}>Admin menu audit</Text>
             <Text style={styles.sectionHint}>
               Toggle availability or update pricing for {menuItemCount} live menu item
               {menuItemCount === 1 ? "" : "s"} shown to customers
@@ -199,7 +234,8 @@ export default function AdminRestaurantDetailScreen() {
           ))}
         </FadeInView>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </StaffAccessGate>
   );
 }
 
@@ -208,9 +244,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontFamily: typography.display,
+    fontSize: 28,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  emptyCopy: {
+    fontFamily: typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  emptyButton: {
+    minWidth: 180,
+    minHeight: 46,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  emptyButtonText: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.background,
+  },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 18,
     paddingBottom: 36,
     gap: spacing.lg,
   },
@@ -220,8 +289,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: safeHeaderButtonSize,
+    height: safeHeaderButtonSize,
     borderRadius: 12,
     backgroundColor: colors.surface,
     justifyContent: "center",
@@ -236,7 +305,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.primary,
   },
-  headerSpacer: { width: 40 },
+  headerSpacer: { width: safeHeaderButtonSize },
   hero: {
     borderRadius: 24,
     backgroundColor: colors.surface,

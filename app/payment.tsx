@@ -11,9 +11,10 @@ import {
   View,
   Alert,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "./BrandLogo";
 import FadeInView from "./FadeInView";
-import { savedCards } from "./appData";
+import { checkoutPricing, savedCards } from "./appData";
 import {
   formatCurrency,
   getCartItemCount,
@@ -32,6 +33,7 @@ type SplitPaymentCard = {
 };
 
 export default function PaymentScreen() {
+  const insets = useSafeAreaInsets();
   const {
     cartItems,
     customTip,
@@ -49,8 +51,9 @@ export default function PaymentScreen() {
   const subtotal = getCartSubtotal(cartItems);
   const taxes = getCartTaxes(cartItems);
   const tipAmount = getTipAmount(cartItems, selectedTip, customTip);
-  const total = subtotal + taxes + 5 + tipAmount;
   const hasItems = cartItems.length > 0;
+  const deliveryFee = hasItems ? checkoutPricing.deliveryFee : 0;
+  const total = subtotal + taxes + deliveryFee + tipAmount;
   const itemCount = getCartItemCount(cartItems);
 
   // Calculate split amounts
@@ -135,8 +138,23 @@ export default function PaymentScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <FadeInView delay={40} style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => goBackOrReplace("/checkout")}>
+        <FadeInView
+          delay={40}
+          style={[
+            styles.header,
+            {
+              minHeight: Math.max(insets.top + 72, 96),
+              paddingTop: Math.max(insets.top + 12, 24),
+            },
+          ]}
+        >
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={16}
+            style={styles.backButton}
+            onPress={() => goBackOrReplace("/checkout")}
+          >
             <Feather name="arrow-left" size={18} color={colors.background} />
           </Pressable>
           <Text style={styles.headerTitle}>PAYMENT</Text>
@@ -479,7 +497,9 @@ export default function PaymentScreen() {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryValue}>$5.00</Text>
+            <Text style={styles.summaryValue}>
+              {formatCurrency(deliveryFee)}
+            </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Taxes</Text>
@@ -497,7 +517,12 @@ export default function PaymentScreen() {
         </FadeInView>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(insets.bottom + 12, 20) },
+        ]}
+      >
         <Pressable
           style={[
             styles.footerButton,

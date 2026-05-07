@@ -98,7 +98,17 @@ export default function OrderPlacedScreen() {
               )
             }
           />
-          <CustomButton title="View Receipt" variant="surface" onPress={() => router.push("/order-receipt")} />
+          <CustomButton
+            title="View Receipt"
+            variant="surface"
+            onPress={() =>
+              router.push(
+                orderId
+                  ? `/order-receipt?orderId=${encodeURIComponent(orderId)}`
+                  : "/activity-history",
+              )
+            }
+          />
           <CustomButton title="Back to Home" variant="surface" onPress={() => router.replace("/home")} />
         </FadeInView>
       </ScrollView>
