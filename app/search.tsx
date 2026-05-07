@@ -143,6 +143,7 @@ export default function SearchScreen() {
     applyDiscoveryFilters,
     clearSearch,
     discoveryFilters,
+    favoriteIds,
     restaurantDataLoading,
     restaurantDataMessage,
     restaurantDataSource,
@@ -157,6 +158,7 @@ export default function SearchScreen() {
     resetDiscoveryFilters,
     refreshRestaurants,
   } = useAppState();
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const filteredResults = useMemo(() => {
     const query = searchQuery.trim();
@@ -183,6 +185,7 @@ export default function SearchScreen() {
         minRating <= 0 || parseRestaurantRating(restaurant.rating) >= minRating;
       const matchesDistance =
         maxDistance == null || parseRestaurantDistance(restaurant.distance) <= maxDistance;
+      const matchesFavorite = !favoritesOnly || favoriteIds.includes(restaurant.id);
 
       return (
         score >= 0 &&
@@ -190,12 +193,13 @@ export default function SearchScreen() {
         matchesDietary &&
         matchesPrice &&
         matchesRating &&
-        matchesDistance
+        matchesDistance &&
+        matchesFavorite
       );
     })
       .sort((left, right) => right.score - left.score || left.index - right.index)
       .map(({ restaurant }) => restaurant);
-  }, [discoveryFilters, restaurants, searchQuery]);
+  }, [discoveryFilters, favoriteIds, favoritesOnly, restaurants, searchQuery]);
 
   const activeFilterCount =
     (discoveryFilters.cuisineId !== "all" ? 1 : 0) +
@@ -323,28 +327,60 @@ export default function SearchScreen() {
                 </Text>
               ) : null}
             </View>
-            {searchQuery.trim().length > 0 ? (
+            <View style={styles.headerActions}>
               <Pressable
-                accessibilityLabel={
-                  savedSearches.includes(searchQuery.trim())
-                    ? "Remove search from saved searches"
-                    : "Save current search"
-                }
                 accessibilityRole="button"
+                accessibilityLabel={
+                  favoritesOnly
+                    ? "Show all restaurants"
+                    : "Show only favorited restaurants"
+                }
                 hitSlop={8}
-                style={styles.saveQueryButton}
-                onPress={() => toggleSavedSearch(searchQuery.trim())}
+                style={[
+                  styles.favoritesToggle,
+                  favoritesOnly && styles.favoritesToggleActive,
+                ]}
+                onPress={() => setFavoritesOnly((current) => !current)}
               >
                 <Feather
-                  name="bookmark"
+                  name="heart"
                   size={14}
-                  color={colors.background}
+                  color={favoritesOnly ? colors.white : colors.surface}
                 />
-                <Text style={styles.saveQueryText}>
-                  {savedSearches.includes(searchQuery.trim()) ? "Saved" : "Save Search"}
+                <Text
+                  style={[
+                    styles.favoritesToggleText,
+                    favoritesOnly && styles.favoritesToggleTextActive,
+                  ]}
+                >
+                  {favoritesOnly ? "Favorites" : "Favorites only"}
                 </Text>
               </Pressable>
-            ) : null}
+              {searchQuery.trim().length > 0 ? (
+                <Pressable
+                  accessibilityLabel={
+                    savedSearches.includes(searchQuery.trim())
+                      ? "Remove search from saved searches"
+                      : "Save current search"
+                  }
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={styles.saveQueryButton}
+                  onPress={() => toggleSavedSearch(searchQuery.trim())}
+                >
+                  <Feather
+                    name="bookmark"
+                    size={14}
+                    color={colors.background}
+                  />
+                  <Text style={styles.saveQueryText}>
+                    {savedSearches.includes(searchQuery.trim())
+                      ? "Saved"
+                      : "Save Search"}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
           <View style={styles.resultsList}>
             {restaurantDataLoading ? (
@@ -380,11 +416,27 @@ export default function SearchScreen() {
             ))}
             {!restaurantDataLoading && filteredResults.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyStateTitle}>No matches yet</Text>
-                <Text style={styles.emptyStateCopy}>
-                  Try a different cuisine, price point, rating, distance, or dietary filter.
+                <Text style={styles.emptyStateTitle}>
+                  {favoritesOnly ? "No favorites match" : "No matches yet"}
                 </Text>
-                {hasActiveFilters ? (
+                <Text style={styles.emptyStateCopy}>
+                  {favoritesOnly
+                    ? "Tap the heart on a restaurant first, or turn off Favorites to see everything."
+                    : "Try a different cuisine, price point, rating, distance, or dietary filter."}
+                </Text>
+                {favoritesOnly ? (
+                  <Pressable
+                    accessibilityLabel="Show all restaurants again"
+                    accessibilityRole="button"
+                    hitSlop={10}
+                    style={styles.emptyStateButton}
+                    onPress={() => setFavoritesOnly(false)}
+                  >
+                    <Text style={styles.emptyStateButtonText}>
+                      Show all restaurants
+                    </Text>
+                  </Pressable>
+                ) : hasActiveFilters ? (
                   <Pressable
                     accessibilityLabel="Reset filters to defaults"
                     accessibilityRole="button"
@@ -771,6 +823,36 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 12,
     color: colors.background,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "flex-end",
+  },
+  favoritesToggle: {
+    minHeight: 36,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.surface,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  favoritesToggleActive: {
+    backgroundColor: colors.surface,
+    borderColor: colors.surface,
+  },
+  favoritesToggleText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.surface,
+  },
+  favoritesToggleTextActive: {
+    color: colors.white,
   },
   resultsList: {
     gap: 12,
