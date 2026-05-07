@@ -47,6 +47,11 @@ type GooglePhoto = {
   heightPx?: number;
 };
 
+type GoogleOpeningHours = {
+  openNow?: boolean;
+  weekdayDescriptions?: string[];
+};
+
 type GooglePlace = {
   id?: string;
   displayName?: GoogleLocalizedText;
@@ -62,6 +67,7 @@ type GooglePlace = {
   websiteUri?: string;
   nationalPhoneNumber?: string;
   photos?: GooglePhoto[];
+  regularOpeningHours?: GoogleOpeningHours;
 };
 
 const GOOGLE_PLACES_FIELD_MASK = [
@@ -79,6 +85,7 @@ const GOOGLE_PLACES_FIELD_MASK = [
   "places.websiteUri",
   "places.nationalPhoneNumber",
   "places.photos",
+  "places.regularOpeningHours",
 ].join(",");
 
 function buildPhotoUrl(photo: GooglePhoto | undefined): string | undefined {
@@ -473,6 +480,8 @@ function mapGooglePlaceToRestaurant(
     mapUri: place.googleMapsUri,
     websiteUri: place.websiteUri,
     phone: place.nationalPhoneNumber,
+    hours: place.regularOpeningHours?.weekdayDescriptions,
+    openNow: place.regularOpeningHours?.openNow,
     description:
       place.formattedAddress ??
       "Nearby restaurant sourced from Google Places.",

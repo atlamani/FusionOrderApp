@@ -26,6 +26,8 @@ export type Restaurant = {
   mapUri?: string;
   websiteUri?: string;
   phone?: string;
+  hours?: string[];
+  openNow?: boolean;
   description: string;
   dietaryTags: string[];
   popularDishes: string[];
