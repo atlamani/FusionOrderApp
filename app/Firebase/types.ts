@@ -41,6 +41,12 @@ export interface UserProfile {
     biometricLock?: boolean;
     quickReorder?: boolean;
   };
+  /**
+   * Reward catalog IDs the user has claimed but not yet applied to an
+   * order. Each entry is single-use; applying a reward at checkout
+   * removes one matching ID from the array.
+   */
+  availableRewards?: string[];
   rewardsPoints?: number;
   rewardsTier?: string;
   createdAt?: FirebaseFirestoreTypes.FieldValue | Date | string | null;
@@ -126,6 +132,12 @@ export interface Order {
     | number
     | FirebaseFirestoreTypes.FieldValue
     | null;
+  /** Reward redeemed against this order, if any. Surfaced on receipts. */
+  appliedReward?: {
+    id: string;
+    name: string;
+    value: number;
+  };
 }
 
 export type AdminOrderStatus =
@@ -204,6 +216,8 @@ export interface AdminOrder {
   deliveryAddress?: string;
   issue: string | null;
   issueReport?: OrderIssueReport | null;
+  /** Pre-formatted item lines like "Margherita x1" for staff queue cards. */
+  items?: string[];
 }
 
 export interface AdminRestaurantMenuItem {

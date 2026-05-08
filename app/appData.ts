@@ -34,6 +34,44 @@ export type Restaurant = {
   reviews: RestaurantReview[];
 };
 
+export type RewardCatalogEntry = {
+  id: string;
+  name: string;
+  description: string;
+  pointsCost: number;
+  /** Dollar value applied to the order subtotal when the reward is used. */
+  value: number;
+};
+
+/**
+ * Reward ladder. Thresholds are intentionally low so the demo can show
+ * earning → claiming → applying at checkout end-to-end without grinding
+ * dozens of orders.
+ */
+export const rewardCatalog: RewardCatalogEntry[] = [
+  {
+    id: "free-dessert",
+    name: "Free dessert",
+    description: "Take $6 off any order — perfect for a sweet treat.",
+    pointsCost: 30,
+    value: 6,
+  },
+  {
+    id: "free-side",
+    name: "Free side",
+    description: "Take $4 off your next order.",
+    pointsCost: 100,
+    value: 4,
+  },
+  {
+    id: "free-entree",
+    name: "Free entree",
+    description: "Take $12 off any order.",
+    pointsCost: 250,
+    value: 12,
+  },
+];
+
 export type CuisineTag = {
   id: string;
   label: string;
@@ -172,7 +210,7 @@ export const checkoutPricing = {
   taxRate: 0.082,
   defaultTip: "15%",
   customTipDefault: "0.00",
-  tipOptions: ["10%", "15%", "20%", "25%"],
+  tipOptions: ["0%", "10%", "15%", "20%", "25%"],
 };
 
 export const unassignedDriverLabel = "Unassigned";
