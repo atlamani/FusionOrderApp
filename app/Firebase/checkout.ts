@@ -30,6 +30,11 @@ export async function processCheckout(orderData: {
   deliveryNote?: string;
   specialInstructions?: string;
   paymentMethodId?: string;
+  appliedReward?: {
+    id: string;
+    name: string;
+    value: number;
+  };
 }): Promise<string> {
   try {
     // Check if user is authenticated
@@ -75,6 +80,9 @@ export async function processCheckout(orderData: {
       driverId: null,
       driverName: null,
       issue: null,
+      ...(orderData.appliedReward
+        ? { appliedReward: orderData.appliedReward }
+        : {}),
     };
 
     // Create the order in Firestore

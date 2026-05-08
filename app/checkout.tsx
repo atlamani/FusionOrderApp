@@ -20,6 +20,7 @@ import {
   getRestaurantCoordinate,
 } from "./services/mapCoords";
 import { MapPreview } from "../components/MapPreview";
+import { rewardCatalog } from "./appData";
 import { colors, typography } from "./theme";
 
 type CartGroup = {
@@ -30,9 +31,13 @@ type CartGroup = {
 export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const {
+    appliedRewardId,
+    applyRewardToOrder,
+    availableRewards,
     cartItems,
     clearCart,
     decreaseMenuItem,
+    removeAppliedReward,
     removeCartItem,
     restaurants,
     selectedTip,
@@ -63,7 +68,33 @@ export default function CheckoutScreen() {
   const taxes = getCartTaxes(cartItems);
   const tipAmount = getTipAmount(cartItems, selectedTip, customTip);
   const deliveryFee = isEmpty ? 0 : checkoutPricing.deliveryFee;
-  const total = subtotal + taxes + deliveryFee + tipAmount;
+  const appliedReward = appliedRewardId
+    ? rewardCatalog.find((entry) => entry.id === appliedRewardId)
+    : null;
+  const rewardDiscount = appliedReward
+    ? Math.min(appliedReward.value, subtotal)
+    : 0;
+  const total =
+    subtotal + taxes + deliveryFee + tipAmount - rewardDiscount;
+  const uniqueAvailableRewards = useMemo(() => {
+    // Collapse duplicates so the picker shows each reward type once with
+    // a count instead of N copies of the same row.
+    const counts = new Map<string, number>();
+    availableRewards.forEach((id) => {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    });
+    return [...counts.entries()]
+      .map(([id, count]) => ({
+        reward: rewardCatalog.find((entry) => entry.id === id),
+        count,
+      }))
+      .filter(
+        (entry): entry is {
+          reward: (typeof rewardCatalog)[number];
+          count: number;
+        } => Boolean(entry.reward),
+      );
+  }, [availableRewards]);
   const cartGroups = useMemo<CartGroup[]>(() => {
     const groups = new Map<string, CartItem[]>();
     cartItems.forEach((item) => {
@@ -270,6 +301,56 @@ export default function CheckoutScreen() {
           </FadeInView>
         ) : null}
 
+        {!isEmpty && uniqueAvailableRewards.length > 0 ? (
+          <FadeInView delay={250} style={styles.card}>
+            <Text style={styles.cardTitle}>Rewards</Text>
+            {appliedReward ? (
+              <View style={styles.rewardAppliedRow}>
+                <View style={styles.rewardAppliedCopy}>
+                  <Text style={styles.rewardAppliedTitle}>
+                    {appliedReward.name} applied
+                  </Text>
+                  <Text style={styles.rewardAppliedDetail}>
+                    -{formatCurrency(rewardDiscount)} off this order
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove reward"
+                  hitSlop={8}
+                  style={styles.rewardRemoveButton}
+                  onPress={removeAppliedReward}
+                >
+                  <Text style={styles.rewardRemoveText}>Remove</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.rewardOptionList}>
+                {uniqueAvailableRewards.map(({ reward, count }) => (
+                  <Pressable
+                    key={reward.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Apply ${reward.name}`}
+                    style={styles.rewardOptionRow}
+                    onPress={() => applyRewardToOrder(reward.id)}
+                  >
+                    <View style={styles.rewardOptionCopy}>
+                      <Text style={styles.rewardOptionTitle}>
+                        {reward.name}
+                        {count > 1 ? ` · ${count} available` : ""}
+                      </Text>
+                      <Text style={styles.rewardOptionDetail}>
+                        ${reward.value.toFixed(2)} off the order
+                      </Text>
+                    </View>
+                    <Text style={styles.rewardOptionApply}>Apply</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </FadeInView>
+        ) : null}
+
         <FadeInView delay={260} style={styles.card}>
           <Text style={styles.cardTitle}>Order Summary</Text>
           <View style={styles.summaryRow}>
@@ -288,6 +369,16 @@ export default function CheckoutScreen() {
             <Text style={styles.summaryLabel}>Driver Tip</Text>
             <Text style={styles.summaryValue}>{formatCurrency(tipAmount)}</Text>
           </View>
+          {appliedReward ? (
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, styles.summaryRewardLabel]}>
+                Reward · {appliedReward.name}
+              </Text>
+              <Text style={[styles.summaryValue, styles.summaryRewardLabel]}>
+                -{formatCurrency(rewardDiscount)}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total</Text>
@@ -654,6 +745,67 @@ const styles = StyleSheet.create({
   summaryDivider: {
     height: 1,
     backgroundColor: "rgba(0,0,0,0.1)",
+  },
+  summaryRewardLabel: {
+    color: colors.success,
+  },
+  rewardAppliedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#ECFDF3",
+    borderRadius: 14,
+    padding: 12,
+  },
+  rewardAppliedCopy: { flex: 1, gap: 2 },
+  rewardAppliedTitle: {
+    fontFamily: typography.display,
+    fontSize: 15,
+    color: colors.success,
+  },
+  rewardAppliedDetail: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: colors.success,
+  },
+  rewardRemoveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.74)",
+  },
+  rewardRemoveText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.success,
+  },
+  rewardOptionList: { gap: 8 },
+  rewardOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFFFFF",
+  },
+  rewardOptionCopy: { flex: 1, gap: 2 },
+  rewardOptionTitle: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: "#1F2A1F",
+  },
+  rewardOptionDetail: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: "rgba(0,0,0,0.6)",
+  },
+  rewardOptionApply: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    color: colors.surface,
   },
   totalLabel: {
     fontFamily: typography.display,

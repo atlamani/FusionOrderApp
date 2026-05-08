@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "../FadeInView";
 import { CustomButton } from "../customButton";
 import { profileShortcuts } from "../appData";
-import { getInitials, useAppState } from "../appState";
+import { getInitials, getRewardProgress, useAppState } from "../appState";
 import { getSafeContentTopPadding } from "../safeHeaderLayout";
 import { colors, spacing, typography } from "../theme";
 
@@ -142,12 +142,28 @@ export default function ProfileScreen() {
             <FadeInView delay={120} style={styles.rewardsCard}>
               <Text style={styles.rewardsLabel}>Rewards Progress</Text>
               <Text style={styles.rewardsValue}>{profile.rewardsPoints} pts</Text>
-              <Text style={styles.rewardsCopy}>
-                Place one more order to unlock your next free dessert reward.
-              </Text>
-              <View style={styles.progressTrack}>
-                <View style={styles.progressFill} />
-              </View>
+              {(() => {
+                const reward = getRewardProgress(profile.rewardsPoints);
+                return (
+                  <>
+                    <Text style={styles.rewardsCopy}>
+                      {reward.reachedAll
+                        ? "You've unlocked every reward — claim them in Rewards Club."
+                        : reward.remaining === 0
+                          ? `${reward.next.name} is ready — tap Rewards Club to claim it.`
+                          : `${reward.remaining} pt${reward.remaining === 1 ? "" : "s"} away from ${reward.next.name.toLowerCase()}.`}
+                    </Text>
+                    <View style={styles.progressTrack}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { width: `${Math.round(reward.ratio * 100)}%` },
+                        ]}
+                      />
+                    </View>
+                  </>
+                );
+              })()}
             </FadeInView>
 
             <View style={styles.sectionHeader}>
@@ -306,7 +322,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   progressFill: {
-    width: "72%",
     height: "100%",
     borderRadius: 999,
     backgroundColor: colors.surface,

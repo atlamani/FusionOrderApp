@@ -26,9 +26,11 @@ import {
   driverProfiles as initialDriverProfiles,
   menuByRestaurantId,
   orderHistory as initialOrderHistory,
+  rewardCatalog,
   unassignedDriverLabel,
   type MenuItem,
   type Restaurant,
+  type RewardCatalogEntry,
 } from "./appData";
 import {
   loadRestaurantDiscovery,
@@ -57,6 +59,8 @@ type AdminOrderStatus =
 
 type AdminOrder = (typeof initialAdminOrders)[number] & {
   issueReport?: import("./Firebase/types").OrderIssueReport | null;
+  /** Pre-formatted item lines for staff queue cards. */
+  items?: string[];
 };
 type AdminRestaurant = (typeof initialAdminRestaurants)[number];
 type AdminRestaurantMenuItem = AdminRestaurant["menuItems"][number];
@@ -200,6 +204,49 @@ function computeRewardsTier(points: number): string {
   if (points >= 750) return "Gold Member";
   if (points >= 250) return "Silver Member";
   return "Bronze Member";
+}
+
+/**
+ * Returns the lowest-tier reward the user hasn't yet hit OR the highest
+ * tier if they're past everything. Used to drive the "next reward"
+ * progress bar on the Profile and Rewards Club screens.
+ */
+export function getNextReward(points: number): RewardCatalogEntry {
+  const sorted = [...rewardCatalog].sort(
+    (a, b) => a.pointsCost - b.pointsCost,
+  );
+  const next = sorted.find((entry) => points < entry.pointsCost);
+  return next ?? sorted[sorted.length - 1];
+}
+
+export function getRewardProgress(points: number): {
+  next: RewardCatalogEntry;
+  remaining: number;
+  ratio: number;
+  reachedAll: boolean;
+} {
+  const sorted = [...rewardCatalog].sort(
+    (a, b) => a.pointsCost - b.pointsCost,
+  );
+  const next = sorted.find((entry) => points < entry.pointsCost);
+  if (!next) {
+    const top = sorted[sorted.length - 1];
+    return { next: top, remaining: 0, ratio: 1, reachedAll: true };
+  }
+  // Progress against the previous tier's threshold so the bar fills
+  // smoothly between rewards rather than jumping back to 0 each time.
+  const previousCost = sorted
+    .filter((entry) => entry.pointsCost <= points)
+    .reduce((max, entry) => Math.max(max, entry.pointsCost), 0);
+  const span = next.pointsCost - previousCost;
+  const earnedInSpan = points - previousCost;
+  const ratio = span > 0 ? Math.max(0, Math.min(1, earnedInSpan / span)) : 0;
+  return {
+    next,
+    remaining: Math.max(0, next.pointsCost - points),
+    ratio,
+    reachedAll: false,
+  };
 }
 
 function timestampToMs(value: Order["createdAt"] | Order["updatedAt"]): number {
@@ -507,6 +554,20 @@ type AppStateValue = {
   toggleSetting: (key: keyof AppSettings) => void;
   reorderFromHistory: (orderId: string) => void;
   joinRewards: (email: string) => void;
+  /**
+   * Spends `pointsCost` points and adds a single-use reward credit to
+   * the customer's profile. Returns true on success, false if the user
+   * lacks points or the reward id is unknown.
+   */
+  claimReward: (rewardId: string) => boolean;
+  /** Mark a previously-claimed reward to be applied to the next order. */
+  applyRewardToOrder: (rewardId: string) => boolean;
+  /** Drop the in-progress reward selection without consuming it. */
+  removeAppliedReward: () => void;
+  /** Reward credits the customer has claimed but not yet applied. */
+  availableRewards: string[];
+  /** Reward currently selected for the in-progress checkout, or null. */
+  appliedRewardId: string | null;
   setSelectedRestaurant: (restaurantId: string) => void;
   setSelectedPartnerRestaurant: (restaurantId: string) => void;
   setSelectedDriver: (driverId: string) => void;
@@ -976,6 +1037,12 @@ export function AppStateProvider({
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [joinedRewards, setJoinedRewards] = useState(false);
   const [rewardsEmail, setRewardsEmail] = useState(defaultProfile.email);
+  const [availableRewards, setAvailableRewards] = useState<string[]>([]);
+  /**
+   * Reward credit applied to the in-progress order. Cleared once the
+   * order is placed (or the user backs out of checkout).
+   */
+  const [appliedRewardId, setAppliedRewardId] = useState<string | null>(null);
   const [savedLocationOptions, setSavedLocationOptions] = useState<string[]>([]);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState(
     defaultRestaurant?.id ?? "",
@@ -1317,6 +1384,9 @@ export function AppStateProvider({
                 ...firestoreProfile.settings,
               }));
             }
+            if (Array.isArray(firestoreProfile.availableRewards)) {
+              setAvailableRewards(firestoreProfile.availableRewards);
+            }
           } else {
             const resolvedFullName = resolveProfileName(
               user.displayName,
@@ -1372,6 +1442,8 @@ export function AppStateProvider({
         setOrderHistory(initialOrderHistory);
         setDeclinedAssignmentIds([]);
         setSettings(defaultSettings);
+        setAvailableRewards([]);
+        setAppliedRewardId(null);
       }
     });
 
@@ -1382,6 +1454,8 @@ export function AppStateProvider({
 
   const value = useMemo<AppStateValue>(
     () => ({
+      appliedRewardId,
+      availableRewards,
       cartItems,
       cartQuantity,
       declinedAssignmentIds,
@@ -1743,6 +1817,38 @@ export function AppStateProvider({
             rewardsTier: nextTier,
           };
         });
+      },
+      claimReward: (rewardId: string) => {
+        const reward = rewardCatalog.find((entry) => entry.id === rewardId);
+        if (!reward) return false;
+        if (profile.rewardsPoints < reward.pointsCost) return false;
+        const nextPoints = profile.rewardsPoints - reward.pointsCost;
+        const nextTier = computeRewardsTier(nextPoints);
+        const nextAvailable = [...availableRewards, reward.id];
+        setProfile((current) => ({
+          ...current,
+          rewardsPoints: nextPoints,
+          rewardsTier: nextTier,
+        }));
+        setAvailableRewards(nextAvailable);
+        if (currentUser) {
+          void saveUserProfile(currentUser.uid, {
+            rewardsPoints: nextPoints,
+            rewardsTier: nextTier,
+            availableRewards: nextAvailable,
+          }).catch((error) => {
+            console.error("Failed to persist reward claim:", error);
+          });
+        }
+        return true;
+      },
+      applyRewardToOrder: (rewardId: string) => {
+        if (!availableRewards.includes(rewardId)) return false;
+        setAppliedRewardId(rewardId);
+        return true;
+      },
+      removeAppliedReward: () => {
+        setAppliedRewardId(null);
       },
       setSelectedRestaurant: (restaurantId: string) => {
         setSelectedRestaurantId(restaurantId);
@@ -2447,7 +2553,16 @@ export function AppStateProvider({
           const subtotal = getCartSubtotal(cartItems);
           const taxes = getCartTaxes(cartItems);
           const tip = getTipAmount(cartItems, selectedTip, customTip);
-          const total = subtotal + taxes + checkoutPricing.deliveryFee + tip;
+          const reward = appliedRewardId
+            ? rewardCatalog.find((entry) => entry.id === appliedRewardId)
+            : null;
+          // Reward discount caps at the subtotal so the customer can't be
+          // refunded extra cash beyond what they spent on items.
+          const rewardDiscount = reward
+            ? Math.min(reward.value, subtotal)
+            : 0;
+          const total =
+            subtotal + taxes + checkoutPricing.deliveryFee + tip - rewardDiscount;
           const restaurantNames = [
             ...new Set(cartItems.map((item) => item.restaurantName)),
           ];
@@ -2480,6 +2595,13 @@ export function AppStateProvider({
               deliveryNote: profile.deliveryNote,
               specialInstructions: "",
               paymentMethodId: selectedCardId,
+              appliedReward: reward
+                ? {
+                    id: reward.id,
+                    name: reward.name,
+                    value: rewardDiscount,
+                  }
+                : undefined,
             });
           } else {
             console.log("Using guest checkout mode - user not authenticated");
@@ -2539,6 +2661,26 @@ export function AppStateProvider({
             ...current,
           ]);
 
+          // Consume the applied reward credit (if any) so it can't be
+          // re-used on a later order. The discount has already been
+          // subtracted from `total` above.
+          if (reward) {
+            const remainingRewards = [...availableRewards];
+            const idx = remainingRewards.indexOf(reward.id);
+            if (idx >= 0) {
+              remainingRewards.splice(idx, 1);
+            }
+            setAvailableRewards(remainingRewards);
+            setAppliedRewardId(null);
+            if (currentUser) {
+              void saveUserProfile(currentUser.uid, {
+                availableRewards: remainingRewards,
+              }).catch((error) => {
+                console.error("Failed to persist reward consumption:", error);
+              });
+            }
+          }
+
           // Award rewards points: 1 point per dollar of subtotal (tax + tip
           // excluded so a customer can't farm points by tipping themselves).
           // Tier auto-bumps based on lifetime balance.
@@ -2583,6 +2725,8 @@ export function AppStateProvider({
       adminFeedback,
       adminOrders,
       adminRestaurants,
+      appliedRewardId,
+      availableRewards,
       joinedRewards,
       orderHistory,
       profile,
@@ -2656,6 +2800,12 @@ export function getTipAmount(
   const rate = Number.parseInt(selectedTip.replace("%", ""), 10);
 
   if (Number.isNaN(rate)) {
+    return 0;
+  }
+
+  // 0% tip is now an explicit option, so return 0 directly without
+  // falling back to a default percentage.
+  if (rate === 0) {
     return 0;
   }
 

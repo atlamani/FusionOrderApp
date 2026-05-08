@@ -1,11 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
-import { useAppState } from "./appState";
+import { rewardCatalog } from "./appData";
+import { getRewardProgress, useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
 import {
   getSafeHeaderTopPadding,
@@ -16,8 +17,35 @@ import { colors, spacing, typography } from "./theme";
 export default function RewardsClubScreen() {
   const insets = useSafeAreaInsets();
   const headerTopPadding = getSafeHeaderTopPadding(insets.top);
-  const { joinedRewards, profile, rewardsEmail } = useAppState();
-  const progress = Math.min(100, Math.round((profile.rewardsPoints / 450) * 100));
+  const {
+    availableRewards,
+    claimReward,
+    joinedRewards,
+    profile,
+    rewardsEmail,
+  } = useAppState();
+  const { next, remaining, ratio, reachedAll } = getRewardProgress(
+    profile.rewardsPoints,
+  );
+  const progressPct = Math.round(ratio * 100);
+  const ladder = [...rewardCatalog].sort(
+    (a, b) => a.pointsCost - b.pointsCost,
+  );
+
+  const handleClaim = (rewardId: string, name: string) => {
+    const ok = claimReward(rewardId);
+    if (ok) {
+      Alert.alert(
+        "Reward claimed",
+        `${name} added to your account. Apply it on your next checkout.`,
+      );
+    } else {
+      Alert.alert(
+        "Not enough points",
+        "Keep ordering to reach this reward's threshold.",
+      );
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -46,27 +74,75 @@ export default function RewardsClubScreen() {
           <Text style={styles.heroTitle}>{profile.rewardsTier}</Text>
           <Text style={styles.heroPoints}>{profile.rewardsPoints} pts</Text>
           <Text style={styles.heroCopy}>
-            {joinedRewards
-              ? `Rewards are active for ${rewardsEmail}. Keep ordering to unlock your next dessert.`
-              : "Join rewards from the confirmation flow to start collecting points on each order."}
+            {reachedAll
+              ? "You've unlocked every reward — claim them below or keep banking points."
+              : remaining === 0
+                ? `${next.name} unlocked! Claim it below.`
+                : `${remaining} pt${remaining === 1 ? "" : "s"} away from ${next.name.toLowerCase()}.`}
           </Text>
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress}%` }]} />
+            <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
           </View>
+          {joinedRewards ? (
+            <Text style={styles.heroSub}>Active for {rewardsEmail}.</Text>
+          ) : null}
         </FadeInView>
 
-        <FadeInView delay={160} style={styles.card}>
-          <Text style={styles.cardTitle}>Member perks</Text>
-          {[
-            "Free dessert after 450 points",
-            "Priority access to seasonal drops",
-            "One-tap reorder recommendations on Home",
-          ].map((perk) => (
-            <View key={perk} style={styles.perkRow}>
-              <Feather name="check-circle" size={16} color={colors.surface} />
-              <Text style={styles.perkText}>{perk}</Text>
+        {availableRewards.length > 0 ? (
+          <FadeInView delay={140} style={styles.claimedCard}>
+            <View style={styles.claimedHeader}>
+              <Feather name="gift" size={18} color={colors.background} />
+              <Text style={styles.claimedTitle}>
+                {availableRewards.length} reward
+                {availableRewards.length === 1 ? "" : "s"} ready to use
+              </Text>
             </View>
-          ))}
+            <Text style={styles.claimedCopy}>
+              Apply one at checkout to take it off your next order.
+            </Text>
+          </FadeInView>
+        ) : null}
+
+        <FadeInView delay={160} style={styles.card}>
+          <Text style={styles.cardTitle}>Reward ladder</Text>
+          {ladder.map((entry) => {
+            const owned = availableRewards.filter((id) => id === entry.id).length;
+            const canClaim = profile.rewardsPoints >= entry.pointsCost;
+            return (
+              <View key={entry.id} style={styles.rewardRow}>
+                <View style={styles.rewardCopy}>
+                  <Text style={styles.rewardName}>{entry.name}</Text>
+                  <Text style={styles.rewardDescription}>
+                    {entry.description}
+                  </Text>
+                  <Text style={styles.rewardCost}>
+                    {entry.pointsCost} pts · ${entry.value.toFixed(2)} off
+                    {owned > 0 ? ` · ${owned} ready` : ""}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Claim ${entry.name}`}
+                  hitSlop={8}
+                  disabled={!canClaim}
+                  style={[
+                    styles.claimButton,
+                    !canClaim && styles.claimButtonDisabled,
+                  ]}
+                  onPress={() => handleClaim(entry.id, entry.name)}
+                >
+                  <Text
+                    style={[
+                      styles.claimButtonText,
+                      !canClaim && styles.claimButtonTextDisabled,
+                    ]}
+                  >
+                    {canClaim ? "Claim" : "Locked"}
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
         </FadeInView>
 
         <FadeInView delay={220} style={styles.actions}>
@@ -165,6 +241,80 @@ const styles = StyleSheet.create({
     fontFamily: typography.body,
     fontSize: 14,
     color: colors.text,
+  },
+  heroSub: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.74)",
+    marginTop: 4,
+  },
+  claimedCard: {
+    backgroundColor: colors.surfaceDeep,
+    borderRadius: 18,
+    padding: 16,
+    gap: 6,
+  },
+  claimedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  claimedTitle: {
+    fontFamily: typography.display,
+    fontSize: 16,
+    color: colors.background,
+  },
+  claimedCopy: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: "rgba(236, 227, 206, 0.84)",
+  },
+  rewardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  rewardCopy: { flex: 1, gap: 2 },
+  rewardName: {
+    fontFamily: typography.display,
+    fontSize: 15,
+    color: colors.primary,
+  },
+  rewardDescription: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+  },
+  rewardCost: {
+    fontFamily: typography.display,
+    fontSize: 11,
+    color: colors.surfaceDeep,
+  },
+  claimButton: {
+    minWidth: 84,
+    minHeight: 38,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  claimButtonDisabled: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  claimButtonText: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    color: colors.background,
+  },
+  claimButtonTextDisabled: {
+    color: colors.textMuted,
   },
   actions: {
     gap: spacing.sm,
