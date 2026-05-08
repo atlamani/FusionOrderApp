@@ -35,6 +35,8 @@ export async function processCheckout(orderData: {
     name: string;
     value: number;
   };
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
 }): Promise<string> {
   try {
     // Check if user is authenticated
@@ -82,6 +84,12 @@ export async function processCheckout(orderData: {
       issue: null,
       ...(orderData.appliedReward
         ? { appliedReward: orderData.appliedReward }
+        : {}),
+      ...(typeof orderData.deliveryLatitude === "number"
+        ? { deliveryLatitude: orderData.deliveryLatitude }
+        : {}),
+      ...(typeof orderData.deliveryLongitude === "number"
+        ? { deliveryLongitude: orderData.deliveryLongitude }
         : {}),
     };
 

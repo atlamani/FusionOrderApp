@@ -46,22 +46,31 @@ export function getRestaurantCoordinate(
 }
 
 /**
- * Returns a sensible "delivery destination" coordinate for delivery
- * preview flows on checkout / order tracking / driver route screens.
+ * Returns the delivery destination coordinate for map previews on
+ * checkout / order tracking / driver route screens.
  *
- * If a `pickup` coordinate is provided, the destination is placed roughly
- * half a mile away from it so the route line on the map represents a
- * believable delivery distance regardless of how far the restaurant is
- * from campus.
- *
- * Without a pickup anchor, falls back to a fixed offset near campus.
- *
- * Once real saved-address geocoding is wired up, this should read from
- * the user's selected delivery address instead.
+ * Preferred source — `customer` lat/lng (the geocoded saved address on
+ * the user profile). Falls back to a deterministic offset from the
+ * pickup coordinate so old orders without geocoded coords still draw a
+ * sensible route line.
  */
 export function getDeliveryCoordinate(
   pickup?: MapCoordinate | undefined,
+  customer?:
+    | { latitude?: number; longitude?: number }
+    | null
+    | undefined,
 ): MapCoordinate {
+  if (
+    customer &&
+    typeof customer.latitude === "number" &&
+    typeof customer.longitude === "number"
+  ) {
+    return {
+      latitude: customer.latitude,
+      longitude: customer.longitude,
+    };
+  }
   if (pickup) {
     // ~0.005 deg ≈ 0.35 mi at NYC latitudes. Offset to the SE so the
     // route line reads naturally on the map.

@@ -59,8 +59,12 @@ export default function CheckoutScreen() {
     [cartRestaurant],
   );
   const destinationCoord = useMemo(
-    () => getDeliveryCoordinate(pickupCoord),
-    [pickupCoord],
+    () =>
+      getDeliveryCoordinate(pickupCoord, {
+        latitude: profile.latitude,
+        longitude: profile.longitude,
+      }),
+    [pickupCoord, profile.latitude, profile.longitude],
   );
 
   const isEmpty = cartItems.length === 0;

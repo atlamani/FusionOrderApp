@@ -117,6 +117,8 @@ service cloud.firestore {
           "customer",
           "deliveryAddress",
           "deliveryFee",
+          "deliveryLatitude",
+          "deliveryLongitude",
           "deliveryNote",
           "driver",
           "driverId",

@@ -53,6 +53,8 @@ type TrackingOrder = {
   total: number | string;
   deliveryAddress?: string;
   deliveryNote?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
   issueStatus?: "open" | "in_progress" | "resolved";
   issueResolutionMessage?: string;
   driverLatitude?: number;
@@ -134,6 +136,14 @@ const fromFirebaseOrder = (order: Order): TrackingOrder => ({
   driverLongitude:
     typeof order.driverLongitude === "number"
       ? order.driverLongitude
+      : undefined,
+  deliveryLatitude:
+    typeof order.deliveryLatitude === "number"
+      ? order.deliveryLatitude
+      : undefined,
+  deliveryLongitude:
+    typeof order.deliveryLongitude === "number"
+      ? order.deliveryLongitude
       : undefined,
 });
 
@@ -273,8 +283,21 @@ export default function OrderTrackingScreen() {
     [orderRestaurant],
   );
   const destinationCoord = useMemo(
-    () => getDeliveryCoordinate(pickupCoord),
-    [pickupCoord],
+    () =>
+      getDeliveryCoordinate(pickupCoord, {
+        // Order doc holds the geocoded customer coords captured at
+        // checkout — fall back to the live profile coords if the order
+        // pre-dates that field.
+        latitude: displayOrder?.deliveryLatitude ?? profile.latitude,
+        longitude: displayOrder?.deliveryLongitude ?? profile.longitude,
+      }),
+    [
+      displayOrder?.deliveryLatitude,
+      displayOrder?.deliveryLongitude,
+      pickupCoord,
+      profile.latitude,
+      profile.longitude,
+    ],
   );
 
   if (loading && !displayOrder) {

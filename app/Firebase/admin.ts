@@ -375,7 +375,34 @@ function sanitizeAdminOrder(
     ),
     issue: resolvedIssue,
     issueReport: sanitizeIssueReport(orderData.issueReport),
+    items: sanitizeOrderItems(orderData.items),
+    deliveryLatitude:
+      typeof orderData.deliveryLatitude === "number"
+        ? orderData.deliveryLatitude
+        : undefined,
+    deliveryLongitude:
+      typeof orderData.deliveryLongitude === "number"
+        ? orderData.deliveryLongitude
+        : undefined,
   };
+}
+
+function sanitizeOrderItems(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const item = entry as { name?: unknown; quantity?: unknown };
+      const name =
+        typeof item.name === "string" && item.name.trim() ? item.name : null;
+      if (!name) return null;
+      const quantity =
+        typeof item.quantity === "number" && Number.isFinite(item.quantity)
+          ? item.quantity
+          : 1;
+      return `${name} x${quantity}`;
+    })
+    .filter((line): line is string => line !== null);
 }
 
 function sanitizeIssueReport(value: unknown) {

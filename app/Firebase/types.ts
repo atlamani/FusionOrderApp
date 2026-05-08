@@ -7,6 +7,14 @@ export interface UserProfile {
   photoURL?: string;
   phone?: string;
   address?: string;
+  /**
+   * Geocoded coordinates of the customer's saved delivery address.
+   * Populated by the address book / profile screens when Google
+   * Geocoding succeeds. Drives nearby restaurant discovery and the
+   * destination pin on every map.
+   */
+  latitude?: number;
+  longitude?: number;
   deliveryNote?: string;
   /**
    * User's collection of saved delivery addresses. The currently active
@@ -124,6 +132,13 @@ export interface Order {
    * is in progress. The customer's order tracking subscribes to these
    * fields and renders a live marker on the map.
    */
+  /**
+   * Customer's geocoded delivery coordinates captured at checkout time.
+   * Persisted on the order doc so the destination pin keeps showing the
+   * right spot even if the customer later changes their saved address.
+   */
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
   driverLatitude?: number;
   driverLongitude?: number;
   driverLocationUpdatedAt?:
@@ -214,6 +229,9 @@ export interface AdminOrder {
   driverId?: string | null;
   driverName?: string | null;
   deliveryAddress?: string;
+  /** Geocoded customer coords captured at checkout. */
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
   issue: string | null;
   issueReport?: OrderIssueReport | null;
   /** Pre-formatted item lines like "Margherita x1" for staff queue cards. */

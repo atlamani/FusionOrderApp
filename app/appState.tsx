@@ -61,6 +61,9 @@ type AdminOrder = (typeof initialAdminOrders)[number] & {
   issueReport?: import("./Firebase/types").OrderIssueReport | null;
   /** Pre-formatted item lines for staff queue cards. */
   items?: string[];
+  /** Geocoded customer coords for the destination pin on driver maps. */
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
 };
 type AdminRestaurant = (typeof initialAdminRestaurants)[number];
 type AdminRestaurantMenuItem = AdminRestaurant["menuItems"][number];
@@ -159,6 +162,12 @@ type UserProfile = {
   email: string;
   phone: string;
   address: string;
+  /**
+   * Geocoded coordinates of the customer's saved address, when
+   * available. Drives location-aware discovery + destination pins.
+   */
+  latitude?: number;
+  longitude?: number;
   deliveryNote: string;
   rewardsPoints: number;
   rewardsTier: string;
@@ -1110,11 +1119,25 @@ export function AppStateProvider({
   useEffect(() => {
     let cancelled = false;
 
+    // Use the customer's geocoded address as the discovery anchor when
+    // we have it; otherwise fall back to the hardcoded campus center
+    // so guests still see something useful.
+    const anchorLocation =
+      typeof profile.latitude === "number" &&
+      typeof profile.longitude === "number"
+        ? { latitude: profile.latitude, longitude: profile.longitude }
+        : campusLocation;
+    const anchorRadius =
+      typeof profile.latitude === "number" &&
+      typeof profile.longitude === "number"
+        ? 5000
+        : campusLocation.radiusMeters;
+
     const loadDiscovery = async () => {
       setRestaurantDataLoading(true);
       const discovery = await loadRestaurantDiscovery({
-        location: campusLocation,
-        radiusMeters: campusLocation.radiusMeters,
+        location: anchorLocation,
+        radiusMeters: anchorRadius,
       });
 
       if (cancelled) {
@@ -1137,6 +1160,8 @@ export function AppStateProvider({
     };
   }, [
     currentUser?.uid,
+    profile.latitude,
+    profile.longitude,
     selectedDriverId,
     selectedPartnerRestaurantId,
     sessionMode,
@@ -1364,6 +1389,14 @@ export function AppStateProvider({
               email: firestoreProfile.email || user.email || "",
               phone: firestoreProfile.phone || "",
               address: firestoreProfile.address || "",
+              latitude:
+                typeof firestoreProfile.latitude === "number"
+                  ? firestoreProfile.latitude
+                  : undefined,
+              longitude:
+                typeof firestoreProfile.longitude === "number"
+                  ? firestoreProfile.longitude
+                  : undefined,
               deliveryNote: firestoreProfile.deliveryNote || "",
               rewardsPoints: firestoreProfile.rewardsPoints || 0,
               rewardsTier: firestoreProfile.rewardsTier || "Bronze Member",
@@ -1686,9 +1719,14 @@ export function AppStateProvider({
         }
       },
       updateAddress: async (address: string, deliveryNote?: string) => {
+        // Optimistic local update so the UI reacts immediately. Coords
+        // are cleared up front and then refilled from the geocode reply
+        // — that way stale lat/lng never trail a brand-new address.
         setProfile((current) => ({
           ...current,
           address,
+          latitude: undefined,
+          longitude: undefined,
           deliveryNote: deliveryNote ?? current.deliveryNote,
         }));
 
@@ -1696,11 +1734,41 @@ export function AppStateProvider({
           try {
             await saveUserProfile(currentUser.uid, {
               address,
+              latitude: undefined as unknown as number | undefined,
+              longitude: undefined as unknown as number | undefined,
               deliveryNote: deliveryNote ?? "",
             });
           } catch (error) {
             console.error("Error saving address to Firestore:", error);
           }
+        }
+
+        // Geocode in the background so location-aware features (Home,
+        // Search, Checkout/Order map destination pins) snap to the new
+        // address. Falls back silently when the API key isn't enabled
+        // for Geocoding — caller already has the address string.
+        try {
+          const { geocodeAddress } = await import("./services/geocoding");
+          const result = await geocodeAddress(address);
+          if (result) {
+            setProfile((current) =>
+              current.address === address
+                ? {
+                    ...current,
+                    latitude: result.latitude,
+                    longitude: result.longitude,
+                  }
+                : current,
+            );
+            if (currentUser) {
+              await saveUserProfile(currentUser.uid, {
+                latitude: result.latitude,
+                longitude: result.longitude,
+              });
+            }
+          }
+        } catch (error) {
+          console.warn("Address geocode failed:", error);
         }
       },
       addSavedAddress: async (address: string) => {
@@ -1904,9 +1972,19 @@ export function AppStateProvider({
       resetDiscoveryFilters: () => setDiscoveryFilters(defaultFilters),
       refreshRestaurants: async (keyword?: string) => {
         setRestaurantDataLoading(true);
+        const customerLocation =
+          typeof profile.latitude === "number" &&
+          typeof profile.longitude === "number"
+            ? { latitude: profile.latitude, longitude: profile.longitude }
+            : campusLocation;
+        const customerRadius =
+          typeof profile.latitude === "number" &&
+          typeof profile.longitude === "number"
+            ? 5000
+            : campusLocation.radiusMeters;
         const discovery = await loadRestaurantDiscovery({
-          location: campusLocation,
-          radiusMeters: campusLocation.radiusMeters,
+          location: customerLocation,
+          radiusMeters: customerRadius,
           keyword,
         });
         setRestaurantDiscovery(discovery);
@@ -2602,6 +2680,14 @@ export function AppStateProvider({
                     value: rewardDiscount,
                   }
                 : undefined,
+              deliveryLatitude:
+                typeof profile.latitude === "number"
+                  ? profile.latitude
+                  : undefined,
+              deliveryLongitude:
+                typeof profile.longitude === "number"
+                  ? profile.longitude
+                  : undefined,
             });
           } else {
             console.log("Using guest checkout mode - user not authenticated");

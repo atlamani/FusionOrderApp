@@ -95,9 +95,21 @@ export default function DriverRouteScreen() {
     () => getRestaurantCoordinate(orderRestaurant),
     [orderRestaurant],
   );
+  // Pull the customer's geocoded delivery coords off the order doc so
+  // the destination pin lands at the address the customer entered, not
+  // an offset from the pickup location.
+  const liveOrderDoc = useMemo(() => {
+    return adminOrders.find((entry) => entry.id === activeOrder?.id) as
+      | { deliveryLatitude?: number; deliveryLongitude?: number }
+      | undefined;
+  }, [activeOrder?.id, adminOrders]);
   const destinationCoord = useMemo(
-    () => getDeliveryCoordinate(pickupCoord),
-    [pickupCoord],
+    () =>
+      getDeliveryCoordinate(pickupCoord, {
+        latitude: liveOrderDoc?.deliveryLatitude,
+        longitude: liveOrderDoc?.deliveryLongitude,
+      }),
+    [liveOrderDoc?.deliveryLatitude, liveOrderDoc?.deliveryLongitude, pickupCoord],
   );
 
   // Pull live GPS while a delivery is in progress so the customer's
@@ -245,6 +257,53 @@ export default function DriverRouteScreen() {
             </View>
           ) : null}
 
+          {pickupComplete ? (
+            userLocation.error ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry location permission"
+                style={styles.locationCardError}
+                onPress={() => userLocation.refetch()}
+              >
+                <Feather name="alert-triangle" size={16} color={colors.danger} />
+                <View style={styles.locationCardCopy}>
+                  <Text style={styles.locationCardTitle}>
+                    Location sharing off
+                  </Text>
+                  <Text style={styles.locationCardDetail}>
+                    {userLocation.error}. Tap to retry — the customer can&apos;t
+                    see you on the map without it.
+                  </Text>
+                </View>
+              </Pressable>
+            ) : userLocation.latitude == null ? (
+              <View style={styles.locationCardWaiting}>
+                <Feather name="navigation" size={16} color={colors.warning} />
+                <View style={styles.locationCardCopy}>
+                  <Text style={styles.locationCardTitle}>
+                    Waiting for GPS...
+                  </Text>
+                  <Text style={styles.locationCardDetail}>
+                    Allow Location when prompted so the customer can track your
+                    drop.
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.locationCardLive}>
+                <Feather name="radio" size={16} color={colors.success} />
+                <View style={styles.locationCardCopy}>
+                  <Text style={styles.locationCardTitle}>
+                    Sharing live location
+                  </Text>
+                  <Text style={styles.locationCardDetail}>
+                    Customer sees your pin update every ~15 seconds.
+                  </Text>
+                </View>
+              </View>
+            )
+          ) : null}
+
           {!pickupComplete ? (
             <Pressable
               style={styles.primaryButton}
@@ -368,6 +427,42 @@ const styles = StyleSheet.create({
   },
   detailTextWarning: {
     color: colors.warning,
+  },
+  locationCardLive: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "#ECFDF3",
+  },
+  locationCardWaiting: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "#FFF4E6",
+  },
+  locationCardError: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "#FEF2F2",
+  },
+  locationCardCopy: { flex: 1, gap: 2 },
+  locationCardTitle: {
+    fontFamily: typography.display,
+    fontSize: 14,
+    color: colors.primary,
+  },
+  locationCardDetail: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
   },
   primaryButton: {
     minHeight: 46,
