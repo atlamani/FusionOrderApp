@@ -48,18 +48,6 @@ const adminActions = [
     route: "/admin-analytics",
   },
   {
-    id: "approvals",
-    title: "Approvals",
-    icon: "check-square",
-    route: "/admin-restaurants",
-  },
-  {
-    id: "drivers",
-    title: "Fleet Snapshot",
-    icon: "navigation",
-    route: "/admin-analytics",
-  },
-  {
     id: "support",
     title: "Support Inbox",
     icon: "message-circle",
