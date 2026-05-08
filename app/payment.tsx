@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   SafeAreaView,
@@ -24,6 +24,7 @@ import {
   useAppState,
 } from "./appState";
 import { goBackOrReplace } from "./navigation";
+import { GuestSignupModal } from "../components/GuestSignupModal";
 import { colors, typography } from "./theme";
 
 type SplitPaymentCard = {
@@ -36,17 +37,57 @@ export default function PaymentScreen() {
   const insets = useSafeAreaInsets();
   const {
     cartItems,
+    currentUser,
     customTip,
     placeOrder,
     savedCardsExpanded,
     selectedCardId,
     selectedTip,
+    sessionMode,
     toggleSavedCardsExpanded,
     selectCard,
   } = useAppState();
   const [splitPayEnabled, setSplitPayEnabled] = useState(false);
   const [splitCards, setSplitCards] = useState<SplitPaymentCard[]>([]);
   const [splitMode, setSplitMode] = useState<"equal" | "custom">("equal");
+  const [signupVisible, setSignupVisible] = useState(false);
+  const [pendingPlaceOrder, setPendingPlaceOrder] = useState(false);
+  const [submittingOrder, setSubmittingOrder] = useState(false);
+  // Tracks the user we expect to appear after a guest signup. Once the
+  // appState's `currentUser` matches a non-null value, we run the
+  // deferred placeOrder.
+  const expectedUserAfterSignupRef = useRef<string | null>(null);
+
+  const isGuest = sessionMode === "guest" || !currentUser;
+
+  const placeOrderAndNavigate = async () => {
+    setSubmittingOrder(true);
+    try {
+      const orderId = await placeOrder();
+      router.push(
+        orderId
+          ? `/order-placed?orderId=${encodeURIComponent(orderId)}`
+          : "/order-placed",
+      );
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      Alert.alert("Checkout failed", "Failed to process order. Please try again.");
+    } finally {
+      setSubmittingOrder(false);
+    }
+  };
+
+  // After a guest signs up via the modal, wait for the React state's
+  // currentUser to update (auth listener is async) and then place the
+  // order under their fresh account so it lands in Firestore properly.
+  useEffect(() => {
+    if (!pendingPlaceOrder) return;
+    if (!currentUser) return;
+    setPendingPlaceOrder(false);
+    expectedUserAfterSignupRef.current = null;
+    void placeOrderAndNavigate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPlaceOrder, currentUser]);
 
   const subtotal = getCartSubtotal(cartItems);
   const taxes = getCartTaxes(cartItems);
@@ -529,38 +570,58 @@ export default function PaymentScreen() {
             !hasItems && styles.footerButtonDisabled,
           ]}
           onPress={async () => {
-            if (hasItems) {
-              if (splitPayEnabled && splitCards.length === 0) {
-                Alert.alert("Add a payment method", "Choose at least one saved card for split pay.");
-                return;
-              }
-
-              if (splitMismatch) {
-                Alert.alert("Check split pay", "Split amounts need to match the order total before confirming.");
-                return;
-              }
-
-              try {
-                const orderId = await placeOrder();
-                router.push(
-                  orderId
-                    ? `/order-placed?orderId=${encodeURIComponent(orderId)}`
-                    : "/order-placed",
-                );
-              } catch (error: any) {
-                console.error("Checkout error:", error);
-                Alert.alert("Checkout failed", "Failed to process order. Please try again.");
-              }
-            } else {
+            if (!hasItems) {
               router.replace("/checkout");
+              return;
             }
+            if (splitPayEnabled && splitCards.length === 0) {
+              Alert.alert(
+                "Add a payment method",
+                "Choose at least one saved card for split pay.",
+              );
+              return;
+            }
+            if (splitMismatch) {
+              Alert.alert(
+                "Check split pay",
+                "Split amounts need to match the order total before confirming.",
+              );
+              return;
+            }
+
+            // Guests must create (or sign into) an account before the
+            // order can be persisted to Firestore. Open the inline
+            // signup modal — once Firebase Auth accepts the new
+            // credentials, the deferred useEffect places the order.
+            if (isGuest) {
+              setSignupVisible(true);
+              return;
+            }
+
+            void placeOrderAndNavigate();
           }}
         >
           <Text style={styles.footerButtonText}>
-            {hasItems ? "Confirm Order" : "Return to Checkout"}
+            {!hasItems
+              ? "Return to Checkout"
+              : isGuest
+                ? "Create account & confirm"
+                : submittingOrder
+                  ? "Placing order..."
+                  : "Confirm Order"}
           </Text>
         </Pressable>
       </View>
+
+      <GuestSignupModal
+        visible={signupVisible}
+        onClose={() => setSignupVisible(false)}
+        onAccountCreated={(email) => {
+          expectedUserAfterSignupRef.current = email;
+          setSignupVisible(false);
+          setPendingPlaceOrder(true);
+        }}
+      />
     </SafeAreaView>
   );
 }

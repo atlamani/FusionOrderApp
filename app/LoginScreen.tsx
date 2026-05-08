@@ -1,15 +1,18 @@
 import { Feather } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
 import React, { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import AuthScreenLayout from "./AuthScreenLayout";
 import { CustomButton } from "./customButton";
 import { CustomInput } from "./customTextField";
-import { signInUser, signInWithGoogle } from "./Firebase/auth";
+import { signInUser, signInWithGoogle, signUpUser } from "./Firebase/auth";
 import SocialButton from "./socialButton";
 import { colors, spacing, typography } from "./theme";
 
+type AuthMode = "login" | "signup";
+
 export default function LoginScreen() {
+  const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<
@@ -17,19 +20,30 @@ export default function LoginScreen() {
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const canSubmit = email.trim().length > 0 && password.trim().length > 0;
+  const canSubmit =
+    email.trim().length > 0 &&
+    password.trim().length >= (mode === "signup" ? 6 : 1);
+  const isSignup = mode === "signup";
 
   const handleLogin = async () => {
     if (!canSubmit) {
       setStatus("error");
-      setErrorMessage("Add both fields to continue");
+      setErrorMessage(
+        isSignup
+          ? "Email plus a password of 6+ characters."
+          : "Add both fields to continue",
+      );
       return;
     }
 
     setStatus("loading");
 
     try {
-      await signInUser(email.trim(), password);
+      if (isSignup) {
+        await signUpUser(email.trim(), password);
+      } else {
+        await signInUser(email.trim(), password);
+      }
 
       setStatus("success");
       router.push("/home");
@@ -44,12 +58,24 @@ export default function LoginScreen() {
         setErrorMessage("Invalid email or password");
       } else if (error.code === "auth/invalid-email") {
         setErrorMessage("That email address is invalid.");
+      } else if (error.code === "auth/email-already-in-use") {
+        setErrorMessage(
+          "An account already exists for that email — try signing in instead.",
+        );
+      } else if (error.code === "auth/weak-password") {
+        setErrorMessage("Pick a password with at least 6 characters.");
       } else {
         setErrorMessage("An unexpected error occurred. Try again.");
       }
 
       console.error(error);
     }
+  };
+
+  const handleToggleMode = () => {
+    setMode((current) => (current === "login" ? "signup" : "login"));
+    setStatus("idle");
+    setErrorMessage("");
   };
 
   const handleGoogleSignIn = async () => {
@@ -71,24 +97,27 @@ export default function LoginScreen() {
     <AuthScreenLayout
       backHref="/"
       eyebrow="FusionYum"
-      title="Welcome back"
-      subtitle="Sign in to continue your orders, favorites, and delivery updates."
+      title={isSignup ? "Welcome to FusionYum" : "Welcome back"}
+      subtitle={
+        isSignup
+          ? "Create your account in 30 seconds. Email + password is all we need."
+          : "Sign in to continue your orders, favorites, and delivery updates."
+      }
       footer={
         <View style={styles.actions}>
           <View style={styles.primaryBlock}>
-            <View style={styles.helperCard}>
-              <Feather name="circle" size={16} color={colors.surfaceDeep} />
-              <Text style={styles.helperCardText}>
-                Use a Firebase test account here, or continue as guest from the welcome screen.
-              </Text>
-            </View>
-
             {status === "error" ? (
               <Text style={styles.errorText}>{errorMessage}</Text>
             ) : null}
 
             <CustomButton
-              title={status === "success" ? "Ready" : "Login"}
+              title={
+                status === "success"
+                  ? "Ready"
+                  : isSignup
+                    ? "Create account"
+                    : "Login"
+              }
               onPress={handleLogin}
               disabled={!canSubmit && status !== "error"}
               loading={status === "loading"}
@@ -100,6 +129,25 @@ export default function LoginScreen() {
                 />
               }
             />
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                isSignup ? "Switch to sign in" : "Switch to create account"
+              }
+              hitSlop={8}
+              onPress={handleToggleMode}
+              style={styles.toggleRow}
+            >
+              <Text style={styles.toggleText}>
+                {isSignup
+                  ? "Already have an account? "
+                  : "New to FusionYum? "}
+                <Text style={styles.toggleEmphasis}>
+                  {isSignup ? "Sign in" : "Create one"}
+                </Text>
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.dividerRow}>
@@ -136,9 +184,13 @@ export default function LoginScreen() {
     >
       <View style={styles.form}>
         <View style={styles.formIntro}>
-          <Text style={styles.formTitle}>Login to your account</Text>
+          <Text style={styles.formTitle}>
+            {isSignup ? "Create your account" : "Login to your account"}
+          </Text>
           <Text style={styles.formSubtitle}>
-            Keep your saved places, order history, and rewards in sync.
+            {isSignup
+              ? "Your account stores your favorites, order history, rewards balance, and saved address."
+              : "Keep your saved places, order history, and rewards in sync."}
           </Text>
         </View>
 
@@ -173,9 +225,11 @@ export default function LoginScreen() {
           }}
         />
 
-        <Link href="/passwordReset" style={styles.link}>
-          Forgot your password?
-        </Link>
+        {isSignup ? null : (
+          <Link href="/passwordReset" style={styles.link}>
+            Forgot your password?
+          </Link>
+        )}
       </View>
     </AuthScreenLayout>
   );
@@ -212,6 +266,19 @@ const styles = StyleSheet.create({
   },
   primaryBlock: {
     gap: spacing.sm,
+  },
+  toggleRow: {
+    paddingTop: 4,
+    alignItems: "center",
+  },
+  toggleText: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  toggleEmphasis: {
+    fontFamily: typography.display,
+    color: colors.primary,
   },
   helperCard: {
     borderRadius: 16,
