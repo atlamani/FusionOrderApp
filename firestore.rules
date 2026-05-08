@@ -112,6 +112,7 @@ service cloud.firestore {
         request.resource.data.restaurantId is string &&
         request.resource.data.keys().hasOnly([
           "adminStatus",
+          "appliedReward",
           "createdAt",
           "customer",
           "deliveryAddress",
@@ -390,6 +391,50 @@ service cloud.firestore {
       // Reviews are immutable once published — admins can clean up if
       // needed, but customers can't edit their own posts.
       allow update, delete: if isAdmin();
+    }
+
+    // Customer-filed support tickets that route to the manager console.
+    function isSupportTicketCreate() {
+      return isSignedIn() &&
+        request.resource.data.keys().hasOnly([
+          "userId",
+          "customerName",
+          "customerEmail",
+          "topic",
+          "topicLabel",
+          "ticketCode",
+          "message",
+          "status",
+          "messages",
+          "createdAt",
+          "updatedAt"
+        ]) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() >= 5 &&
+        request.resource.data.status == "open";
+    }
+
+    // The ticket owner can append a message to their own thread without
+    // changing status / resolution. Admin updates are unrestricted via
+    // the broader `isAdmin()` branch below.
+    function isCustomerAppendsSupportMessage() {
+      return isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "messages",
+          "updatedAt"
+        ]);
+    }
+
+    match /supportTickets/{ticketId} {
+      // Owners can read their own; admins can read all.
+      allow read: if isAdmin() ||
+        (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isAdmin() || isSupportTicketCreate();
+      // Admins update freely; ticket owners may append messages only.
+      allow update: if isAdmin() || isCustomerAppendsSupportMessage();
+      allow delete: if isAdmin();
     }
   }
 }
