@@ -5,6 +5,7 @@ import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "rea
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "../FadeInView";
 import { CustomButton } from "../customButton";
+import LogoutButton from "../../components/LogoutButton";
 import { profileShortcuts } from "../appData";
 import { getInitials, getRewardProgress, useAppState } from "../appState";
 import { getSafeContentTopPadding } from "../safeHeaderLayout";
@@ -20,7 +21,7 @@ const routeMap: Record<string, string> = {
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerTopPadding = getSafeContentTopPadding(insets.top);
-  const { logout, profile, sessionMode } = useAppState();
+  const { profile, sessionMode } = useAppState();
   const isSignedOut = sessionMode === "signed-out";
   const isAdmin = sessionMode === "admin";
   const isRestaurant = sessionMode === "restaurant";
@@ -88,13 +89,9 @@ export default function ProfileScreen() {
               <CustomButton title="Open Admin Dashboard" variant="secondary" onPress={() => router.push("/admin-dashboard")} />
             </FadeInView>
 
-            <CustomButton
-              title="Log Out"
-              variant="ghost"
-              onPress={() => {
-                logout();
-                router.replace("/");
-              }}
+            <LogoutButton
+              accessibilityLabel="Log out of admin account"
+              message="You'll need to sign back in to continue managing the platform."
             />
           </>
         ) : isRestaurant ? (
@@ -108,13 +105,9 @@ export default function ProfileScreen() {
               <CustomButton title="Open Restaurant Dashboard" variant="secondary" onPress={() => router.push("/restaurant-dashboard")} />
             </FadeInView>
 
-            <CustomButton
-              title="Log Out"
-              variant="ghost"
-              onPress={() => {
-                logout();
-                router.replace("/");
-              }}
+            <LogoutButton
+              accessibilityLabel="Log out of restaurant account"
+              message="You'll need to sign back in to continue managing this location."
             />
           </>
         ) : isDriver ? (
@@ -128,13 +121,9 @@ export default function ProfileScreen() {
               <CustomButton title="Open Driver Dashboard" variant="secondary" onPress={() => router.push("/driver-dashboard")} />
             </FadeInView>
 
-            <CustomButton
-              title="Log Out"
-              variant="ghost"
-              onPress={() => {
-                logout();
-                router.replace("/");
-              }}
+            <LogoutButton
+              accessibilityLabel="Log out of driver account"
+              message="You'll need to sign back in to continue your shift."
             />
           </>
         ) : (
@@ -201,13 +190,9 @@ export default function ProfileScreen() {
               <Feather name="chevron-right" size={18} color={colors.textMuted} />
             </Pressable>
 
-            <CustomButton
-              title="Log Out"
-              variant="ghost"
-              onPress={() => {
-                logout();
-                router.replace("/");
-              }}
+            <LogoutButton
+              accessibilityLabel="Log out of FusionYum account"
+              message="You'll need to sign back in to access your saved addresses, rewards, and order history."
             />
           </>
         )}

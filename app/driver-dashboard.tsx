@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import StaffAccessGate from "./StaffAccessGate";
@@ -14,11 +14,12 @@ import {
 } from "./rolePortalLayout";
 import { getDriverMetrics } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
+import LogoutButton from "../components/LogoutButton";
 
 export default function DriverDashboardScreen() {
   const insets = useSafeAreaInsets();
   const headerTopPadding = getRolePortalTopInset(insets.top);
-  const { adminOrders, driverProfiles, logout, selectedDriverId } = useAppState();
+  const { adminOrders, driverProfiles, selectedDriverId } = useAppState();
 
   const activeDriver = useMemo(
     () => driverProfiles.find((driver) => driver.id === selectedDriverId),
@@ -48,24 +49,6 @@ export default function DriverDashboardScreen() {
     );
   }
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Log out?",
-      "You'll need to sign back in to continue your shift.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log out",
-          style: "destructive",
-          onPress: () => {
-            logout();
-            router.dismissTo("/");
-          },
-        },
-      ],
-    );
-  };
-
   return (
     <StaffAccessGate role="driver">
       <SafeAreaView style={styles.safeArea}>
@@ -83,20 +66,8 @@ export default function DriverDashboardScreen() {
         <FadeInView delay={80} style={styles.hero}>
           <View style={styles.heroCopy}>
             <Text style={styles.eyebrow}>Driver Console</Text>
-            <Text style={styles.title}>{activeDriver.name}</Text>
-            <Text style={styles.subtitle}>{`${activeDriver.vehicle} | ${activeDriver.zone} | ${activeDriver.status}`}</Text>
-          </View>
-        </FadeInView>
-
-        <FadeInView delay={100} style={styles.identityCard}>
-          <View style={styles.identityIcon}>
-            <Feather name="lock" size={16} color={colors.background} />
-          </View>
-          <View style={styles.identityCopy}>
-            <Text style={styles.identityTitle}>Signed-in driver profile</Text>
-            <Text style={styles.identityText}>
-              {activeDriver.name} only. Other driver profiles are visible to managers, not couriers.
-            </Text>
+            <Text style={styles.title}>Today&apos;s shift</Text>
+            <Text style={styles.subtitle}>{activeDriver.zone}</Text>
           </View>
         </FadeInView>
 
@@ -148,16 +119,10 @@ export default function DriverDashboardScreen() {
           </Pressable>
         </View>
 
-        <Pressable
+        <LogoutButton
           accessibilityLabel="Log out of driver account"
-          accessibilityRole="button"
-          hitSlop={10}
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Feather name="log-out" size={16} color={colors.danger} />
-          <Text style={styles.logoutButtonText}>Log out</Text>
-        </Pressable>
+          message="You'll need to sign back in to continue your shift."
+        />
       </ScrollView>
       </SafeAreaView>
     </StaffAccessGate>
@@ -283,21 +248,4 @@ const styles = StyleSheet.create({
   linkCopy: { flex: 1, gap: 4 },
   linkTitle: { fontFamily: typography.display, fontSize: 18, color: colors.primary },
   linkDetail: { fontFamily: typography.body, fontSize: 13, lineHeight: 18, color: colors.textMuted },
-  logoutButton: {
-    marginTop: spacing.md,
-    minHeight: 50,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  logoutButtonText: {
-    fontFamily: typography.display,
-    fontSize: 14,
-    color: colors.danger,
-  },
 });

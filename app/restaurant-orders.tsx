@@ -1,7 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo } from "react";
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import StaffAccessGate from "./StaffAccessGate";
@@ -12,42 +11,30 @@ import {
   rolePortalHeaderSize,
 } from "./rolePortalLayout";
 import { colors, spacing, typography } from "./theme";
+import LogoutButton from "../components/LogoutButton";
 
 export default function RestaurantOrdersScreen() {
   const insets = useSafeAreaInsets();
   const headerTopPadding = getRolePortalTopInset(insets.top);
   const {
     adminOrders,
-    logout,
     selectedPartnerRestaurantId,
     sessionMode,
     updateAdminOrderStatus,
   } = useAppState();
-
-  const handleLogout = () => {
-    Alert.alert(
-      "Log out?",
-      "You'll need to sign back in to continue managing orders.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log out",
-          style: "destructive",
-          onPress: () => {
-            logout();
-            router.replace("/");
-          },
-        },
-      ],
-    );
-  };
 
   // The Google aggregator account fulfills orders for any restaurant
   // discovered via the Google Places API. Match every order whose
   // restaurantId carries the `google-` prefix instead of a single one.
   const isGoogleAggregator = sessionMode === "googleAggregator";
 
-  const orders = useMemo(
+  // Per-session dismissal of completed orders so the operator can clear
+  // queue clutter without deleting historical records from Firestore.
+  const [dismissedCompletedIds, setDismissedCompletedIds] = useState<
+    Set<string>
+  >(() => new Set());
+
+  const scopedOrders = useMemo(
     () =>
       isGoogleAggregator
         ? adminOrders.filter((order) =>
@@ -58,6 +45,26 @@ export default function RestaurantOrdersScreen() {
           ),
     [adminOrders, isGoogleAggregator, selectedPartnerRestaurantId],
   );
+
+  const orders = useMemo(
+    () => scopedOrders.filter((order) => !dismissedCompletedIds.has(order.id)),
+    [dismissedCompletedIds, scopedOrders],
+  );
+
+  const completedCount = useMemo(
+    () => orders.filter((order) => order.status === "Completed").length,
+    [orders],
+  );
+
+  const handleClearCompleted = () => {
+    setDismissedCompletedIds((current) => {
+      const next = new Set(current);
+      orders
+        .filter((order) => order.status === "Completed")
+        .forEach((order) => next.add(order.id));
+      return next;
+    });
+  };
 
   return (
     <StaffAccessGate role="restaurant">
@@ -99,6 +106,21 @@ export default function RestaurantOrdersScreen() {
           </FadeInView>
         ) : null}
 
+        {completedCount > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Clear ${completedCount} completed order${completedCount === 1 ? "" : "s"}`}
+            hitSlop={10}
+            style={styles.clearCompletedButton}
+            onPress={handleClearCompleted}
+          >
+            <Feather name="check-square" size={14} color={colors.surfaceDeep} />
+            <Text style={styles.clearCompletedText}>
+              Clear {completedCount} completed
+            </Text>
+          </Pressable>
+        ) : null}
+
         {orders.length === 0 ? (
           <FadeInView delay={90} style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No kitchen orders</Text>
@@ -124,6 +146,22 @@ export default function RestaurantOrdersScreen() {
                 <Text style={styles.statusText}>{order.status}</Text>
               </View>
             </View>
+
+            {order.items && order.items.length > 0 ? (
+              <View style={styles.itemsList}>
+                {order.items.slice(0, 4).map((line, idx) => (
+                  <Text key={`${order.id}-item-${idx}`} style={styles.itemLine}>
+                    • {line}
+                  </Text>
+                ))}
+                {order.items.length > 4 ? (
+                  <Text style={styles.itemLineMore}>
+                    + {order.items.length - 4} more item
+                    {order.items.length - 4 === 1 ? "" : "s"}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
 
             <View style={styles.driverRow}>
               <Feather name="truck" size={15} color={colors.surfaceDeep} />
@@ -174,16 +212,10 @@ export default function RestaurantOrdersScreen() {
           </FadeInView>
         ))}
 
-        <Pressable
+        <LogoutButton
           accessibilityLabel="Log out of staff account"
-          accessibilityRole="button"
-          hitSlop={10}
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Feather name="log-out" size={16} color={colors.danger} />
-          <Text style={styles.logoutButtonText}>Log out</Text>
-        </Pressable>
+          message="You'll need to sign back in to continue managing orders."
+        />
       </ScrollView>
       </SafeAreaView>
     </StaffAccessGate>
@@ -269,6 +301,42 @@ const styles = StyleSheet.create({
   },
   statusText: { fontFamily: typography.display, fontSize: 12, color: colors.surfaceDeep },
   driverRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  itemsList: {
+    gap: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+  },
+  itemLine: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.text,
+  },
+  itemLineMore: {
+    fontFamily: typography.body,
+    fontSize: 11,
+    color: colors.textMuted,
+    fontStyle: "italic",
+  },
+  clearCompletedButton: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  clearCompletedText: {
+    fontFamily: typography.display,
+    fontSize: 12,
+    color: colors.surfaceDeep,
+  },
   driverText: { fontFamily: typography.body, fontSize: 13, color: colors.text },
   issueBanner: {
     borderRadius: 14,
@@ -310,21 +378,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   doneText: { fontFamily: typography.display, fontSize: 14, color: colors.success },
-  logoutButton: {
-    marginTop: spacing.md,
-    minHeight: 50,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  logoutButtonText: {
-    fontFamily: typography.display,
-    fontSize: 14,
-    color: colors.danger,
-  },
 });

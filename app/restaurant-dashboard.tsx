@@ -2,7 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
-  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -21,6 +20,7 @@ import {
 } from "./rolePortalLayout";
 import { getRestaurantMetrics } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
+import LogoutButton from "../components/LogoutButton";
 
 export default function RestaurantDashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -29,7 +29,6 @@ export default function RestaurantDashboardScreen() {
     adminOrders,
     adminRestaurants,
     getRestaurantMenuSections,
-    logout,
     selectedPartnerRestaurantId,
     sessionMode,
   } = useAppState();
@@ -77,17 +76,10 @@ export default function RestaurantDashboardScreen() {
                 Open Google Queue
               </Text>
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              hitSlop={12}
-              style={styles.aggregatorSecondary}
-              onPress={() => {
-                logout();
-                router.dismissTo("/");
-              }}
-            >
-              <Text style={styles.aggregatorSecondaryText}>Sign out</Text>
-            </Pressable>
+            <LogoutButton
+              accessibilityLabel="Log out of Google aggregator account"
+              message="You'll need to sign back in to continue managing Google-sourced orders."
+            />
           </View>
         </SafeAreaView>
       </StaffAccessGate>
@@ -108,24 +100,6 @@ export default function RestaurantDashboardScreen() {
       </StaffAccessGate>
     );
   }
-
-  const handleLogout = () => {
-    Alert.alert(
-      "Log out?",
-      "You'll need to sign back in to continue managing this location.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log out",
-          style: "destructive",
-          onPress: () => {
-            logout();
-            router.dismissTo("/");
-          },
-        },
-      ],
-    );
-  };
 
   return (
     <StaffAccessGate role="restaurant">
@@ -211,16 +185,10 @@ export default function RestaurantDashboardScreen() {
           </Pressable>
         </View>
 
-        <Pressable
+        <LogoutButton
           accessibilityLabel="Log out of restaurant account"
-          accessibilityRole="button"
-          hitSlop={10}
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Feather name="log-out" size={16} color={colors.danger} />
-          <Text style={styles.logoutButtonText}>Log out</Text>
-        </Pressable>
+          message="You'll need to sign back in to continue managing this location."
+        />
       </ScrollView>
       </SafeAreaView>
     </StaffAccessGate>
@@ -267,19 +235,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.display,
     fontSize: 14,
     color: colors.background,
-  },
-  aggregatorSecondary: {
-    marginTop: 6,
-    minHeight: 40,
-    paddingHorizontal: 22,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  aggregatorSecondaryText: {
-    fontFamily: typography.body,
-    fontSize: 13,
-    color: colors.textMuted,
   },
   navRow: {
     minHeight: 54,
@@ -427,22 +382,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: colors.textMuted,
-  },
-  logoutButton: {
-    marginTop: spacing.md,
-    minHeight: 50,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  logoutButtonText: {
-    fontFamily: typography.display,
-    fontSize: 14,
-    color: colors.danger,
   },
 });

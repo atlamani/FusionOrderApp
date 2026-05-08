@@ -2,7 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
-  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -21,6 +20,7 @@ import {
 } from "./rolePortalLayout";
 import { countMenuItems, getAdminMetrics } from "./services/roleMetrics";
 import { colors, spacing, typography } from "./theme";
+import LogoutButton from "../components/LogoutButton";
 
 const adminActions = [
   {
@@ -59,6 +59,12 @@ const adminActions = [
     icon: "navigation",
     route: "/admin-analytics",
   },
+  {
+    id: "support",
+    title: "Support Inbox",
+    icon: "message-circle",
+    route: "/admin-support",
+  },
 ] as const;
 
 export default function AdminDashboardScreen() {
@@ -70,26 +76,7 @@ export default function AdminDashboardScreen() {
     adminRestaurants,
     driverProfiles,
     getRestaurantMenuSections,
-    logout,
   } = useAppState();
-
-  const handleLogout = () => {
-    Alert.alert(
-      "Log out?",
-      "You'll need to sign back in to continue managing the platform.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log out",
-          style: "destructive",
-          onPress: () => {
-            logout();
-            router.dismissTo("/");
-          },
-        },
-      ],
-    );
-  };
 
   const metrics = useMemo(() => {
     return getAdminMetrics({
@@ -246,17 +233,11 @@ export default function AdminDashboardScreen() {
           </FadeInView>
         ))}
 
-        <FadeInView delay={620} style={styles.logoutRow}>
-          <Pressable
-            accessibilityLabel="Log out"
-            accessibilityRole="button"
-            hitSlop={10}
-            style={({ pressed }) => [styles.logoutButton, pressed && styles.pressedLink]}
-            onPress={handleLogout}
-          >
-            <Feather name="log-out" size={18} color={colors.danger} />
-            <Text style={styles.logoutText}>Log Out</Text>
-          </Pressable>
+        <FadeInView delay={620}>
+          <LogoutButton
+            accessibilityLabel="Log out of admin account"
+            message="You'll need to sign back in to continue managing the platform."
+          />
         </FadeInView>
       </ScrollView>
       </SafeAreaView>
@@ -505,28 +486,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  logoutRow: {
-    alignItems: "center",
-    paddingTop: 4,
-  },
-  logoutButton: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 18,
-  },
-  logoutText: {
-    fontFamily: typography.body,
-    fontSize: 25,
-    color: colors.danger,
-  },
   pressedButton: {
     opacity: 0.78,
     transform: [{ scale: 0.97 }],
-  },
-  pressedLink: {
-    opacity: 0.72,
   },
   pressedTile: {
     opacity: 0.82,
