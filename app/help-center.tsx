@@ -1,11 +1,26 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FadeInView from "./FadeInView";
 import { CustomButton } from "./customButton";
 import { faqEntries, helpTopics } from "./appData";
+import {
+  subscribeToCustomerSupportTickets,
+  submitSupportTicket,
+  type SupportTicket,
+} from "./Firebase/supportTickets";
+import { useAppState } from "./appState";
 import { goBackOrReplace } from "./navigation";
 import {
   getSafeHeaderTopPadding,
@@ -22,7 +37,59 @@ export default function HelpCenterScreen() {
     [params.topic],
   );
   const [selectedTopic, setSelectedTopic] = useState(initialTopic);
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [myTickets, setMyTickets] = useState<SupportTicket[]>([]);
+  const { currentUser } = useAppState();
+
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setMyTickets([]);
+      return undefined;
+    }
+    const unsubscribe = subscribeToCustomerSupportTickets(
+      currentUser.uid,
+      setMyTickets,
+      (error) => {
+        console.warn("Could not load my support tickets:", error);
+      },
+    );
+    return () => unsubscribe();
+  }, [currentUser?.uid]);
+
+  const handleSubmit = async () => {
+    if (message.trim().length < 5) {
+      Alert.alert(
+        "Tell us a bit more",
+        "Add a few words about what you need help with so the team can review it.",
+      );
+      return;
+    }
+    const topicConfig = helpTopics.find((t) => t.id === selectedTopic);
+    if (!topicConfig) return;
+    setSubmitting(true);
+    try {
+      const ticketId = await submitSupportTicket({
+        topic: topicConfig.id,
+        topicLabel: topicConfig.title,
+        message,
+      });
+      setMessage("");
+      router.push({
+        pathname: "/support-thread",
+        params: { id: ticketId },
+      });
+    } catch (error) {
+      const friendly =
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again.";
+      Alert.alert("Couldn't submit", friendly);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -86,20 +153,98 @@ export default function HelpCenterScreen() {
         </FadeInView>
 
         <FadeInView delay={220} style={styles.card}>
-          <Text style={styles.cardTitle}>Quick actions</Text>
+          <Text style={styles.cardTitle}>Open a support ticket</Text>
+          <Text style={styles.helperText}>
+            Describe what&apos;s going on and a manager will follow up in-app.
+          </Text>
+          <TextInput
+            accessibilityLabel="Support message"
+            multiline
+            placeholder="Tell the support team what happened..."
+            placeholderTextColor="rgba(31, 42, 31, 0.44)"
+            style={styles.messageInput}
+            value={message}
+            onChangeText={(value) => {
+              setMessage(value);
+              if (requestSent) setRequestSent(false);
+            }}
+            editable={!submitting}
+          />
           <View style={styles.actionRow}>
-            <CustomButton title="Start Chat" onPress={() => setRequestSent(true)} />
-            <CustomButton title="Latest Receipt" variant="surface" onPress={() => router.push("/order-receipt")} />
+            <CustomButton
+              title={submitting ? "Sending..." : "Start Chat"}
+              onPress={handleSubmit}
+              disabled={submitting}
+            />
+            <CustomButton
+              title="Latest Receipt"
+              variant="surface"
+              onPress={() => router.push("/order-receipt")}
+            />
           </View>
           {requestSent ? (
             <View style={styles.confirmationCard}>
               <Feather name="check-circle" size={18} color={colors.success} />
               <Text style={styles.confirmationText}>
-                Support request queued for the {selectedTopic} team. A specialist will reply in-app shortly.
+                Ticket sent to the manager support inbox. We&apos;ll reach out
+                shortly.
               </Text>
             </View>
           ) : null}
         </FadeInView>
+
+        {myTickets.length > 0 ? (
+          <FadeInView delay={260} style={styles.card}>
+            <Text style={styles.cardTitle}>My tickets</Text>
+            {myTickets.slice(0, 5).map((ticket) => {
+              const lastMessage =
+                ticket.messages.length > 0
+                  ? ticket.messages[ticket.messages.length - 1].body
+                  : ticket.message;
+              return (
+                <Pressable
+                  key={ticket.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ticket ${ticket.ticketCode}`}
+                  style={styles.ticketRow}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/support-thread",
+                      params: { id: ticket.id },
+                    })
+                  }
+                >
+                  <View style={styles.ticketCopy}>
+                    <Text style={styles.ticketTopic}>
+                      {ticket.ticketCode} · {ticket.topicLabel}
+                    </Text>
+                    <Text style={styles.ticketMessage} numberOfLines={2}>
+                      {lastMessage}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.ticketStatusPill,
+                      ticket.status === "resolved"
+                        ? styles.ticketStatusResolved
+                        : ticket.status === "in_progress"
+                          ? styles.ticketStatusInProgress
+                          : styles.ticketStatusOpen,
+                    ]}
+                  >
+                    <Text style={styles.ticketStatusText}>
+                      {ticket.status === "resolved"
+                        ? "Resolved"
+                        : ticket.status === "in_progress"
+                          ? "Working"
+                          : "Open"}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </FadeInView>
+        ) : null}
 
         <FadeInView delay={280} style={styles.card}>
           <Text style={styles.cardTitle}>Frequently asked</Text>
@@ -214,6 +359,59 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     gap: spacing.sm,
+  },
+  helperText: {
+    fontFamily: typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
+  messageInput: {
+    minHeight: 96,
+    borderRadius: 14,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    fontFamily: typography.body,
+    fontSize: 14,
+    color: colors.text,
+    textAlignVertical: "top",
+  },
+  ticketRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  ticketCopy: { flex: 1, gap: 2 },
+  ticketTopic: {
+    fontFamily: typography.display,
+    fontSize: 13,
+    color: colors.primary,
+  },
+  ticketMessage: {
+    fontFamily: typography.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+  },
+  ticketStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  ticketStatusOpen: { backgroundColor: "#FFF4E6" },
+  ticketStatusInProgress: { backgroundColor: "rgba(115,144,114,0.18)" },
+  ticketStatusResolved: { backgroundColor: "#ECFDF3" },
+  ticketStatusText: {
+    fontFamily: typography.display,
+    fontSize: 10,
+    color: colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   confirmationCard: {
     borderRadius: 16,
